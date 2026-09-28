@@ -53,6 +53,17 @@ const I18N = {
     err_invalid_regex: 'Invalid regular expression',
     err_tag_not_found: 'Tag not found',
     err_live_logsql: 'Live view is not available in LogsQL mode',
+    dateTime: 'Date & time',
+    tzLabel: 'Time zone',
+    fmtLabel: 'Reception time format',
+    tzBrowser: (z) => `Browser time zone (${z})`,
+    tzGroups: { General: 'General', Europe: 'Europe', Africa: 'Africa', America: 'Americas', Asia: 'Asia', Oceania: 'Oceania & Pacific', Other: 'Atlantic & Indian Ocean' },
+    fmtEpoch: 'Unix epoch (milliseconds)',
+    timePreview: 'Preview: ',
+    timeHelp: 'The reception time comes from the server clock. The time zone applies to every date shown.',
+    fReceived: 'received',
+    rcvTitle: 'Received by the server',
+    msgTimeTitle: 'Timestamp from the message',
   },
   fr: {
     locale: 'fr-FR',
@@ -104,6 +115,17 @@ const I18N = {
     err_invalid_regex: 'Expression régulière invalide',
     err_tag_not_found: 'Tag introuvable',
     err_live_logsql: 'Le direct n\'est pas disponible en mode LogsQL',
+    dateTime: 'Date et heure',
+    tzLabel: 'Fuseau horaire',
+    fmtLabel: 'Format de l\'heure de réception',
+    tzBrowser: (z) => `Fuseau du navigateur (${z})`,
+    tzGroups: { General: 'Général', Europe: 'Europe', Africa: 'Afrique', America: 'Amériques', Asia: 'Asie', Oceania: 'Océanie et Pacifique', Other: 'Atlantique et océan Indien' },
+    fmtEpoch: 'Epoch Unix (millisecondes)',
+    timePreview: 'Aperçu : ',
+    timeHelp: 'L\'heure de réception provient de l\'horloge du serveur. Le fuseau horaire s\'applique à toutes les dates affichées.',
+    fReceived: 'réception',
+    rcvTitle: 'Reçu par le serveur',
+    msgTimeTitle: 'Horodatage contenu dans le message',
   },
 };
 
@@ -133,6 +155,82 @@ const fmtNum = (n) => Number(n || 0).toLocaleString(t('locale'));
 
 // Date.parse only accepts 3 decimals everywhere: drop the nanoseconds.
 const parseTime = (s) => new Date(String(s || '').replace(/(\.\d{3})\d+/, '$1'));
+
+/* ================= Time zones and time formats ================= */
+
+const TIME_ZONES = {
+  General: ['UTC'],
+  Europe: ['Europe/London', 'Europe/Dublin', 'Europe/Lisbon', 'Europe/Paris', 'Europe/Brussels', 'Europe/Amsterdam',
+    'Europe/Luxembourg', 'Europe/Berlin', 'Europe/Zurich', 'Europe/Madrid', 'Europe/Rome', 'Europe/Vienna',
+    'Europe/Prague', 'Europe/Warsaw', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen', 'Europe/Helsinki',
+    'Europe/Athens', 'Europe/Bucharest', 'Europe/Kyiv', 'Europe/Istanbul', 'Europe/Moscow'],
+  Africa: ['Africa/Casablanca', 'Africa/Algiers', 'Africa/Tunis', 'Africa/Dakar', 'Africa/Abidjan', 'Africa/Lagos',
+    'Africa/Cairo', 'Africa/Nairobi', 'Africa/Johannesburg'],
+  America: ['America/St_Johns', 'America/Halifax', 'America/Montreal', 'America/Toronto', 'America/New_York',
+    'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Vancouver',
+    'America/Anchorage', 'America/Mexico_City', 'America/Martinique', 'America/Guadeloupe', 'America/Cayenne',
+    'America/Bogota', 'America/Lima', 'America/Santiago', 'America/Sao_Paulo', 'America/Buenos_Aires'],
+  Asia: ['Asia/Dubai', 'Asia/Tehran', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Kathmandu', 'Asia/Dhaka', 'Asia/Bangkok',
+    'Asia/Ho_Chi_Minh', 'Asia/Jakarta', 'Asia/Singapore', 'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Taipei',
+    'Asia/Manila', 'Asia/Seoul', 'Asia/Tokyo'],
+  Oceania: ['Australia/Perth', 'Australia/Adelaide', 'Australia/Brisbane', 'Australia/Sydney', 'Pacific/Noumea',
+    'Pacific/Auckland', 'Pacific/Tahiti', 'Pacific/Honolulu'],
+  Other: ['Atlantic/Reykjavik', 'Atlantic/Azores', 'Atlantic/Canary', 'Indian/Reunion', 'Indian/Mayotte', 'Indian/Mauritius'],
+};
+
+// Each format receives the date parts in the selected time zone (and the Date itself).
+const TIME_FORMATS = [
+  { id: 'ymd-dash', label: 'YYYY-MM-DD - HH:MM:SS:mmm', f: (p) => `${p.Y}-${p.M}-${p.D} - ${p.h}:${p.m}:${p.s}:${p.ms}` },
+  { id: 'ymd-ms', label: 'YYYY-MM-DD HH:MM:SS.mmm', f: (p) => `${p.Y}-${p.M}-${p.D} ${p.h}:${p.m}:${p.s}.${p.ms}` },
+  { id: 'ymd', label: 'YYYY-MM-DD HH:MM:SS', f: (p) => `${p.Y}-${p.M}-${p.D} ${p.h}:${p.m}:${p.s}` },
+  { id: 'dmy-ms', label: 'DD/MM/YYYY HH:MM:SS.mmm', f: (p) => `${p.D}/${p.M}/${p.Y} ${p.h}:${p.m}:${p.s}.${p.ms}` },
+  { id: 'dmy', label: 'DD/MM/YYYY HH:MM:SS', f: (p) => `${p.D}/${p.M}/${p.Y} ${p.h}:${p.m}:${p.s}` },
+  { id: 'mdy12', label: 'MM/DD/YYYY hh:MM:SS.mmm AM/PM', f: (p) => {
+    const H = Number(p.h);
+    return `${p.M}/${p.D}/${p.Y} ${pad(H % 12 || 12)}:${p.m}:${p.s}.${p.ms} ${H < 12 ? 'AM' : 'PM'}`;
+  } },
+  { id: 'time-ms', label: 'HH:MM:SS.mmm', f: (p) => `${p.h}:${p.m}:${p.s}.${p.ms}` },
+  { id: 'iso', label: 'ISO 8601 (YYYY-MM-DDTHH:MM:SS.mmm+hh:mm)', f: (p) => `${p.Y}-${p.M}-${p.D}T${p.h}:${p.m}:${p.s}.${p.ms}${p.off === '+00:00' ? 'Z' : p.off}` },
+  { id: 'epoch', label: null, f: (p, d) => String(d.getTime()) },
+];
+
+const timePrefs = { tz: '', fmt: 'ymd-dash' }; // tz '' = browser time zone
+const partsFormatters = new Map();
+
+function validTimeZone(tz) {
+  if (!tz) return true;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch { return false; }
+}
+
+// Date parts in a time zone ('' = browser zone), plus the UTC offset as "+hh:mm".
+function zoneParts(date, tz = timePrefs.tz) {
+  let f = partsFormatters.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'longOffset',
+    });
+    partsFormatters.set(tz, f);
+  }
+  const p = {};
+  for (const x of f.formatToParts(date)) p[x.type] = x.value;
+  const off = (p.timeZoneName || 'GMT').replace('GMT', '') || '+00:00';
+  return {
+    Y: p.year, M: p.month, D: p.day, h: p.hour === '24' ? '00' : p.hour, m: p.minute, s: p.second,
+    ms: pad(date.getUTCMilliseconds(), 3), off,
+  };
+}
+
+function fmtWith(fmtId, date) {
+  const fmt = TIME_FORMATS.find((x) => x.id === fmtId) || TIME_FORMATS[0];
+  return fmt.f(zoneParts(date), date);
+}
+
+// Full date in the selected format (reception time, details panel).
+function fmtFull(s) {
+  const d = parseTime(s);
+  return isNaN(d) ? String(s ?? '') : fmtWith(timePrefs.fmt, d);
+}
 
 async function api(url, opts = {}) {
   if (opts.body && typeof opts.body !== 'string') {
@@ -207,6 +305,7 @@ function setLang(next) {
   renderHisto(state.histo);
   renderStats();
   renderTagList();
+  renderTimeSettings();
 }
 
 $('#langSwitch').addEventListener('click', (ev) => {
@@ -323,15 +422,17 @@ const SEV_CLASS = { emerg: 'crit', alert: 'crit', crit: 'crit', err: 'err', warn
 function fmtTime(s) {
   const d = parseTime(s);
   if (isNaN(d)) return esc(s);
-  const day = lang === 'fr' ? `${pad(d.getDate())}/${pad(d.getMonth() + 1)}` : `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
-  return `${day} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}<span class="ms">.${pad(d.getMilliseconds(), 3)}</span>`;
+  const p = zoneParts(d);
+  const day = lang === 'fr' ? `${p.D}/${p.M}` : `${p.M}/${p.D}`;
+  return `${day} ${p.h}:${p.m}:${p.s}<span class="ms">.${p.ms}</span>`;
 }
 
 function rowHTML(r, isNew) {
   const sev = r.severity || '';
   const cls = SEV_CLASS[sev] || 'info';
   return `<article class="row sev-${cls}${isNew ? ' new' : ''}" tabindex="0">`
-    + `<time>${fmtTime(r._time)}</time>`
+    + `<time class="rcv" title="${esc(t('rcvTitle'))}">${r.received ? esc(fmtFull(r.received)) : '—'}</time>`
+    + `<time class="mt" title="${esc(t('msgTimeTitle'))}">${fmtTime(r._time)}</time>`
     + `<span class="sev">${esc(sev || '—')}</span>`
     + `<span class="host" title="${esc(r.host)}">${esc(r.host)}</span>`
     + `<span class="app" title="${esc(r.app)}">${esc(r.app)}</span>`
@@ -382,13 +483,13 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['_time', 'host', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const order = ['received', '_time', 'host', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
   const hidden = new Set(['_stream_id', '_stream', 'sevnum']);
   const keys = order.filter((k) => r[k] != null && r[k] !== '')
     .concat(Object.keys(r).filter((k) => !order.includes(k) && !hidden.has(k)).sort());
-  const label = { _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
-  const val = (k) => (k === '_time'
-    ? `${esc(parseTime(r[k]).toLocaleString(t('locale')))} <span class="muted">(${esc(r[k])})</span>`
+  const label = { received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
+  const val = (k) => (k === '_time' || k === 'received'
+    ? `${esc(fmtFull(r[k]))} <span class="muted">(${esc(r[k])})</span>`
     : esc(r[k]));
   return '<div class="details"><dl>'
     + keys.map((k) => `<dt>${esc(label[k] || k)}</dt><dd>${val(k)}</dd>`).join('')
@@ -462,7 +563,10 @@ function renderHisto(h) {
   const loc = t('locale');
   const label = (k) => {
     const d = new Date(k * stepMs);
-    return stepMs >= 864e5 ? d.toLocaleDateString(loc) : d.toLocaleString(loc, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const timeZone = timePrefs.tz || undefined;
+    return stepMs >= 864e5
+      ? d.toLocaleDateString(loc, { timeZone })
+      : d.toLocaleString(loc, { timeZone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
   let bars = '';
   for (let k = start; k <= end; k++) {
@@ -627,6 +731,50 @@ async function loadStats() {
   renderStats();
 }
 
+/* ================= Date & time settings ================= */
+
+function renderTimeSettings() {
+  const now = new Date();
+  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
+  const offsetOf = (z) => 'UTC' + zoneParts(now, z).off;
+  const groups = t('tzGroups');
+
+  let html = `<option value="">${esc(t('tzBrowser', browserZone))}</option>`;
+  for (const [group, zones] of Object.entries(TIME_ZONES)) {
+    html += `<optgroup label="${esc(groups[group] || group)}">`;
+    for (const z of zones) {
+      if (!validTimeZone(z)) continue;
+      html += `<option value="${z}">${esc(z.replace(/_/g, ' '))} (${offsetOf(z)})</option>`;
+    }
+    html += '</optgroup>';
+  }
+  const tzSel = $('#tzSelect');
+  tzSel.innerHTML = html;
+  tzSel.value = timePrefs.tz;
+
+  const fmtSel = $('#fmtSelect');
+  fmtSel.innerHTML = TIME_FORMATS.map((f) => `<option value="${f.id}">${esc(f.label || t('fmtEpoch'))}</option>`).join('');
+  fmtSel.value = timePrefs.fmt;
+  updateTimePreview();
+}
+
+function updateTimePreview() {
+  $('#timePreview').textContent = t('timePreview') + fmtWith(timePrefs.fmt, new Date());
+}
+
+function onTimePrefsChange() {
+  timePrefs.tz = $('#tzSelect').value;
+  timePrefs.fmt = $('#fmtSelect').value;
+  store.set('tz', timePrefs.tz);
+  store.set('timefmt', timePrefs.fmt);
+  updateTimePreview();
+  renderList();
+  renderHisto(state.histo);
+}
+$('#tzSelect').addEventListener('change', onTimePrefsChange);
+$('#fmtSelect').addEventListener('change', onTimePrefsChange);
+setInterval(() => { if ($('#settingsDlg').open) updateTimePreview(); }, 1000);
+
 /* ================= Tag management ================= */
 
 const PALETTE = ['#6366f1', '#0ea5e9', '#14b8a6', '#a855f7', '#ec4899', '#eab308', '#64748b', '#f97316'];
@@ -727,12 +875,18 @@ $('#resetTags').addEventListener('click', async () => {
   } catch (e) { toast(e.message); }
 });
 
-$('#settingsBtn').addEventListener('click', () => { renderTagList(); $('#settingsDlg').showModal(); });
+$('#settingsBtn').addEventListener('click', () => { renderTimeSettings(); renderTagList(); $('#settingsDlg').showModal(); });
 $('#closeSettings').addEventListener('click', () => $('#settingsDlg').close());
 $('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });
 
 /* ================= Startup ================= */
 
+{
+  const tz = store.get('tz', '');
+  timePrefs.tz = validTimeZone(tz) ? tz : '';
+  const fmt = store.get('timefmt', 'ymd-dash');
+  timePrefs.fmt = TIME_FORMATS.some((f) => f.id === fmt) ? fmt : 'ymd-dash';
+}
 applyLang();
 $('#range').value = store.get('range', '1h');
 if (!$('#range').value) $('#range').value = '1h';

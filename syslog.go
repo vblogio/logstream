@@ -22,7 +22,8 @@ var facilityNames = [24]string{
 
 // Entry is a decoded syslog message.
 type Entry struct {
-	Time     time.Time
+	Time     time.Time // timestamp from the message header (or reception time if absent)
+	Received time.Time // reception time, from the server clock
 	Host     string
 	App      string
 	ProcID   string
@@ -39,6 +40,7 @@ type Entry struct {
 func (e *Entry) Record() map[string]string {
 	r := map[string]string{
 		"_time":    e.Time.UTC().Format(time.RFC3339Nano),
+		"received": e.Received.UTC().Format(time.RFC3339Nano),
 		"_msg":     e.Message,
 		"host":     e.Host,
 		"app":      e.App,
@@ -70,7 +72,7 @@ func ParseSyslog(raw []byte, source, proto string, now time.Time) *Entry {
 	if !utf8.ValidString(s) {
 		s = strings.ToValidUTF8(s, "\uFFFD")
 	}
-	e := &Entry{Time: now, Host: source, Source: source, Proto: proto}
+	e := &Entry{Time: now, Received: now, Host: source, Source: source, Proto: proto}
 	e.setPri(13) // user.notice, the RFC 3164 default
 
 	if len(s) > 2 && s[0] == '<' {

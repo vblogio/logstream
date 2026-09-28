@@ -46,6 +46,10 @@ message, host and app. Words are combined with AND.
 `error AND host:web-01`, `app:~"ssh|nginx"`, or `* | stats by (host) count()`.
 The live view is disabled in this mode.
 
+Each row shows, from left to right: the **reception time** (server clock, stored in the
+`received` field), the timestamp found in the message itself, severity, host, app and message.
+Logs stored before the `received` field existed show `—` in the first column.
+
 Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
 ## Settings
@@ -53,6 +57,9 @@ Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all
 The gear icon opens the settings panel:
 
 - **Language**: English or French. The choice is remembered in the browser.
+- **Date & time**: time zone (browser zone, UTC, or about 80 common zones) and the display
+  format of the reception time, e.g. `YYYY-MM-DD - HH:MM:SS:mmm` (default), ISO 8601,
+  12-hour clock or Unix epoch. The time zone applies to every date shown. Remembered in the browser.
 - **Color tags**: each tag has a keyword, a background color (the text automatically
   switches to black or white to stay readable) and options: whole word, match case,
   regular expression, active. Tags are stored in `/data/tags.json` (`logstream-data` volume).
