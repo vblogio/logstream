@@ -25,6 +25,8 @@
   --tag-warning: #fdba74;
   --tag-warning-text: #111827;
 
+  --log-size: 12.5px;   /* Settings > Interface > Font size */
+  /* --log-font is set by Settings > Interface > Font (defaults to --mono) */
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --radius: 10px;
@@ -221,7 +223,8 @@ body.busy .progress::after {
   padding: 5px 14px 5px 11px;
   border-left: 3px solid transparent;
   border-bottom: 1px solid var(--border);
-  font-family: var(--mono); font-size: 12.5px;
+  font-family: var(--log-font, var(--mono)); font-size: var(--log-size);
+  font-variant-ligatures: none; /* keep -> != etc. as typed */
   cursor: pointer;
 }
 .row:last-child { border-bottom: 0; }
@@ -268,7 +271,7 @@ mark.hit { background: var(--hit); color: inherit; border-radius: 3px; padding: 
   grid-column: 1 / -1;
   margin: 8px 0 4px; padding: 10px 12px;
   background: var(--panel-2); border-radius: 8px;
-  cursor: auto; font-size: 12px;
+  cursor: auto; font-size: calc(var(--log-size) - .5px);
 }
 .details dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 0; }
 .details dt { color: var(--muted); }
@@ -316,6 +319,45 @@ mark.hit { background: var(--hit); color: inherit; border-radius: 3px; padding: 
 }
 
 /* ---------- Settings dialog ---------- */
+dialog.settings {
+  width: min(900px, calc(100vw - 32px));
+  height: min(660px, calc(100vh - 64px)); max-height: none;
+}
+dialog.settings .dlg { display: flex; flex-direction: column; height: 100%; padding: 0; }
+dialog.settings .dlg > header { padding: 14px 16px 14px 22px; border-bottom: 1px solid var(--border); }
+.set-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 200px minmax(0, 1fr); }
+.set-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 10px; border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel-2) 50%, transparent);
+}
+.set-nav button {
+  display: flex; align-items: center; gap: 10px;
+  height: 38px; padding: 0 12px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--muted); font-weight: 560; font-size: 13.5px; text-align: left;
+  white-space: nowrap;
+}
+.set-nav button:hover { background: var(--panel-2); color: var(--text); }
+.set-nav button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+.set-nav svg { width: 18px; height: 18px; flex: none; }
+.set-panels { overflow-y: auto; padding: 2px 24px 22px; }
+.set-panel > .set-section:first-child { margin-top: 16px; }
+.hint { margin-top: 8px !important; }
+.lbl { font-size: 13px; font-weight: 550; }
+.set-panel .preview-list { margin: 14px 0 10px; pointer-events: none; }
+.preview-list .row {
+  cursor: default;
+  grid-template-columns: max-content max-content minmax(0, max-content) minmax(0, 1fr);
+  grid-template-areas: "rcv sev host app" "msg msg msg msg";
+  gap: 3px 10px;
+}
+.preview-list .row time.rcv { grid-area: rcv; }
+.preview-list .row time.mt { display: none; }
+.preview-list .row .sev { grid-area: sev; }
+.preview-list .row .host { grid-area: host; }
+.preview-list .row .app { grid-area: app; display: block; }
+.preview-list .row .msg { grid-area: msg; }
+
 dialog {
   width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
   padding: 0; border: 1px solid var(--border); border-radius: 14px;
@@ -419,6 +461,20 @@ select.field:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 
   .details dl { grid-template-columns: 1fr; }
   .details dt { margin-top: 4px; }
   .field-grid { grid-template-columns: 1fr; gap: 4px; }
+  dialog.settings { height: calc(100vh - 24px); width: calc(100vw - 16px); }
+  .set-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .set-nav {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px;
+    border-right: 0; border-bottom: 1px solid var(--border);
+  }
+  .set-nav button {
+    flex-direction: column; justify-content: center; height: auto; padding: 6px 2px; gap: 3px;
+    font-size: 11.5px; text-align: center;
+  }
+  .set-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .set-panels { padding: 0 16px 18px; }
+  #sizeSwitch { display: flex; }
+  #sizeSwitch button { flex: 1; padding: 0 4px; white-space: nowrap; font-size: 12px; }
   .field-grid select { margin-bottom: 6px; }
   .status { padding: 6px 16px; }
   .tag-row { grid-template-columns: 38px 1fr 36px; }

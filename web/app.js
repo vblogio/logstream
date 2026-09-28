@@ -66,6 +66,14 @@ const I18N = {
     msgTimeTitle: 'Timestamp from the message',
     fHostName: 'host name (DNS)', fHostIp: 'host IP',
     clickHost: 'Click to filter on this host', clickApp: 'Click to filter on this app',
+    tabLocale: 'Localization', tabFilters: 'Filters', tabInterface: 'Interface', tabData: 'Data',
+    themeTitle: 'Theme', themeSystem: 'System', themeLight: 'Light', themeDark: 'Dark',
+    themeHelp: 'System follows the light/dark preference of your computer or phone.',
+    logDisplay: 'Log display', fontSize: 'Font size',
+    sizeTiny: 'Tiny', sizeSmall: 'Small', sizeMedium: 'Medium', sizeLarge: 'Large',
+    fontLabel: 'Font', fontSystem: 'System monospace (no download)',
+    fontHelp: 'Free fonts (SIL Open Font License) loaded by your browser from Bunny Fonts, a privacy-friendly European font service. Without internet access, the system font is used.',
+    previewMsgs: ['error: link down on eth1, carrier lost', 'warning: disk /dev/sda temperature 58°C', 'backup finished: ok (12.4 GB in 00:14:32)'],
     dangerZone: 'Danger zone',
     purgeHelp: 'Permanently delete every stored log to start from scratch. Color tags and settings are kept.',
     purgeBtn: 'Delete all logs…',
@@ -141,6 +149,14 @@ const I18N = {
     msgTimeTitle: 'Horodatage contenu dans le message',
     fHostName: 'nom d\'hôte (DNS)', fHostIp: 'IP de l\'hôte',
     clickHost: 'Cliquer pour filtrer sur cet hôte', clickApp: 'Cliquer pour filtrer sur cette appli',
+    tabLocale: 'Localisation', tabFilters: 'Filtres', tabInterface: 'Interface', tabData: 'Données',
+    themeTitle: 'Thème', themeSystem: 'Système', themeLight: 'Clair', themeDark: 'Sombre',
+    themeHelp: 'Système suit la préférence clair/sombre de votre ordinateur ou de votre téléphone.',
+    logDisplay: 'Affichage des logs', fontSize: 'Taille du texte',
+    sizeTiny: 'Très petite', sizeSmall: 'Petite', sizeMedium: 'Moyenne', sizeLarge: 'Grande',
+    fontLabel: 'Police', fontSystem: 'Monospace du système (aucun téléchargement)',
+    fontHelp: 'Polices libres (licence SIL Open Font) chargées par votre navigateur depuis Bunny Fonts, un service européen respectueux de la vie privée. Sans accès à internet, la police du système est utilisée.',
+    previewMsgs: ['error: link down on eth1, carrier lost', 'warning: disk /dev/sda temperature 58°C', 'backup finished: ok (12.4 GB in 00:14:32)'],
     dangerZone: 'Zone de danger',
     purgeHelp: 'Supprime définitivement tous les logs stockés pour repartir de zéro. Les tags de couleur et les réglages sont conservés.',
     purgeBtn: 'Supprimer tous les logs…',
@@ -333,6 +349,7 @@ function setLang(next) {
   renderTagList();
   renderTimeSettings();
   renderPurge();
+  renderInterface();
 }
 
 $('#langSwitch').addEventListener('click', (ev) => {
@@ -347,10 +364,118 @@ function effectiveTheme() {
   if (th) return th;
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
-$('#themeBtn').addEventListener('click', () => {
-  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
-  store.set('theme', next);
+// mode: 'system' (follow the OS), 'light' or 'dark'.
+function setTheme(mode) {
+  if (mode === 'light' || mode === 'dark') document.documentElement.dataset.theme = mode;
+  else { delete document.documentElement.dataset.theme; mode = 'system'; }
+  store.set('theme', mode);
+  renderThemeSwitch();
+}
+
+function renderThemeSwitch() {
+  const mode = document.documentElement.dataset.theme || 'system';
+  for (const b of document.querySelectorAll('#themeSwitch [data-theme-opt]')) {
+    b.setAttribute('aria-checked', String(b.dataset.themeOpt === mode));
+  }
+}
+
+// The header button switches between light and dark.
+$('#themeBtn').addEventListener('click', () => setTheme(effectiveTheme() === 'dark' ? 'light' : 'dark'));
+$('#themeSwitch').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-theme-opt]');
+  if (b) setTheme(b.dataset.themeOpt);
+});
+
+/* ================= Log font and size ================= */
+
+// Free monospace fonts, served by Bunny Fonts (https://fonts.bunny.net).
+const LOG_FONTS = [
+  { id: 'system' },
+  { id: 'jetbrains-mono', family: 'JetBrains Mono' },
+  { id: 'fira-code', family: 'Fira Code' },
+  { id: 'source-code-pro', family: 'Source Code Pro' },
+  { id: 'ibm-plex-mono', family: 'IBM Plex Mono' },
+  { id: 'cascadia-code', family: 'Cascadia Code' },
+  { id: 'roboto-mono', family: 'Roboto Mono' },
+  { id: 'ubuntu-mono', family: 'Ubuntu Mono' },
+  { id: 'inconsolata', family: 'Inconsolata' },
+  { id: 'red-hat-mono', family: 'Red Hat Mono' },
+  { id: 'noto-sans-mono', family: 'Noto Sans Mono' },
+  { id: 'victor-mono', family: 'Victor Mono' },
+  { id: 'dm-mono', family: 'DM Mono', weights: '400,500' },
+];
+const LOG_SIZES = { tiny: '10.5px', small: '11.5px', medium: '12.5px', large: '14px' };
+const ui = { font: 'system', size: 'medium' };
+
+function applyLogFont(id) {
+  const f = LOG_FONTS.find((x) => x.id === id) || LOG_FONTS[0];
+  ui.font = f.id;
+  const root = document.documentElement.style;
+  if (!f.family) {
+    root.removeProperty('--log-font');
+    return;
+  }
+  const href = `https://fonts.bunny.net/css?family=${f.id}:${f.weights || '400,700'}&display=swap`;
+  let link = document.getElementById('logFontCss');
+  if (!link) {
+    link = Object.assign(document.createElement('link'), { id: 'logFontCss', rel: 'stylesheet' });
+    document.head.append(link);
+  }
+  if (link.getAttribute('href') !== href) link.href = href;
+  root.setProperty('--log-font', `'${f.family}', var(--mono)`);
+}
+
+function applyLogSize(id) {
+  ui.size = LOG_SIZES[id] ? id : 'medium';
+  document.documentElement.style.setProperty('--log-size', LOG_SIZES[ui.size]);
+}
+
+function renderInterface() {
+  renderThemeSwitch();
+  for (const b of document.querySelectorAll('#sizeSwitch [data-size]')) {
+    b.setAttribute('aria-checked', String(b.dataset.size === ui.size));
+  }
+  const sel = $('#fontSelect');
+  sel.innerHTML = LOG_FONTS.map((f) => `<option value="${f.id}">${esc(f.family || t('fontSystem'))}</option>`).join('');
+  sel.value = ui.font;
+  renderFontPreview();
+}
+
+function renderFontPreview() {
+  const now = new Date().toISOString();
+  const [m1, m2, m3] = t('previewMsgs');
+  const rows = [
+    { received: now, msg_time: now, severity: 'err', host: 'fw-edge', app: 'kernel', _msg: m1 },
+    { received: now, msg_time: now, severity: 'warning', host: 'nas', app: 'smartd', _msg: m2 },
+    { received: now, msg_time: now, severity: 'info', host: 'web-01', app: 'backup', _msg: m3 },
+  ];
+  $('#fontPreview').innerHTML = rows.map((r) => rowHTML(r, false)).join('');
+}
+
+$('#sizeSwitch').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-size]');
+  if (!b) return;
+  applyLogSize(b.dataset.size);
+  store.set('logSize', ui.size);
+  renderInterface();
+});
+$('#fontSelect').addEventListener('change', (ev) => {
+  applyLogFont(ev.target.value);
+  store.set('logFont', ui.font);
+});
+
+/* ================= Settings tabs ================= */
+
+function showSettingsTab(name) {
+  const tabs = [...document.querySelectorAll('#setNav [data-tab]')];
+  if (!tabs.some((b) => b.dataset.tab === name)) name = 'locale';
+  for (const b of tabs) b.setAttribute('aria-selected', String(b.dataset.tab === name));
+  for (const p of document.querySelectorAll('.set-panel')) p.hidden = p.dataset.panel !== name;
+  store.set('settingsTab', name);
+}
+$('#setNav').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-tab]');
+  if (b) showSettingsTab(b.dataset.tab);
 });
 
 /* ================= Filters ================= */
@@ -1014,7 +1139,9 @@ $('#resetTags').addEventListener('click', async () => {
 $('#settingsBtn').addEventListener('click', () => {
   renderTimeSettings();
   renderTagList();
+  renderInterface();
   loadPurgeStatus();
+  showSettingsTab(store.get('settingsTab', 'locale'));
   $('#settingsDlg').showModal();
 });
 $('#closeSettings').addEventListener('click', () => $('#settingsDlg').close());
@@ -1028,6 +1155,8 @@ $('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.curre
   const fmt = store.get('timefmt', DEFAULT_TIME_FMT);
   timePrefs.fmt = TIME_FORMATS.some((f) => f.id === fmt) ? fmt : DEFAULT_TIME_FMT;
 }
+applyLogFont(store.get('logFont', 'system'));
+applyLogSize(store.get('logSize', 'medium'));
 applyLang();
 $('#range').value = store.get('range', '1h');
 if (!$('#range').value) $('#range').value = '1h';

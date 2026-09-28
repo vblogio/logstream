@@ -61,14 +61,31 @@ Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all
 
 ## Settings
 
-The gear icon opens the settings panel:
+The gear icon opens the settings, organized in tabs. Everything except color tags is
+remembered per browser.
 
-- **Language**: English or French. The choice is remembered in the browser.
-- **Date & time**: time zone (browser zone, UTC, or about 80 common zones) and the display
-  format of the reception time: `DD/MM/YYYY HH:MM:SS` (default, the usual French display),
-  with milliseconds, `YYYY-MM-DD`, 12-hour clock, ISO 8601 or Unix epoch. The time zone
-  applies to every date shown. Remembered in the browser.
-- **Danger zone**: "Delete all logs" permanently erases every stored log (you must type
+- **Localization**
+  - *Language*: English or French.
+  - *Date & time*: time zone (browser zone, UTC, or about 80 common zones) and the display
+    format of the reception time: `DD/MM/YYYY HH:MM:SS` (default, the usual French display),
+    with milliseconds, `YYYY-MM-DD`, 12-hour clock, ISO 8601 or Unix epoch. The time zone
+    applies to every date shown.
+- **Filters**: color tags. Each tag has a keyword, a background color (the text automatically
+  switches to black or white to stay readable) and options: whole word, match case,
+  regular expression, active. Tags are stored on the server in `/data/tags.json`
+  (`logstream-data` volume), so they are shared by every browser. Default tags (pastel):
+  `warning` (orange), `error` (red), `ok` (green). Default tags still using the colors of
+  earlier versions are switched to the pastel ones automatically.
+- **Interface**
+  - *Theme*: System (follows the computer/phone preference), Light or Dark. The sun/moon
+    button in the header switches between light and dark.
+  - *Log display*: font size (tiny, small, medium, large) and font: the system monospace
+    font, or one of 12 free fonts made for dense text (JetBrains Mono, Fira Code, Source
+    Code Pro, IBM Plex Mono, Cascadia Code, Roboto Mono, Ubuntu Mono, Inconsolata, Red Hat
+    Mono, Noto Sans Mono, Victor Mono, DM Mono). They are loaded by the browser from
+    [Bunny Fonts](https://fonts.bunny.net), a privacy-friendly European font service; without
+    internet access, the system font is used. Ligatures are disabled so `->` or `!=` show as typed.
+- **Data**: "Delete all logs" permanently erases every stored log (you must type
   `PURGE` to confirm). Tags and settings are kept. VictoriaLogs needs `-delete.enable`
   (already set in `docker-compose.yml`); set `ALLOW_PURGE=false` to disable the feature.
   Anyone who can open the UI can purge: set `AUTH_USER` / `AUTH_PASS` if the UI is reachable
