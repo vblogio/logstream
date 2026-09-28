@@ -120,7 +120,7 @@ func parse5424(e *Entry, s string) {
 		e.SD = rest[:n]
 		rest = strings.TrimPrefix(rest[n:], " ")
 	}
-	e.Message = strings.TrimPrefix(rest, "﻿")
+	e.Message = strings.TrimPrefix(rest, "\uFEFF")
 }
 
 // sdLen renvoie la longueur du bloc de données structurées « [..][..] ».
