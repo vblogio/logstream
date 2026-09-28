@@ -2,7 +2,7 @@ package main
 
 import "sync"
 
-// Hub diffuse les messages reçus aux navigateurs connectés en direct (SSE).
+// Hub fans out incoming messages to browsers following the live view (SSE).
 type Hub struct {
 	mu   sync.RWMutex
 	subs map[chan *Entry]struct{}
@@ -26,7 +26,7 @@ func (h *Hub) Unsubscribe(ch chan *Entry) {
 	h.mu.Unlock()
 }
 
-// Publish ne bloque jamais : un client trop lent perd simplement des messages.
+// Publish never blocks: a slow client simply misses messages.
 func (h *Hub) Publish(e *Entry) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

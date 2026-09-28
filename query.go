@@ -7,14 +7,14 @@ import (
 	"strings"
 )
 
-// Filter décrit les critères de recherche envoyés par l'interface.
+// Filter holds the search criteria sent by the UI.
 type Filter struct {
-	Mode     string // "simple" ou "logsql"
+	Mode     string // "simple" or "logsql"
 	Text     string
-	Range    string // 5m, 15m, 1h, 6h, 24h, 7d, 30d ; autre valeur = pas de limite
+	Range    string // 5m, 15m, 1h, 6h, 24h, 7d, 30d; anything else = no time limit
 	Host     string
 	App      string
-	Severity int // sévérité maximale incluse (0 = emerg … 7 = debug), -1 = toutes
+	Severity int // highest severity number included (0 = emerg … 7 = debug), -1 = all
 }
 
 var validRanges = map[string]bool{"5m": true, "15m": true, "1h": true, "6h": true, "24h": true, "7d": true, "30d": true}
@@ -40,7 +40,7 @@ type term struct {
 	neg  bool
 }
 
-// parseTerms découpe la recherche simple : mots, "phrases entre guillemets", -exclusions.
+// parseTerms splits a simple search into words, "quoted phrases" and -exclusions.
 func parseTerms(s string) []term {
 	var out []term
 	for i := 0; i < len(s); {
@@ -78,7 +78,7 @@ func parseTerms(s string) []term {
 	return out
 }
 
-// filterExpr traduit les critères (hors texte LogsQL brut) en filtre LogsQL.
+// filterExpr turns the criteria (except raw LogsQL text) into a LogsQL filter.
 func (f Filter) filterExpr() string {
 	var parts []string
 	if validRanges[f.Range] {
@@ -98,7 +98,7 @@ func (f Filter) filterExpr() string {
 		parts = append(parts, "severity:in("+strings.Join(names, ",")+")")
 	}
 	if f.Mode != "logsql" {
-		// Recherche de sous-chaîne insensible à la casse dans le message, l'hôte et l'appli.
+		// Case-insensitive substring search in the message, host and app.
 		for _, t := range parseTerms(f.Text) {
 			re := strconv.Quote("(?i)" + regexp.QuoteMeta(t.text))
 			expr := "(_msg:~" + re + " or host:~" + re + " or app:~" + re + ")"
@@ -111,7 +111,7 @@ func (f Filter) filterExpr() string {
 	return strings.Join(parts, " ")
 }
 
-// LogsQL renvoie la partie filtre et les éventuels pipes (« | … ») saisis en mode LogsQL.
+// LogsQL returns the filter part and any pipes ("| …") typed in LogsQL mode.
 func (f Filter) LogsQL() (filter, pipes string) {
 	filter = f.filterExpr()
 	if f.Mode == "logsql" && f.Text != "" {
@@ -127,7 +127,7 @@ func (f Filter) LogsQL() (filter, pipes string) {
 	return filter, pipes
 }
 
-// splitPipes sépare le filtre des pipes, en ignorant les « | » entre guillemets.
+// splitPipes separates the filter from the pipes, ignoring "|" inside quotes.
 func splitPipes(q string) (filter, pipes string) {
 	var quote byte
 	for i := 0; i < len(q); i++ {
@@ -148,7 +148,7 @@ func splitPipes(q string) (filter, pipes string) {
 	return strings.TrimSpace(q), ""
 }
 
-// Matcher applique le même filtre que filterExpr aux messages du flux direct.
+// Matcher applies the same filter as filterExpr to live messages.
 type Matcher struct {
 	f    Filter
 	res  []*regexp.Regexp

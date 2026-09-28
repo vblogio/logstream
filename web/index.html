@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,8 +7,13 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M8 10h16M8 16h11M8 22h14' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
   <script>
-    // Applique le thème mémorisé avant l'affichage, pour éviter un flash.
-    try { var t = localStorage.getItem('logstream.theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+    // Apply the saved theme and language before first paint to avoid a flash.
+    try {
+      var t = localStorage.getItem('logstream.theme');
+      if (t) document.documentElement.dataset.theme = t;
+      var l = localStorage.getItem('logstream.lang');
+      if (l) document.documentElement.lang = l;
+    } catch (e) {}
   </script>
 </head>
 <body>
@@ -20,18 +25,19 @@
 
     <div class="search">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" autocomplete="off" spellcheck="false" aria-label="Rechercher dans les logs">
-      <button id="mode" class="chip" type="button" title="Basculer entre recherche simple et LogsQL">Simple</button>
+      <input id="q" type="search" autocomplete="off" spellcheck="false" data-i18n-aria="searchAria">
+      <button id="mode" class="chip" type="button" data-i18n-title="modeTitle">Simple</button>
     </div>
 
     <div class="actions">
-      <button id="live" class="btn live" type="button" title="Afficher les nouveaux messages en direct">
-        <span class="dot"></span><span class="lbl">Direct</span>
+      <button id="live" class="btn live" type="button">
+        <span class="dot"></span><span class="lbl" data-i18n="live">Live</span>
       </button>
-      <button id="tagsBtn" class="icon-btn" type="button" title="Tags de couleur" aria-label="Tags de couleur">
-        <svg viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/></svg>
+      <button id="settingsBtn" class="icon-btn" type="button" data-i18n-title="settings" data-i18n-aria="settings">
+        <!-- Gear icon (Lucide "settings", ISC license) -->
+        <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
-      <button id="themeBtn" class="icon-btn" type="button" title="Thème clair / sombre" aria-label="Changer de thème">
+      <button id="themeBtn" class="icon-btn" type="button" data-i18n-title="theme" data-i18n-aria="theme">
         <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
@@ -40,31 +46,31 @@
   </header>
 
   <section class="filters">
-    <select id="range" aria-label="Période">
-      <option value="5m">5 min</option>
-      <option value="15m">15 min</option>
-      <option value="1h" selected>1 heure</option>
-      <option value="6h">6 heures</option>
-      <option value="24h">24 heures</option>
-      <option value="7d">7 jours</option>
-      <option value="30d">30 jours</option>
-      <option value="all">Tout</option>
+    <select id="range" data-i18n-aria="rangeAria">
+      <option value="5m" data-i18n="r5m">5 min</option>
+      <option value="15m" data-i18n="r15m">15 min</option>
+      <option value="1h" data-i18n="r1h" selected>1 hour</option>
+      <option value="6h" data-i18n="r6h">6 hours</option>
+      <option value="24h" data-i18n="r24h">24 hours</option>
+      <option value="7d" data-i18n="r7d">7 days</option>
+      <option value="30d" data-i18n="r30d">30 days</option>
+      <option value="all" data-i18n="rAll">All</option>
     </select>
-    <select id="severity" aria-label="Sévérité">
-      <option value="">Toutes sévérités</option>
-      <option value="2">Critiques et +</option>
-      <option value="3">Erreurs et +</option>
-      <option value="4">Warnings et +</option>
-      <option value="5">Notice et +</option>
-      <option value="6">Info et +</option>
+    <select id="severity" data-i18n-aria="severityAria">
+      <option value="" data-i18n="sevAll">All severities</option>
+      <option value="2" data-i18n="sev2">Critical and above</option>
+      <option value="3" data-i18n="sev3">Errors and above</option>
+      <option value="4" data-i18n="sev4">Warnings and above</option>
+      <option value="5" data-i18n="sev5">Notice and above</option>
+      <option value="6" data-i18n="sev6">Info and above</option>
     </select>
-    <select id="host" aria-label="Hôte"><option value="">Tous les hôtes</option></select>
-    <select id="app" aria-label="Application"><option value="">Toutes les applis</option></select>
+    <select id="host" data-i18n-aria="hostAria"><option value="" data-i18n="allHosts">All hosts</option></select>
+    <select id="app" data-i18n-aria="appAria"><option value="" data-i18n="allApps">All apps</option></select>
     <span class="spacer"></span>
     <span id="count" class="muted"></span>
   </section>
 
-  <section id="histo" class="histo" aria-label="Volume de logs dans le temps"></section>
+  <section id="histo" class="histo" data-i18n-aria="histoAria"></section>
 
   <div id="error" class="error-banner" hidden></div>
   <button id="newPill" class="pill" type="button" hidden></button>
@@ -72,8 +78,8 @@
   <main id="list" class="list"></main>
   <div id="empty" class="empty" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/></svg>
-    <p><strong>Aucun log ne correspond.</strong></p>
-    <p class="muted">Élargissez la période ou envoyez des messages syslog sur le port 514 (UDP ou TCP).</p>
+    <p><strong data-i18n="emptyTitle">No matching logs.</strong></p>
+    <p class="muted" data-i18n="emptyHint">Widen the time range or send syslog messages to port 514 (UDP or TCP).</p>
   </div>
 
   <footer class="status">
@@ -81,20 +87,32 @@
     <span id="stats" class="muted"></span>
   </footer>
 
-  <dialog id="tagsDlg" aria-labelledby="tagsTitle">
+  <dialog id="settingsDlg" aria-labelledby="settingsTitle">
     <div class="dlg">
       <header>
-        <h2 id="tagsTitle">Tags de couleur</h2>
-        <button id="closeTags" class="icon-btn" type="button" aria-label="Fermer">
+        <h2 id="settingsTitle" data-i18n="settings">Settings</h2>
+        <button id="closeSettings" class="icon-btn" type="button" data-i18n-aria="close">
           <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </header>
-      <p class="muted small">Les mots-clés sont surlignés dans les messages. Les modifications sont enregistrées automatiquement. En cas de chevauchement, le tag le plus haut dans la liste l'emporte.</p>
-      <div id="tagList" class="tag-list"></div>
-      <footer>
-        <button id="addTag" class="btn primary" type="button">+ Ajouter un tag</button>
-        <button id="resetTags" class="btn ghost" type="button">Rétablir les tags par défaut</button>
-      </footer>
+
+      <section class="set-section">
+        <h3 data-i18n="language">Language</h3>
+        <div id="langSwitch" class="seg" role="radiogroup" data-i18n-aria="language">
+          <button type="button" role="radio" data-lang="en">English</button>
+          <button type="button" role="radio" data-lang="fr">Français</button>
+        </div>
+      </section>
+
+      <section class="set-section">
+        <h3 data-i18n="tagsTitle">Color tags</h3>
+        <p class="muted small" data-i18n="tagsHelp"></p>
+        <div id="tagList" class="tag-list"></div>
+        <footer>
+          <button id="addTag" class="btn primary" type="button" data-i18n="addTag">+ Add tag</button>
+          <button id="resetTags" class="btn ghost" type="button" data-i18n="resetTags">Restore default tags</button>
+        </footer>
+      </section>
     </div>
   </dialog>
 

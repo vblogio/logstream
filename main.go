@@ -1,5 +1,5 @@
-// Logstream : puits de logs syslog (UDP/TCP) stocké dans VictoriaLogs,
-// avec une interface web de consultation.
+// Logstream: a syslog (UDP/TCP) sink stored in VictoriaLogs,
+// with a web interface to browse and search the logs.
 package main
 
 import (
@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	_ "time/tzdata" // fuseaux horaires embarqués : la variable TZ fonctionne sans paquet système
+	_ "time/tzdata" // embedded time zones: TZ works without a system package
 )
 
 //go:embed web
@@ -67,7 +67,7 @@ func main() {
 
 	tags, err := LoadTagStore(filepath.Join(cfg.dataDir, "tags.json"))
 	if err != nil {
-		log.Fatalf("tags : %v", err)
+		log.Fatalf("tags: %v", err)
 	}
 
 	store := NewStore(cfg.vlogsURL, cfg.batchSize, cfg.queueSize, cfg.flushEvery)
@@ -83,7 +83,7 @@ func main() {
 		hub.Publish(e)
 	}
 	if err := StartSyslog(ctx, cfg.syslogAddr, sink); err != nil {
-		log.Fatalf("syslog : %v", err)
+		log.Fatalf("syslog: %v", err)
 	}
 
 	static, err := fs.Sub(webFS, "web")
@@ -99,7 +99,7 @@ func main() {
 		Addr:              cfg.httpAddr,
 		Handler:           basicAuth(cfg.authUser, cfg.authPass, mux),
 		ReadHeaderTimeout: 10 * time.Second,
-		// Les requêtes héritent du contexte global : les flux SSE se ferment à l'arrêt.
+		// Requests inherit the global context so SSE streams end on shutdown.
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	go func() {
@@ -109,15 +109,15 @@ func main() {
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("interface web sur %s, syslog sur %s (udp+tcp), stockage %s", cfg.httpAddr, cfg.syslogAddr, cfg.vlogsURL)
+	log.Printf("web UI on %s, syslog on %s (udp+tcp), storage %s", cfg.httpAddr, cfg.syslogAddr, cfg.vlogsURL)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("http : %v", err)
+		log.Fatalf("http: %v", err)
 	}
 	<-storeDone
-	log.Println("arrêt terminé")
+	log.Println("shutdown complete")
 }
 
-// basicAuth protège l'interface si AUTH_USER est défini (sauf /healthz).
+// basicAuth protects the UI when AUTH_USER is set (except /healthz).
 func basicAuth(user, pass string, next http.Handler) http.Handler {
 	if user == "" {
 		return next
@@ -132,7 +132,7 @@ func basicAuth(user, pass string, next http.Handler) http.Handler {
 			subtle.ConstantTimeCompare([]byte(u), []byte(user)) != 1 ||
 			subtle.ConstantTimeCompare([]byte(p), []byte(pass)) != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="logstream"`)
-			http.Error(w, "authentification requise", http.StatusUnauthorized)
+			http.Error(w, "authentication required", http.StatusUnauthorized)
 			return
 		}
 		next.ServeHTTP(w, r)

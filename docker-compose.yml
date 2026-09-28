@@ -12,13 +12,13 @@ services:
     environment:
       VLOGS_URL: http://victorialogs:9428
       TZ: ${TZ:-Europe/Paris}
-      AUTH_USER: ${AUTH_USER:-}   # laisser vide pour désactiver l'authentification
+      AUTH_USER: ${AUTH_USER:-}   # leave empty to disable authentication
       AUTH_PASS: ${AUTH_PASS:-}
     volumes:
       - logstream-data:/data         # tags.json
 
   victorialogs:
-    # Épinglez une version précise en production (voir hub.docker.com/r/victoriametrics/victoria-logs/tags)
+    # Pin a specific version in production (see hub.docker.com/r/victoriametrics/victoria-logs/tags)
     image: victoriametrics/victoria-logs:latest
     container_name: logstream-victorialogs
     restart: unless-stopped
@@ -29,7 +29,7 @@ services:
     volumes:
       - vlogs-data:/vlogs
     ports:
-      # Interface de debug VictoriaLogs (http://localhost:9428/select/vmui), locale uniquement
+      # VictoriaLogs debug UI (http://localhost:9428/select/vmui), localhost only
       - "127.0.0.1:9428:9428"
 
 volumes:

@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-// Tag colore un mot-clé dans les messages affichés.
+// Tag highlights a keyword in displayed messages.
 type Tag struct {
 	ID            string `json:"id"`
 	Pattern       string `json:"pattern"`
@@ -32,28 +32,42 @@ func defaultTags() []Tag {
 	}
 }
 
+// codedError carries a stable code the UI can translate.
+type codedError struct {
+	code   string
+	msg    string
+	detail string
+}
+
+func (e *codedError) Error() string {
+	if e.detail != "" {
+		return e.msg + ": " + e.detail
+	}
+	return e.msg
+}
+
 var (
-	errTagNotFound = errors.New("tag introuvable")
+	errTagNotFound = &codedError{code: "tag_not_found", msg: "tag not found"}
 	colorRe        = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
 func (t *Tag) validate() error {
 	t.Pattern = strings.TrimSpace(t.Pattern)
 	if t.Pattern == "" {
-		return errors.New("le mot-clé est obligatoire")
+		return &codedError{code: "pattern_required", msg: "the keyword is required"}
 	}
 	if !colorRe.MatchString(t.Color) {
-		return errors.New("couleur invalide (format #rrggbb attendu)")
+		return &codedError{code: "invalid_color", msg: "invalid color (expected #rrggbb)"}
 	}
 	if t.Regex {
 		if _, err := regexp.Compile(t.Pattern); err != nil {
-			return fmt.Errorf("expression régulière invalide : %v", err)
+			return &codedError{code: "invalid_regex", msg: "invalid regular expression", detail: err.Error()}
 		}
 	}
 	return nil
 }
 
-// TagStore conserve les tags dans un fichier JSON (volume /data).
+// TagStore keeps the tags in a JSON file (in the /data volume).
 type TagStore struct {
 	mu   sync.Mutex
 	path string
@@ -71,12 +85,12 @@ func LoadTagStore(path string) (*TagStore, error) {
 		return nil, err
 	}
 	if err := json.Unmarshal(b, &s.tags); err != nil {
-		return nil, fmt.Errorf("%s : %w", path, err)
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return s, nil
 }
 
-// save écrit le fichier de façon atomique ; l'appelant détient le verrou.
+// save writes the file atomically; the caller holds the lock.
 func (s *TagStore) save() error {
 	b, err := json.MarshalIndent(s.tags, "", "  ")
 	if err != nil {

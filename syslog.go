@@ -20,7 +20,7 @@ var facilityNames = [24]string{
 	"local0", "local1", "local2", "local3", "local4", "local5", "local6", "local7",
 }
 
-// Entry est un message syslog décodé.
+// Entry is a decoded syslog message.
 type Entry struct {
 	Time     time.Time
 	Host     string
@@ -29,13 +29,13 @@ type Entry struct {
 	Facility string
 	Severity string
 	SevNum   int
-	SD       string // données structurées RFC 5424, brutes
+	SD       string // raw RFC 5424 structured data
 	Message  string
-	Source   string // IP de l'émetteur
-	Proto    string // udp ou tcp
+	Source   string // sender IP address
+	Proto    string // udp or tcp
 }
 
-// Record renvoie l'entrée au format stocké dans VictoriaLogs et renvoyé par l'API.
+// Record returns the entry in the shape stored in VictoriaLogs and returned by the API.
 func (e *Entry) Record() map[string]string {
 	r := map[string]string{
 		"_time":    e.Time.UTC().Format(time.RFC3339Nano),
@@ -63,15 +63,15 @@ func (e *Entry) setPri(pri int) {
 	e.Facility = facilityNames[pri/8]
 }
 
-// ParseSyslog décode un message RFC 5424 ou RFC 3164 (BSD). Il ne renvoie
-// jamais d'erreur : un message non conforme est conservé tel quel.
+// ParseSyslog decodes an RFC 5424 or RFC 3164 (BSD) message. It never fails:
+// a non-conforming message is kept as is.
 func ParseSyslog(raw []byte, source, proto string, now time.Time) *Entry {
 	s := strings.TrimRight(string(raw), "\r\n\x00 ")
 	if !utf8.ValidString(s) {
-		s = strings.ToValidUTF8(s, "�")
+		s = strings.ToValidUTF8(s, "\uFFFD")
 	}
 	e := &Entry{Time: now, Host: source, Source: source, Proto: proto}
-	e.setPri(13) // user.notice, valeur par défaut de la RFC 3164
+	e.setPri(13) // user.notice, the RFC 3164 default
 
 	if len(s) > 2 && s[0] == '<' {
 		if end := strings.IndexByte(s, '>'); end > 1 && end <= 4 {
@@ -87,12 +87,12 @@ func ParseSyslog(raw []byte, source, proto string, now time.Time) *Entry {
 		parse3164(e, s)
 	}
 	if e.Message == "" {
-		e.Message = "(vide)"
+		e.Message = "(empty)"
 	}
 	return e
 }
 
-// parse5424 : TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
+// parse5424: TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
 func parse5424(e *Entry, s string) {
 	f := strings.SplitN(s, " ", 6)
 	if len(f) < 6 {
@@ -120,10 +120,10 @@ func parse5424(e *Entry, s string) {
 		e.SD = rest[:n]
 		rest = strings.TrimPrefix(rest[n:], " ")
 	}
-	e.Message = strings.TrimPrefix(rest, "\uFEFF")
+	e.Message = strings.TrimPrefix(rest, "\uFEFF") // optional UTF-8 BOM
 }
 
-// sdLen renvoie la longueur du bloc de données structurées « [..][..] ».
+// sdLen returns the length of the structured data block "[..][..]".
 func sdLen(s string) int {
 	i := 0
 	for i < len(s) && s[i] == '[' {
@@ -150,11 +150,11 @@ func sdLen(s string) int {
 	return i
 }
 
-// parse3164 : « Mmm dd hh:mm:ss HOST TAG[PID]: MSG », ou horodatage ISO (rsyslog).
+// parse3164: "Mmm dd hh:mm:ss HOST TAG[PID]: MSG", or an ISO timestamp (rsyslog).
 func parse3164(e *Entry, s string) {
 	if len(s) >= 16 && s[15] == ' ' {
 		if t, err := time.ParseInLocation(time.Stamp, s[:15], time.Local); err == nil {
-			// L'année est absente : on prend l'année courante, sauf si la date tombe dans le futur.
+			// No year in the timestamp: use the current one, unless that lands in the future.
 			now := e.Time
 			t = time.Date(now.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.Local)
 			if t.After(now.Add(24 * time.Hour)) {
@@ -203,7 +203,7 @@ func parseHostTag(e *Entry, s string, withHost bool) {
 	e.Message = s
 }
 
-// StartSyslog démarre les écoutes UDP et TCP sur la même adresse.
+// StartSyslog starts the UDP and TCP listeners on the same address.
 func StartSyslog(ctx context.Context, addr string, sink func(*Entry)) error {
 	pc, err := net.ListenPacket("udp", addr)
 	if err != nil {
@@ -235,7 +235,7 @@ func serveUDP(ctx context.Context, pc net.PacketConn, sink func(*Entry)) {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("syslog udp : %v", err)
+			log.Printf("syslog udp: %v", err)
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
@@ -250,7 +250,7 @@ func serveTCP(ctx context.Context, ln net.Listener, sink func(*Entry)) {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("syslog tcp : %v", err)
+			log.Printf("syslog tcp: %v", err)
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
@@ -260,8 +260,8 @@ func serveTCP(ctx context.Context, ln net.Listener, sink func(*Entry)) {
 
 const maxFrame = 1 << 20
 
-// handleTCP gère les deux découpages de la RFC 6587 : « octet counting »
-// (« 123 <34>1 ... ») et un message par ligne.
+// handleTCP supports both RFC 6587 framings: octet counting
+// ("123 <34>1 ...") and one message per line.
 func handleTCP(ctx context.Context, conn net.Conn, sink func(*Entry)) {
 	defer conn.Close()
 	stop := context.AfterFunc(ctx, func() { conn.Close() })
@@ -288,7 +288,7 @@ func handleTCP(ctx context.Context, conn net.Conn, sink func(*Entry)) {
 					break
 				}
 				if c < '0' || c > '9' || n > maxFrame {
-					log.Printf("syslog tcp %s : trame invalide, connexion fermée", src)
+					log.Printf("syslog tcp %s: invalid frame, closing connection", src)
 					return
 				}
 				n = n*10 + int(c-'0')
@@ -307,7 +307,7 @@ func handleTCP(ctx context.Context, conn net.Conn, sink func(*Entry)) {
 			if len(line) > 0 {
 				sink(ParseSyslog(line, src, "tcp", time.Now()))
 			}
-			// Ligne plus longue que le tampon : on ignore la suite.
+			// Line longer than the buffer: skip the rest of it.
 			for err == bufio.ErrBufferFull {
 				_, err = r.ReadSlice('\n')
 			}

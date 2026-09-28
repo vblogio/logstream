@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// Store envoie les messages à VictoriaLogs par lots et l'interroge en LogsQL.
+// Store sends messages to VictoriaLogs in batches and queries it with LogsQL.
 type Store struct {
 	base       string
 	client     *http.Client
@@ -41,7 +41,7 @@ func NewStore(base string, batchSize, queueSize int, flushEvery time.Duration) *
 	return s
 }
 
-// Enqueue ne bloque jamais : si la file est pleine, le message est compté comme perdu.
+// Enqueue never blocks: when the queue is full, the message is counted as dropped.
 func (s *Store) Enqueue(e *Entry) {
 	s.received.Add(1)
 	select {
@@ -51,8 +51,8 @@ func (s *Store) Enqueue(e *Entry) {
 	}
 }
 
-// Run vide la file vers VictoriaLogs jusqu'à l'annulation du contexte,
-// puis envoie ce qui reste.
+// Run drains the queue into VictoriaLogs until the context is cancelled,
+// then flushes whatever is left.
 func (s *Store) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.flushEvery)
 	defer ticker.Stop()
@@ -65,7 +65,7 @@ func (s *Store) Run(ctx context.Context) {
 		if err := s.insert(batch); err != nil {
 			s.dropped.Add(int64(len(batch)))
 			s.lastErr.Store(err.Error())
-			log.Printf("victorialogs : %d messages perdus : %v", len(batch), err)
+			log.Printf("victorialogs: %d messages dropped: %v", len(batch), err)
 		} else {
 			s.ingested.Add(int64(len(batch)))
 			s.lastErr.Store("")
@@ -130,13 +130,13 @@ func (s *Store) post(u string, body []byte) error {
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("HTTP %d : %s", resp.StatusCode, strings.TrimSpace(string(msg)))
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }
 
-// Query exécute une requête LogsQL et renvoie une ligne par résultat.
+// Query runs a LogsQL query and returns one row per result.
 func (s *Store) Query(ctx context.Context, query string) ([]map[string]any, error) {
 	form := url.Values{"query": {query}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.base+"/select/logsql/query", strings.NewReader(form.Encode()))

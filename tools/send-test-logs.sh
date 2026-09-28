@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Envoie des messages syslog de test (RFC 3164 et RFC 5424) en UDP.
-# Usage : ./tools/send-test-logs.sh [hôte] [port] [nombre]
+# Sends test syslog messages (RFC 3164 and RFC 5424) over UDP.
+# Usage: ./tools/send-test-logs.sh [host] [port] [count]
 set -eu
 
 HOST=${1:-127.0.0.1}
@@ -10,7 +10,7 @@ COUNT=${3:-100}
 hosts=(web-01 web-02 db-01 fw-edge nas-home)
 apps=(nginx sshd postgres kernel backup cron)
 
-# « sévérité|message » (3 = err, 4 = warning, 5 = notice, 6 = info, 7 = debug)
+# "severity|message" (3 = err, 4 = warning, 5 = notice, 6 = info, 7 = debug)
 samples=(
   "6|GET /api/health 200 in 3ms - ok"
   "6|Accepted publickey for admin from 192.168.1.20 port 51422"
@@ -44,4 +44,4 @@ for ((i = 0; i < COUNT; i++)); do
   printf '%s' "$line" > "/dev/udp/$HOST/$PORT"
   sleep 0.05
 done
-echo "$COUNT messages envoyés à $HOST:$PORT (udp)"
+echo "$COUNT messages sent to $HOST:$PORT (udp)"

@@ -1,102 +1,102 @@
 # Logstream
 
-Un puits de logs syslog simple : réception UDP/TCP sur le port 514, stockage dans
-[VictoriaLogs](https://docs.victoriametrics.com/victorialogs/), et une interface web
-claire (thème clair/sombre, recherche dynamique, direct, tags de couleur).
+A simple syslog sink: receives logs over UDP/TCP on port 514, stores them in
+[VictoriaLogs](https://docs.victoriametrics.com/victorialogs/), and serves a clean web
+interface (light/dark theme, live search, live view, color tags, English/French UI).
 
 ```
-équipements ──514 udp/tcp──▶ logstream (Go) ──lots HTTP──▶ VictoriaLogs
-                                  ▲    └── SSE (direct) ──▶ navigateur
-                                  └──── API / interface ◀──┘
+devices ──514 udp/tcp──▶ logstream (Go) ──HTTP batches──▶ VictoriaLogs
+                              ▲    └── SSE (live) ──▶ browser
+                              └──── API / UI ◀─────────┘
 ```
 
-## Démarrage
+## Getting started
 
 ```bash
-cp .env.example .env      # optionnel
+cp .env.example .env      # optional
 docker compose up -d --build
-./tools/send-test-logs.sh # envoie 100 messages de test
+./tools/send-test-logs.sh # sends 100 test messages
 ```
 
-Puis ouvrez <http://localhost:8080>.
+Then open <http://localhost:8080>.
 
-## Envoyer ses logs
+## Sending logs
 
-- **rsyslog** (Linux) : ajoutez `*.* @IP_DU_SERVEUR:514` (UDP) ou `*.* @@IP_DU_SERVEUR:514` (TCP)
-  dans `/etc/rsyslog.d/90-logstream.conf`, puis exécutez `systemctl restart rsyslog`.
-- **Équipements réseau, NAS, pare-feu** : renseignez l'IP du serveur et le port 514 dans la
-  configuration « syslog distant ».
-- **Test manuel** : `logger -n 127.0.0.1 -P 514 -d "hello error"` (util-linux) ou
+- **rsyslog** (Linux): add `*.* @SERVER_IP:514` (UDP) or `*.* @@SERVER_IP:514` (TCP)
+  to `/etc/rsyslog.d/90-logstream.conf`, then run `systemctl restart rsyslog`.
+- **Network gear, NAS, firewalls**: set the server IP and port 514 in their "remote syslog" settings.
+- **Manual test**: `logger -n 127.0.0.1 -P 514 -d "hello error"` (util-linux) or
   `echo "<14>test ok" | nc -u -w1 127.0.0.1 514`.
 
-Formats acceptés : RFC 3164 (BSD) et RFC 5424. En TCP, les découpages « une ligne par message »
-et « octet counting » (RFC 6587) sont tous deux acceptés.
+Supported formats: RFC 3164 (BSD) and RFC 5424. Over TCP, both "one message per line"
+and "octet counting" (RFC 6587) framing are accepted.
 
-## Recherche
+## Search
 
-**Mode simple** (par défaut) : chaque mot est recherché comme une sous-chaîne, sans tenir
-compte de la casse, dans le message, l'hôte et l'appli. Les mots se combinent avec un ET.
+**Simple mode** (default): each word is matched as a case-insensitive substring of the
+message, host and app. Words are combined with AND.
 
-| Saisie | Effet |
+| Input | Meaning |
 |---|---|
-| `error disk` | contient « error » **et** « disk » |
-| `"disk full"` | contient l'expression exacte |
-| `error -timeout` | contient « error » mais pas « timeout » |
+| `error disk` | contains "error" **and** "disk" |
+| `"disk full"` | contains the exact phrase |
+| `error -timeout` | contains "error" but not "timeout" |
 
-**Mode LogsQL** (bouton `Simple` / `LogsQL`) : syntaxe complète de VictoriaLogs, par exemple
-`error AND host:web-01`, `app:~"ssh|nginx"`, ou `* | stats by (host) count()`.
-Le direct est désactivé dans ce mode.
+**LogsQL mode** (`Simple` / `LogsQL` button): the full VictoriaLogs query language, e.g.
+`error AND host:web-01`, `app:~"ssh|nginx"`, or `* | stats by (host) count()`.
+The live view is disabled in this mode.
 
-Raccourcis : `/` place le curseur dans la recherche, `Échap` la vide. Un clic sur une ligne
-affiche tous ses champs.
+Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
-## Tags de couleur
+## Settings
 
-L'icône d'étiquette ouvre l'éditeur. Chaque tag a un mot-clé, une couleur de fond (le texte
-passe automatiquement en noir ou en blanc pour rester lisible) et des options : mot entier,
-respect de la casse, expression régulière, actif. Les tags sont enregistrés dans
-`/data/tags.json` (volume `logstream-data`). Tags par défaut : `warning` (orange),
-`error` (rouge), `ok` (vert).
+The gear icon opens the settings panel:
+
+- **Language**: English or French. The choice is remembered in the browser.
+- **Color tags**: each tag has a keyword, a background color (the text automatically
+  switches to black or white to stay readable) and options: whole word, match case,
+  regular expression, active. Tags are stored in `/data/tags.json` (`logstream-data` volume).
+  Default tags: `warning` (orange), `error` (red), `ok` (green).
 
 ## Configuration
 
-| Variable | Défaut | Rôle |
+| Variable | Default | Purpose |
 |---|---|---|
-| `SYSLOG_PORT` | `514` | port syslog publié sur l'hôte |
-| `HTTP_PORT` | `8080` | port de l'interface web |
-| `RETENTION` | `30d` | durée de conservation dans VictoriaLogs |
-| `AUTH_USER` / `AUTH_PASS` | vide | authentification HTTP Basic de l'interface |
-| `TZ` | `Europe/Paris` | fuseau utilisé pour les horodatages RFC 3164 (sans fuseau) |
-| `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | réglages de l'ingestion |
+| `SYSLOG_PORT` | `514` | syslog port published on the host |
+| `HTTP_PORT` | `8080` | web UI port |
+| `RETENTION` | `30d` | how long VictoriaLogs keeps logs |
+| `AUTH_USER` / `AUTH_PASS` | empty | HTTP Basic authentication for the UI |
+| `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
+| `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
 
-## Débogage
+## Debugging
 
-- `docker compose logs -f logstream` : erreurs de réception et d'envoi vers VictoriaLogs.
-- La barre du bas affiche les compteurs reçus / stockés / perdus et la dernière erreur de stockage.
-- <http://localhost:9428/select/vmui> : interface native de VictoriaLogs pour tester des requêtes LogsQL.
-- API :
+- `docker compose logs -f logstream`: receive errors and errors sending to VictoriaLogs.
+- The bottom bar shows received / stored / dropped counters and the last storage error.
+- <http://localhost:9428/select/vmui>: VictoriaLogs' own UI to try LogsQL queries.
+- API:
   ```bash
-  curl 'localhost:8080/api/logs?q=error&range=1h&limit=5'   # la réponse inclut la requête LogsQL générée
+  curl 'localhost:8080/api/logs?q=error&range=1h&limit=5'   # the response includes the generated LogsQL query
   curl localhost:8080/api/stats
   curl localhost:8080/api/tags
   ```
-- Exécution hors Docker : `VLOGS_URL=http://localhost:9428 DATA_DIR=./data SYSLOG_ADDR=:5514 go run .`
+- Running outside Docker (Go 1.22+): `VLOGS_URL=http://localhost:9428 DATA_DIR=./data SYSLOG_ADDR=:5514 go run .`
 
-## Structure du code
+## Code layout
 
-| Fichier | Contenu |
+| File | Contents |
 |---|---|
-| `main.go` | configuration, démarrage, authentification |
-| `syslog.go` | écoute UDP/TCP et décodage RFC 3164 / 5424 |
-| `store.go` | envoi par lots à VictoriaLogs et requêtes LogsQL |
-| `query.go` | traduction des filtres de l'interface en LogsQL, filtre du direct |
-| `hub.go` | diffusion des nouveaux messages aux navigateurs (SSE) |
-| `tags.go` | stockage des tags de couleur |
-| `api.go` | routes HTTP `/api/*` |
-| `web/` | interface (HTML, CSS, JavaScript sans framework ni build), embarquée dans le binaire |
+| `main.go` | configuration, startup, authentication |
+| `syslog.go` | UDP/TCP listeners and RFC 3164 / 5424 parsing |
+| `store.go` | batched inserts into VictoriaLogs and LogsQL queries |
+| `query.go` | turns UI filters into LogsQL; live-view filter |
+| `hub.go` | pushes new messages to browsers (SSE) |
+| `tags.go` | color tag storage |
+| `api.go` | `/api/*` HTTP routes |
+| `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`) |
 
-## Remarque
+## Note
 
-Sous Docker Desktop (macOS/Windows), l'IP source vue par le conteneur pour les paquets UDP
-est celle de la passerelle Docker. Le champ `host` provient toutefois de l'en-tête syslog,
-qui contient normalement le vrai nom de l'émetteur.
+With Docker Desktop (macOS/Windows), the source IP seen by the container for UDP packets is
+the Docker gateway. The `host` field still comes from the syslog header, which normally
+carries the sender's real name.

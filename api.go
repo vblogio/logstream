@@ -36,8 +36,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// writeErr returns {"error": "...", "code": "...", "detail": "..."}; the UI
+// translates known codes and falls back to the English message.
 func writeErr(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{"error": err.Error()})
+	body := map[string]string{"error": err.Error()}
+	var ce *codedError
+	if errors.As(err, &ce) {
+		body["code"] = ce.code
+		if ce.detail != "" {
+			body["detail"] = ce.detail
+		}
+	}
+	writeJSON(w, status, body)
 }
 
 func (a *API) health(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +85,7 @@ var histSteps = map[string]struct {
 	"24h": {"15m", 900}, "7d": {"2h", 7200}, "30d": {"12h", 43200},
 }
 
-// GET /api/histogram : nombre de messages par intervalle de temps.
+// GET /api/histogram: message count per time bucket.
 func (a *API) histogram(w http.ResponseWriter, r *http.Request) {
 	f := FilterFromRequest(r)
 	step, ok := histSteps[f.Range]
@@ -112,7 +122,7 @@ func toInt(v any) int64 {
 	return 0
 }
 
-// GET /api/facets : hôtes et applis vus sur 7 jours, pour les listes de filtres.
+// GET /api/facets: hosts and apps seen over 7 days, for the filter dropdowns.
 func (a *API) facets(w http.ResponseWriter, r *http.Request) {
 	res := map[string][]string{}
 	for _, field := range []string{"host", "app"} {
@@ -134,12 +144,12 @@ func (a *API) facets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-// GET /api/stream : flux SSE des nouveaux messages correspondant au filtre,
-// envoyés par paquets toutes les 250 ms.
+// GET /api/stream: SSE stream of new messages matching the filter,
+// sent in batches every 250 ms.
 func (a *API) stream(w http.ResponseWriter, r *http.Request) {
 	f := FilterFromRequest(r)
 	if f.Mode == "logsql" && f.Text != "" {
-		writeErr(w, http.StatusBadRequest, errors.New("le direct n'est pas disponible en mode LogsQL"))
+		writeErr(w, http.StatusBadRequest, &codedError{code: "live_logsql", msg: "live view is not available in LogsQL mode"})
 		return
 	}
 	m := f.Matcher()
@@ -150,7 +160,7 @@ func (a *API) stream(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-cache")
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprint(w, ": connecté\n\n")
+	_, _ = fmt.Fprint(w, ": connected\n\n")
 	_ = rc.Flush()
 
 	ch := a.hub.Subscribe()
@@ -177,7 +187,7 @@ func (a *API) stream(w http.ResponseWriter, r *http.Request) {
 		case <-tick.C:
 			var err error
 			if len(pending) == 0 && skipped == 0 {
-				// Commentaire SSE toutes les 15 s pour garder la connexion ouverte.
+				// SSE comment every 15 s to keep the connection open.
 				if idle++; idle < 60 {
 					continue
 				}
