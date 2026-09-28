@@ -68,6 +68,21 @@
     <select id="app" data-i18n-aria="appAria"><option value="" data-i18n="allApps">All apps</option></select>
     <span class="spacer"></span>
     <span id="count" class="muted"></span>
+    <div class="export">
+      <button id="exportBtn" class="btn tool" type="button" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3"/></svg>
+        <span class="lbl" data-i18n="export">Export</span>
+      </button>
+      <div id="exportMenu" class="menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-export="csv">
+          <strong>CSV</strong><small data-i18n="exportCsvHint">Comma separated, UTF-8</small>
+        </button>
+        <button type="button" role="menuitem" data-export="excel">
+          <strong data-i18n="exportExcel">CSV for Excel</strong><small data-i18n="exportExcelHint">Semicolon separated, for Excel in French</small>
+        </button>
+        <p id="exportNote" class="menu-note"></p>
+      </div>
+    </div>
   </section>
 
   <section id="histo" class="histo" data-i18n-aria="histoAria"></section>

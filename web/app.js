@@ -66,6 +66,11 @@ const I18N = {
     msgTimeTitle: 'Timestamp from the message',
     fHostName: 'host name (DNS)', fHostIp: 'host IP',
     clickHost: 'Click to filter on this host', clickApp: 'Click to filter on this app',
+    export: 'Export', exportCsvHint: 'Comma separated, UTF-8',
+    exportExcel: 'CSV for Excel', exportExcelHint: 'Semicolon separated, for Excel in French',
+    exportNote: (n) => `Up to ${n} logs matching the current filters, newest first. Dates use the time zone chosen in Settings.`,
+    exporting: 'Exporting…', exportDone: (f) => `Downloaded: ${f}`, exportError: 'Export failed: ',
+    err_export_pipes: 'Export does not support LogsQL pipes (| …): keep only the filter part',
     tabLocale: 'Localization', tabFilters: 'Filters', tabInterface: 'Interface', tabData: 'Data',
     themeTitle: 'Theme', themeSystem: 'System', themeLight: 'Light', themeDark: 'Dark',
     themeHelp: 'System follows the light/dark preference of your computer or phone.',
@@ -149,6 +154,11 @@ const I18N = {
     msgTimeTitle: 'Horodatage contenu dans le message',
     fHostName: 'nom d\'hôte (DNS)', fHostIp: 'IP de l\'hôte',
     clickHost: 'Cliquer pour filtrer sur cet hôte', clickApp: 'Cliquer pour filtrer sur cette appli',
+    export: 'Exporter', exportCsvHint: 'Séparateur virgule, UTF-8',
+    exportExcel: 'CSV pour Excel', exportExcelHint: 'Séparateur point-virgule, pour Excel en français',
+    exportNote: (n) => `Jusqu'à ${n} logs correspondant aux filtres, du plus récent au plus ancien. Dates dans le fuseau choisi dans Paramètres.`,
+    exporting: 'Export…', exportDone: (f) => `Téléchargé : ${f}`, exportError: 'Échec de l\'export : ',
+    err_export_pipes: 'L\'export ne gère pas les pipes LogsQL (| …) : gardez seulement la partie filtre',
     tabLocale: 'Localisation', tabFilters: 'Filtres', tabInterface: 'Interface', tabData: 'Données',
     themeTitle: 'Thème', themeSystem: 'Système', themeLight: 'Clair', themeDark: 'Sombre',
     themeHelp: 'Système suit la préférence clair/sombre de votre ordinateur ou de votre téléphone.',
@@ -283,15 +293,17 @@ async function api(url, opts = {}) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
-  if (!res.ok) {
-    // Known error codes are translated; otherwise show the server message.
-    let msg = (data && data.error) || text || res.statusText;
-    if (data && data.code && I18N[lang]['err_' + data.code]) {
-      msg = t('err_' + data.code) + (data.detail ? (lang === 'fr' ? ' : ' : ': ') + data.detail : '');
-    }
-    throw new Error(msg);
-  }
+  if (!res.ok) throw apiError(res, text, data);
   return data;
+}
+
+// Known error codes are translated; otherwise the server message is shown.
+function apiError(res, text, data) {
+  let msg = (data && data.error) || text || res.statusText;
+  if (data && data.code && I18N[lang]['err_' + data.code]) {
+    msg = t('err_' + data.code) + (data.detail ? (lang === 'fr' ? ' : ' : ': ') + data.detail : '');
+  }
+  return new Error(msg);
 }
 
 function toast(msg) {
@@ -935,6 +947,7 @@ function renderStats() {
 
 async function loadStats() {
   try { state.stats = await api('/api/stats'); } catch { state.stats = null; }
+  if (state.stats && state.stats.exportMax) exportMax = state.stats.exportMax;
   renderStats();
 }
 
@@ -981,6 +994,59 @@ function onTimePrefsChange() {
 $('#tzSelect').addEventListener('change', onTimePrefsChange);
 $('#fmtSelect').addEventListener('change', onTimePrefsChange);
 setInterval(() => { if ($('#settingsDlg').open) updateTimePreview(); }, 1000);
+
+/* ================= CSV export ================= */
+
+let exportMax = 100000; // EXPORT_MAX on the server, refreshed from /api/stats
+
+function setExportMenu(open) {
+  $('#exportMenu').hidden = !open;
+  $('#exportBtn').setAttribute('aria-expanded', String(open));
+  if (open) $('#exportNote').textContent = t('exportNote', fmtNum(exportMax));
+}
+
+async function exportCSV(excel) {
+  const p = params();
+  p.set('tz', timePrefs.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  if (excel) p.set('excel', '1');
+  const btn = $('#exportBtn');
+  const lbl = btn.querySelector('.lbl');
+  btn.disabled = true;
+  lbl.textContent = t('exporting');
+  try {
+    const res = await fetch('/api/export.csv?' + p);
+    if (!res.ok) {
+      const text = await res.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch { /* not JSON */ }
+      throw apiError(res, text, data);
+    }
+    const blob = await res.blob();
+    const name = ((res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/) || [])[1] || 'logstream.csv';
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(t('exportDone', name));
+  } catch (e) {
+    toast(t('exportError') + e.message);
+  } finally {
+    btn.disabled = false;
+    lbl.textContent = t('export');
+  }
+}
+
+$('#exportBtn').addEventListener('click', () => setExportMenu($('#exportMenu').hidden));
+$('#exportMenu').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-export]');
+  if (!b) return;
+  setExportMenu(false);
+  exportCSV(b.dataset.export === 'excel');
+});
+document.addEventListener('click', (ev) => { if (!ev.target.closest('.export')) setExportMenu(false); });
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setExportMenu(false); });
 
 /* ================= Purge ================= */
 

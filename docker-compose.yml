@@ -17,6 +17,7 @@ services:
       RDNS: ${RDNS:-on}               # replace IP hosts with their DNS name (PTR)
       DNS_SERVER: ${DNS_SERVER:-}     # e.g. 192.168.1.1 to query your LAN DNS; empty = system resolver
       ALLOW_PURGE: ${ALLOW_PURGE:-true}
+      EXPORT_MAX: ${EXPORT_MAX:-100000}
     volumes:
       - logstream-data:/data         # tags.json
 

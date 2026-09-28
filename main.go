@@ -34,6 +34,7 @@ type config struct {
 	rdns       bool
 	dnsServer  string
 	allowPurge bool
+	exportMax  int
 	batchSize  int
 	queueSize  int
 	flushEvery time.Duration
@@ -74,6 +75,7 @@ func main() {
 		rdns:       getenvBool("RDNS", true),
 		dnsServer:  os.Getenv("DNS_SERVER"),
 		allowPurge: getenvBool("ALLOW_PURGE", true),
+		exportMax:  getenvInt("EXPORT_MAX", 100000),
 		batchSize:  getenvInt("BATCH_SIZE", 1000),
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
@@ -114,7 +116,7 @@ func main() {
 		log.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	api := &API{store: store, hub: hub, tags: tags, rdns: rdns, allowPurge: cfg.allowPurge}
+	api := &API{store: store, hub: hub, tags: tags, rdns: rdns, allowPurge: cfg.allowPurge, exportMax: cfg.exportMax}
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))
 

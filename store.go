@@ -17,8 +17,9 @@ import (
 
 // Store sends messages to VictoriaLogs in batches and queries it with LogsQL.
 type Store struct {
-	base       string
-	client     *http.Client
+	base         string
+	client       *http.Client
+	streamClient *http.Client
 	in         chan *Entry
 	batchSize  int
 	flushEvery time.Duration
@@ -33,6 +34,9 @@ func NewStore(base string, batchSize, queueSize int, flushEvery time.Duration) *
 	s := &Store{
 		base:       strings.TrimRight(base, "/"),
 		client:     &http.Client{Timeout: 60 * time.Second},
+		// No global timeout: a large export can take longer than a minute. The
+		// request context still cancels it when the browser goes away.
+		streamClient: &http.Client{},
 		in:         make(chan *Entry, queueSize),
 		batchSize:  batchSize,
 		flushEvery: flushEvery,
@@ -138,23 +142,37 @@ func (s *Store) post(u string, body []byte) error {
 
 // Query runs a LogsQL query and returns one row per result.
 func (s *Store) Query(ctx context.Context, query string) ([]map[string]any, error) {
-	form := url.Values{"query": {query}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.base+"/select/logsql/query", strings.NewReader(form.Encode()))
+	rows := []map[string]any{}
+	err := s.QueryStream(ctx, query, func(row map[string]any) error {
+		rows = append(rows, row)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := s.client.Do(req)
+	return rows, nil
+}
+
+// QueryStream runs a LogsQL query and calls fn for each result as it arrives,
+// without keeping the results in memory. fn is only called once VictoriaLogs
+// has accepted the query; an error returned by fn stops the stream.
+func (s *Store) QueryStream(ctx context.Context, query string, fn func(row map[string]any) error) error {
+	form := url.Values{"query": {query}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.base+"/select/logsql/query", strings.NewReader(form.Encode()))
 	if err != nil {
-		return nil, err
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := s.streamClient.Do(req)
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return nil, fmt.Errorf("%s", strings.TrimSpace(string(msg)))
+		return fmt.Errorf("%s", strings.TrimSpace(string(msg)))
 	}
 
-	rows := []map[string]any{}
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 64*1024), 16<<20)
 	for sc.Scan() {
@@ -164,11 +182,13 @@ func (s *Store) Query(ctx context.Context, query string) ([]map[string]any, erro
 		}
 		var row map[string]any
 		if err := json.Unmarshal(line, &row); err != nil {
-			return nil, err
+			return err
 		}
-		rows = append(rows, row)
+		if err := fn(row); err != nil {
+			return err
+		}
 	}
-	return rows, sc.Err()
+	return sc.Err()
 }
 
 // Purge starts a VictoriaLogs task that deletes every stored log, and resets

@@ -59,6 +59,23 @@ Severity badges `err`/`crit` and `warning` use the colors of the `error` and `wa
 
 Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
+## CSV export
+
+The **Export** button (next to the log count) downloads every stored log matching the
+current filters (search, time range, severity, host, app), newest first, up to `EXPORT_MAX`
+rows (100,000 by default), not only the rows on screen. Two variants:
+
+- **CSV**: comma separated, UTF-8.
+- **CSV for Excel**: semicolon separated with a UTF-8 BOM, so French Excel opens it directly
+  with accents. Cells starting with `=`, `+`, `-` or `@` are prefixed with `'` so that a
+  crafted log message cannot run as a formula.
+
+Columns: `received`, `message_time` (both as `YYYY-MM-DD HH:MM:SS.mmm` in the time zone
+chosen in Settings), `severity`, `facility`, `host`, `host_ip`, `app`, `pid`, `source_ip`,
+`proto`, `message`. In LogsQL mode, only the filter part is supported (no `| pipes`).
+
+From the command line: `curl -o logs.csv 'localhost:8080/api/export.csv?q=error&range=24h&tz=Europe/Paris'`.
+
 ## Settings
 
 The gear icon opens the settings, organized in tabs. Everything except color tags is
@@ -118,6 +135,7 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `RDNS` | `on` | resolve IP hosts to DNS names |
 | `DNS_SERVER` | empty | DNS server for reverse lookups (`ip` or `ip:port`) |
 | `ALLOW_PURGE` | `true` | allow "Delete all logs" in Settings |
+| `EXPORT_MAX` | `100000` | maximum number of rows in a CSV export |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
 
@@ -144,6 +162,7 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `query.go` | turns UI filters into LogsQL; live-view filter |
 | `hub.go` | pushes new messages to browsers (SSE) |
 | `rdns.go` | cached reverse DNS lookups |
+| `export.go` | streamed CSV export |
 | `tags.go` | color tag storage |
 | `api.go` | `/api/*` HTTP routes |
 | `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`) |

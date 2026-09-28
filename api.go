@@ -18,6 +18,7 @@ type API struct {
 	tags       *TagStore
 	rdns       *ReverseDNS
 	allowPurge bool
+	exportMax  int
 }
 
 func (a *API) Routes(mux *http.ServeMux) {
@@ -34,6 +35,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/tags/{id}", a.deleteTag)
 	mux.HandleFunc("GET /api/purge", a.purgeStatus)
 	mux.HandleFunc("POST /api/purge", a.purge)
+	mux.HandleFunc("GET /api/export.csv", a.exportCSV)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -261,6 +263,7 @@ func (a *API) stream(w http.ResponseWriter, r *http.Request) {
 func (a *API) stats(w http.ResponseWriter, r *http.Request) {
 	s := a.store.Stats()
 	s["clients"] = a.hub.Count()
+	s["exportMax"] = a.exportMax
 	writeJSON(w, http.StatusOK, s)
 }
 
