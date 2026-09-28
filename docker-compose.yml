@@ -1,7 +1,7 @@
 services:
-  logwell:
+  logstream:
     build: .
-    container_name: logwell
+    container_name: logstream
     restart: unless-stopped
     depends_on:
       - victorialogs
@@ -15,12 +15,12 @@ services:
       AUTH_USER: ${AUTH_USER:-}   # laisser vide pour désactiver l'authentification
       AUTH_PASS: ${AUTH_PASS:-}
     volumes:
-      - logwell-data:/data         # tags.json
+      - logstream-data:/data         # tags.json
 
   victorialogs:
     # Épinglez une version précise en production (voir hub.docker.com/r/victoriametrics/victoria-logs/tags)
     image: victoriametrics/victoria-logs:latest
-    container_name: logwell-victorialogs
+    container_name: logstream-victorialogs
     restart: unless-stopped
     command:
       - -storageDataPath=/vlogs
@@ -33,5 +33,5 @@ services:
       - "127.0.0.1:9428:9428"
 
 volumes:
-  logwell-data:
+  logstream-data:
   vlogs-data:

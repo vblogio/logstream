@@ -1,4 +1,4 @@
-// Logwell : puits de logs syslog (UDP/TCP) stocké dans VictoriaLogs,
+// Logstream : puits de logs syslog (UDP/TCP) stocké dans VictoriaLogs,
 // avec une interface web de consultation.
 package main
 
@@ -131,7 +131,7 @@ func basicAuth(user, pass string, next http.Handler) http.Handler {
 		if !ok ||
 			subtle.ConstantTimeCompare([]byte(u), []byte(user)) != 1 ||
 			subtle.ConstantTimeCompare([]byte(p), []byte(pass)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="logwell"`)
+			w.Header().Set("WWW-Authenticate", `Basic realm="logstream"`)
 			http.Error(w, "authentification requise", http.StatusUnauthorized)
 			return
 		}

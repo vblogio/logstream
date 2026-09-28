@@ -1,11 +1,11 @@
-# Logwell
+# Logstream
 
 Un puits de logs syslog simple : réception UDP/TCP sur le port 514, stockage dans
 [VictoriaLogs](https://docs.victoriametrics.com/victorialogs/), et une interface web
 claire (thème clair/sombre, recherche dynamique, direct, tags de couleur).
 
 ```
-équipements ──514 udp/tcp──▶ logwell (Go) ──lots HTTP──▶ VictoriaLogs
+équipements ──514 udp/tcp──▶ logstream (Go) ──lots HTTP──▶ VictoriaLogs
                                   ▲    └── SSE (direct) ──▶ navigateur
                                   └──── API / interface ◀──┘
 ```
@@ -23,7 +23,7 @@ Puis ouvrez <http://localhost:8080>.
 ## Envoyer ses logs
 
 - **rsyslog** (Linux) : ajoutez `*.* @IP_DU_SERVEUR:514` (UDP) ou `*.* @@IP_DU_SERVEUR:514` (TCP)
-  dans `/etc/rsyslog.d/90-logwell.conf`, puis exécutez `systemctl restart rsyslog`.
+  dans `/etc/rsyslog.d/90-logstream.conf`, puis exécutez `systemctl restart rsyslog`.
 - **Équipements réseau, NAS, pare-feu** : renseignez l'IP du serveur et le port 514 dans la
   configuration « syslog distant ».
 - **Test manuel** : `logger -n 127.0.0.1 -P 514 -d "hello error"` (util-linux) ou
@@ -55,7 +55,7 @@ affiche tous ses champs.
 L'icône d'étiquette ouvre l'éditeur. Chaque tag a un mot-clé, une couleur de fond (le texte
 passe automatiquement en noir ou en blanc pour rester lisible) et des options : mot entier,
 respect de la casse, expression régulière, actif. Les tags sont enregistrés dans
-`/data/tags.json` (volume `logwell-data`). Tags par défaut : `warning` (orange),
+`/data/tags.json` (volume `logstream-data`). Tags par défaut : `warning` (orange),
 `error` (rouge), `ok` (vert).
 
 ## Configuration
@@ -71,7 +71,7 @@ respect de la casse, expression régulière, actif. Les tags sont enregistrés d
 
 ## Débogage
 
-- `docker compose logs -f logwell` : erreurs de réception et d'envoi vers VictoriaLogs.
+- `docker compose logs -f logstream` : erreurs de réception et d'envoi vers VictoriaLogs.
 - La barre du bas affiche les compteurs reçus / stockés / perdus et la dernière erreur de stockage.
 - <http://localhost:9428/select/vmui> : interface native de VictoriaLogs pour tester des requêtes LogsQL.
 - API :

@@ -8,8 +8,8 @@ const MAX_ROWS = 2000;   // lignes gardées à l'écran en mode direct
 const RANGE_MS = { '5m': 3e5, '15m': 9e5, '1h': 36e5, '6h': 216e5, '24h': 864e5, '7d': 6048e5, '30d': 2592e6 };
 
 const store = {
-  get(k, def) { try { const v = localStorage.getItem('logwell.' + k); return v === null ? def : v; } catch { return def; } },
-  set(k, v) { try { localStorage.setItem('logwell.' + k, v); } catch { /* stockage indisponible */ } },
+  get(k, def) { try { const v = localStorage.getItem('logstream.' + k); return v === null ? def : v; } catch { return def; } },
+  set(k, v) { try { localStorage.setItem('logstream.' + k, v); } catch { /* stockage indisponible */ } },
 };
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
