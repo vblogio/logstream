@@ -1,0 +1,330 @@
+package main
+
+import (
+	"bufio"
+	"context"
+	"io"
+	"log"
+	"net"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+)
+
+var severityNames = [8]string{"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"}
+
+var facilityNames = [24]string{
+	"kern", "user", "mail", "daemon", "auth", "syslog", "lpr", "news",
+	"uucp", "cron", "authpriv", "ftp", "ntp", "security", "console", "solaris-cron",
+	"local0", "local1", "local2", "local3", "local4", "local5", "local6", "local7",
+}
+
+// Entry est un message syslog décodé.
+type Entry struct {
+	Time     time.Time
+	Host     string
+	App      string
+	ProcID   string
+	Facility string
+	Severity string
+	SevNum   int
+	SD       string // données structurées RFC 5424, brutes
+	Message  string
+	Source   string // IP de l'émetteur
+	Proto    string // udp ou tcp
+}
+
+// Record renvoie l'entrée au format stocké dans VictoriaLogs et renvoyé par l'API.
+func (e *Entry) Record() map[string]string {
+	r := map[string]string{
+		"_time":    e.Time.UTC().Format(time.RFC3339Nano),
+		"_msg":     e.Message,
+		"host":     e.Host,
+		"app":      e.App,
+		"facility": e.Facility,
+		"severity": e.Severity,
+		"sevnum":   strconv.Itoa(e.SevNum),
+		"source":   e.Source,
+		"proto":    e.Proto,
+	}
+	if e.ProcID != "" {
+		r["procid"] = e.ProcID
+	}
+	if e.SD != "" {
+		r["sd"] = e.SD
+	}
+	return r
+}
+
+func (e *Entry) setPri(pri int) {
+	e.SevNum = pri % 8
+	e.Severity = severityNames[pri%8]
+	e.Facility = facilityNames[pri/8]
+}
+
+// ParseSyslog décode un message RFC 5424 ou RFC 3164 (BSD). Il ne renvoie
+// jamais d'erreur : un message non conforme est conservé tel quel.
+func ParseSyslog(raw []byte, source, proto string, now time.Time) *Entry {
+	s := strings.TrimRight(string(raw), "\r\n\x00 ")
+	if !utf8.ValidString(s) {
+		s = strings.ToValidUTF8(s, "�")
+	}
+	e := &Entry{Time: now, Host: source, Source: source, Proto: proto}
+	e.setPri(13) // user.notice, valeur par défaut de la RFC 3164
+
+	if len(s) > 2 && s[0] == '<' {
+		if end := strings.IndexByte(s, '>'); end > 1 && end <= 4 {
+			if pri, err := strconv.Atoi(s[1:end]); err == nil && pri >= 0 && pri <= 191 {
+				e.setPri(pri)
+				s = s[end+1:]
+			}
+		}
+	}
+	if strings.HasPrefix(s, "1 ") {
+		parse5424(e, s[2:])
+	} else {
+		parse3164(e, s)
+	}
+	if e.Message == "" {
+		e.Message = "(vide)"
+	}
+	return e
+}
+
+// parse5424 : TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
+func parse5424(e *Entry, s string) {
+	f := strings.SplitN(s, " ", 6)
+	if len(f) < 6 {
+		e.Message = s
+		return
+	}
+	if t, err := time.Parse(time.RFC3339Nano, f[0]); err == nil {
+		e.Time = t
+	}
+	if f[1] != "-" {
+		e.Host = f[1]
+	}
+	if f[2] != "-" {
+		e.App = f[2]
+	}
+	if f[3] != "-" {
+		e.ProcID = f[3]
+	}
+	rest := f[5]
+	switch {
+	case rest == "-" || strings.HasPrefix(rest, "- "):
+		rest = strings.TrimPrefix(rest[1:], " ")
+	case strings.HasPrefix(rest, "["):
+		n := sdLen(rest)
+		e.SD = rest[:n]
+		rest = strings.TrimPrefix(rest[n:], " ")
+	}
+	e.Message = strings.TrimPrefix(rest, "﻿")
+}
+
+// sdLen renvoie la longueur du bloc de données structurées « [..][..] ».
+func sdLen(s string) int {
+	i := 0
+	for i < len(s) && s[i] == '[' {
+		inQuote := false
+		for i++; i < len(s); i++ {
+			c := s[i]
+			if inQuote && c == '\\' {
+				i++
+				continue
+			}
+			if c == '"' {
+				inQuote = !inQuote
+				continue
+			}
+			if c == ']' && !inQuote {
+				i++
+				break
+			}
+		}
+	}
+	if i > len(s) {
+		i = len(s)
+	}
+	return i
+}
+
+// parse3164 : « Mmm dd hh:mm:ss HOST TAG[PID]: MSG », ou horodatage ISO (rsyslog).
+func parse3164(e *Entry, s string) {
+	if len(s) >= 16 && s[15] == ' ' {
+		if t, err := time.ParseInLocation(time.Stamp, s[:15], time.Local); err == nil {
+			// L'année est absente : on prend l'année courante, sauf si la date tombe dans le futur.
+			now := e.Time
+			t = time.Date(now.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.Local)
+			if t.After(now.Add(24 * time.Hour)) {
+				t = t.AddDate(-1, 0, 0)
+			}
+			e.Time = t
+			parseHostTag(e, s[16:], true)
+			return
+		}
+	}
+	if sp := strings.IndexByte(s, ' '); sp >= 19 {
+		if t, err := time.Parse(time.RFC3339Nano, s[:sp]); err == nil {
+			e.Time = t
+			parseHostTag(e, s[sp+1:], true)
+			return
+		}
+	}
+	parseHostTag(e, s, false)
+}
+
+func parseHostTag(e *Entry, s string, withHost bool) {
+	if withHost {
+		if sp := strings.IndexByte(s, ' '); sp > 0 {
+			tok := s[:sp]
+			if !strings.HasSuffix(tok, ":") && !strings.Contains(tok, "[") {
+				e.Host = tok
+				s = s[sp+1:]
+			}
+		}
+	}
+	if i := strings.IndexAny(s, ":[ "); i > 0 && i <= 48 {
+		switch s[i] {
+		case ':':
+			if i+1 == len(s) || s[i+1] == ' ' {
+				e.App = s[:i]
+				s = strings.TrimPrefix(s[i+1:], " ")
+			}
+		case '[':
+			if j := strings.IndexByte(s[i:], ']'); j > 1 {
+				e.App = s[:i]
+				e.ProcID = s[i+1 : i+j]
+				s = strings.TrimPrefix(strings.TrimPrefix(s[i+j+1:], ":"), " ")
+			}
+		}
+	}
+	e.Message = s
+}
+
+// StartSyslog démarre les écoutes UDP et TCP sur la même adresse.
+func StartSyslog(ctx context.Context, addr string, sink func(*Entry)) error {
+	pc, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		return err
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		pc.Close()
+		return err
+	}
+	if uc, ok := pc.(*net.UDPConn); ok {
+		_ = uc.SetReadBuffer(8 << 20)
+	}
+	go func() {
+		<-ctx.Done()
+		pc.Close()
+		ln.Close()
+	}()
+	go serveUDP(ctx, pc, sink)
+	go serveTCP(ctx, ln, sink)
+	return nil
+}
+
+func serveUDP(ctx context.Context, pc net.PacketConn, sink func(*Entry)) {
+	buf := make([]byte, 65536)
+	for {
+		n, addr, err := pc.ReadFrom(buf)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			log.Printf("syslog udp : %v", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		sink(ParseSyslog(buf[:n], hostOf(addr), "udp", time.Now()))
+	}
+}
+
+func serveTCP(ctx context.Context, ln net.Listener, sink func(*Entry)) {
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			log.Printf("syslog tcp : %v", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		go handleTCP(ctx, conn, sink)
+	}
+}
+
+const maxFrame = 1 << 20
+
+// handleTCP gère les deux découpages de la RFC 6587 : « octet counting »
+// (« 123 <34>1 ... ») et un message par ligne.
+func handleTCP(ctx context.Context, conn net.Conn, sink func(*Entry)) {
+	defer conn.Close()
+	stop := context.AfterFunc(ctx, func() { conn.Close() })
+	defer stop()
+
+	src := hostOf(conn.RemoteAddr())
+	r := bufio.NewReaderSize(conn, 64*1024)
+	for {
+		c, err := r.ReadByte()
+		if err != nil {
+			return
+		}
+		switch {
+		case c == '\n' || c == '\r' || c == ' ' || c == 0:
+			continue
+		case c >= '1' && c <= '9':
+			n := int(c - '0')
+			for {
+				c, err = r.ReadByte()
+				if err != nil {
+					return
+				}
+				if c == ' ' {
+					break
+				}
+				if c < '0' || c > '9' || n > maxFrame {
+					log.Printf("syslog tcp %s : trame invalide, connexion fermée", src)
+					return
+				}
+				n = n*10 + int(c-'0')
+			}
+			if n > maxFrame {
+				return
+			}
+			msg := make([]byte, n)
+			if _, err := io.ReadFull(r, msg); err != nil {
+				return
+			}
+			sink(ParseSyslog(msg, src, "tcp", time.Now()))
+		default:
+			_ = r.UnreadByte()
+			line, err := r.ReadSlice('\n')
+			if len(line) > 0 {
+				sink(ParseSyslog(line, src, "tcp", time.Now()))
+			}
+			// Ligne plus longue que le tampon : on ignore la suite.
+			for err == bufio.ErrBufferFull {
+				_, err = r.ReadSlice('\n')
+			}
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
+func hostOf(a net.Addr) string {
+	if a == nil {
+		return ""
+	}
+	h, _, err := net.SplitHostPort(a.String())
+	if err != nil {
+		return a.String()
+	}
+	return h
+}

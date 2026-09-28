@@ -1,0 +1,37 @@
+services:
+  logwell:
+    build: .
+    container_name: logwell
+    restart: unless-stopped
+    depends_on:
+      - victorialogs
+    ports:
+      - "${SYSLOG_PORT:-514}:5514/udp"
+      - "${SYSLOG_PORT:-514}:5514/tcp"
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      VLOGS_URL: http://victorialogs:9428
+      TZ: ${TZ:-Europe/Paris}
+      AUTH_USER: ${AUTH_USER:-}   # laisser vide pour désactiver l'authentification
+      AUTH_PASS: ${AUTH_PASS:-}
+    volumes:
+      - logwell-data:/data         # tags.json
+
+  victorialogs:
+    # Épinglez une version précise en production (voir hub.docker.com/r/victoriametrics/victoria-logs/tags)
+    image: victoriametrics/victoria-logs:latest
+    container_name: logwell-victorialogs
+    restart: unless-stopped
+    command:
+      - -storageDataPath=/vlogs
+      - -retentionPeriod=${RETENTION:-30d}
+      - -httpListenAddr=:9428
+    volumes:
+      - vlogs-data:/vlogs
+    ports:
+      # Interface de debug VictoriaLogs (http://localhost:9428/select/vmui), locale uniquement
+      - "127.0.0.1:9428:9428"
+
+volumes:
+  logwell-data:
+  vlogs-data:
