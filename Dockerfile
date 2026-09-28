@@ -1,5 +1,7 @@
+# Image versions are pinned: update them on purpose (see "Updating" in the README).
+
 # ---- Build ----
-FROM golang:1.23-alpine AS build
+FROM golang:1.27.1-alpine3.24 AS build
 WORKDIR /src
 COPY go.mod ./
 COPY *.go ./
@@ -7,7 +9,7 @@ COPY web ./web
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/logstream .
 
 # ---- Final image (~15 MB) ----
-FROM alpine:3.20
+FROM alpine:3.24.2
 RUN adduser -D -H -u 10001 logstream \
  && mkdir /data && chown logstream /data
 COPY --from=build /out/logstream /usr/local/bin/logstream

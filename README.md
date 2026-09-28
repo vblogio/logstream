@@ -187,6 +187,29 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
   ```
 - Running outside Docker (Go 1.22+): `VLOGS_URL=http://localhost:9428 DATA_DIR=./data SYSLOG_ADDR=:5514 go run .`
 
+## Updating
+
+Every image version is pinned, so a `docker compose pull` or a rebuild never changes a
+component behind your back:
+
+| Where | Image | Version |
+|---|---|---|
+| `docker-compose.yml` | `victoriametrics/victoria-logs` | `v1.52.0` |
+| `docker-compose.yml` | `tecnativa/docker-socket-proxy` | `v0.5.0` |
+| `Dockerfile` (build) | `golang` | `1.27.1-alpine3.24` |
+| `Dockerfile` (runtime) | `alpine` | `3.24.2` |
+
+To update one of them:
+
+1. Check the release notes: [VictoriaLogs](https://docs.victoriametrics.com/victorialogs/changelog/),
+   [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy/releases),
+   [Go](https://go.dev/doc/devel/release), [Alpine](https://alpinelinux.org/releases/).
+   VictoriaLogs keeps its storage format across minor versions; read the changelog before a
+   major version change.
+2. Change the version in the file above, then run `docker compose up -d --build`.
+3. Check the bottom bar (received / stored / dropped) and **Settings > Sources**. To go back,
+   restore the previous version and run the same command.
+
 ## Code layout
 
 | File | Contents |
