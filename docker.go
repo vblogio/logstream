@@ -579,12 +579,14 @@ func (m *DockerManager) emit(c DockerContainer, stream string, line []byte) {
 }
 
 // Log level written by the application: JSON ("level":"error"), logfmt
-// (level=warn), [ERROR], or an upper-case level word near the start.
+// (level=warn), [ERROR], a lower-case level between tabs (VictoriaMetrics),
+// or an upper-case level word near the start (ERROR, zerolog's INF/WRN…).
 var (
 	levelJSON    = regexp.MustCompile(`(?i)"(?:level|lvl|severity|log\.level)"\s*:\s*"([a-z]+)"`)
 	levelLogfmt  = regexp.MustCompile(`(?i)\b(?:level|lvl|severity)="?([a-z]+)`)
 	levelBracket = regexp.MustCompile(`(?i)\[\s*(emerg|alert|crit|critical|fatal|panic|err|error|warn|warning|notice|info|debug|trace)\s*\]`)
-	levelWord    = regexp.MustCompile(`\b(EMERG|ALERT|CRIT|CRITICAL|FATAL|PANIC|ERR|ERROR|WARN|WARNING|NOTICE|INFO|DEBUG|TRACE)\b`)
+	levelTab     = regexp.MustCompile(`(?:^|\t)(debug|info|warn|warning|error|fatal|panic)\t`)
+	levelWord    = regexp.MustCompile(`\b(EMERG|ALERT|CRIT|CRITICAL|FATAL|FTL|PANIC|PNC|ERR|ERROR|WARN|WARNING|WRN|NOTICE|INFO|INF|DEBUG|DBG|TRACE|TRC)\b`)
 )
 
 func levelNum(word string) (int, bool) {
@@ -593,17 +595,17 @@ func levelNum(word string) (int, bool) {
 		return 0, true
 	case "alert":
 		return 1, true
-	case "crit", "critical", "fatal", "panic":
+	case "crit", "critical", "fatal", "ftl", "panic", "pnc":
 		return 2, true
 	case "err", "error":
 		return 3, true
-	case "warn", "warning":
+	case "warn", "warning", "wrn":
 		return 4, true
 	case "notice":
 		return 5, true
-	case "info", "information":
+	case "info", "information", "inf":
 		return 6, true
-	case "debug", "trace":
+	case "debug", "dbg", "trace", "trc":
 		return 7, true
 	}
 	return 0, false
@@ -620,6 +622,9 @@ func detectLevel(s string) (int, bool) {
 	head := s
 	if len(head) > 60 {
 		head = head[:60]
+	}
+	if m := levelTab.FindStringSubmatch(head); m != nil {
+		return levelNum(m[1])
 	}
 	if m := levelWord.FindStringSubmatch(head); m != nil {
 		return levelNum(m[1])
