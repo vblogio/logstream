@@ -19,6 +19,12 @@
   --sev-info: #0d9488;
   --sev-debug: #9ca3af;
 
+  /* Filled severity badges; overwritten by the colors of the "error" / "warning" tags */
+  --tag-error: #fca5a5;
+  --tag-error-text: #111827;
+  --tag-warning: #fdba74;
+  --tag-warning-text: #111827;
+
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --radius: 10px;
@@ -238,14 +244,18 @@ body.busy .progress::after {
   padding: 1px 6px; border-radius: 5px;
   color: var(--sev); background: color-mix(in srgb, var(--sev) 14%, transparent);
 }
-.sev-crit    { --sev: var(--sev-crit); }
-.sev-err     { --sev: var(--sev-err); }
-.sev-warning { --sev: var(--sev-warning); }
+.sev-crit    { --sev: var(--tag-error); --sev-text: var(--tag-error-text); }
+.sev-err     { --sev: var(--tag-error); --sev-text: var(--tag-error-text); }
+.sev-warning { --sev: var(--tag-warning); --sev-text: var(--tag-warning-text); }
 .sev-notice  { --sev: var(--sev-notice); }
 .sev-info    { --sev: var(--sev-info); }
 .sev-debug   { --sev: var(--sev-debug); }
+.row.sev-crit .sev, .row.sev-err .sev, .row.sev-warning .sev { background: var(--sev); color: var(--sev-text); }
+.row.sev-crit .sev { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sev-text) 45%, transparent); }
 .row.sev-crit, .row.sev-err, .row.sev-warning { border-left-color: var(--sev); }
-.row.sev-crit, .row.sev-err { background: color-mix(in srgb, var(--sev) 4%, transparent); }
+.row.sev-crit, .row.sev-err { background: color-mix(in srgb, var(--sev) 7%, transparent); }
+.row .host[data-act], .row .app[data-act] { cursor: pointer; }
+.row .host[data-act]:hover, .row .app[data-act]:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
 mark.tag {
   padding: 0 4px; border-radius: 4px; font-weight: 650;

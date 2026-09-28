@@ -38,10 +38,15 @@ type Entry struct {
 }
 
 // Record returns the entry in the shape stored in VictoriaLogs and returned by the API.
+// The time axis (_time) is the reception time: device clocks can be wrong, and
+// logs indexed in the past would escape time ranges. The device timestamp is
+// kept in msg_time.
 func (e *Entry) Record() map[string]string {
+	rcv := e.Received.UTC().Format(time.RFC3339Nano)
 	r := map[string]string{
-		"_time":    e.Time.UTC().Format(time.RFC3339Nano),
-		"received": e.Received.UTC().Format(time.RFC3339Nano),
+		"_time":    rcv,
+		"received": rcv,
+		"msg_time": e.Time.UTC().Format(time.RFC3339Nano),
 		"_msg":     e.Message,
 		"host":     e.Host,
 		"app":      e.App,

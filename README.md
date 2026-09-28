@@ -46,9 +46,16 @@ message, host and app. Words are combined with AND.
 `error AND host:web-01`, `app:~"ssh|nginx"`, or `* | stats by (host) count()`.
 The live view is disabled in this mode.
 
-Each row shows, from left to right: the **reception time** (server clock, stored in the
-`received` field), the timestamp found in the message itself, severity, host, app and message.
-Logs stored before the `received` field existed show `—` in the first column.
+Each row shows, from left to right: the **reception time** (server clock), the timestamp
+found in the message itself (`msg_time`), severity, host, app and message. Click a host or an
+app to filter on it.
+
+Logs are indexed, searched and sorted by **reception time**: devices with a wrong clock
+(e.g. access points whose NTP fails) still show up in the right time range. Logs stored by
+versions before this change are indexed by their message timestamp; purge them from
+Settings to start clean.
+
+Severity badges `err`/`crit` and `warning` use the colors of the `error` and `warning` tags.
 
 Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
@@ -80,7 +87,8 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 - **Color tags**: each tag has a keyword, a background color (the text automatically
   switches to black or white to stay readable) and options: whole word, match case,
   regular expression, active. Tags are stored in `/data/tags.json` (`logstream-data` volume).
-  Default tags: `warning` (orange), `error` (red), `ok` (green).
+  Default tags (pastel): `warning` (orange), `error` (red), `ok` (green). Default tags
+  still using the colors of earlier versions are switched to the pastel ones automatically.
 
 ## Configuration
 

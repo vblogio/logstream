@@ -65,6 +65,7 @@ const I18N = {
     rcvTitle: 'Received by the server',
     msgTimeTitle: 'Timestamp from the message',
     fHostName: 'host name (DNS)', fHostIp: 'host IP',
+    clickHost: 'Click to filter on this host', clickApp: 'Click to filter on this app',
     dangerZone: 'Danger zone',
     purgeHelp: 'Permanently delete every stored log to start from scratch. Color tags and settings are kept.',
     purgeBtn: 'Delete all logs…',
@@ -139,6 +140,7 @@ const I18N = {
     rcvTitle: 'Reçu par le serveur',
     msgTimeTitle: 'Horodatage contenu dans le message',
     fHostName: 'nom d\'hôte (DNS)', fHostIp: 'IP de l\'hôte',
+    clickHost: 'Cliquer pour filtrer sur cet hôte', clickApp: 'Cliquer pour filtrer sur cette appli',
     dangerZone: 'Zone de danger',
     purgeHelp: 'Supprime définitivement tous les logs stockés pour repartir de zéro. Les tags de couleur et les réglages sont conservés.',
     purgeBtn: 'Supprimer tous les logs…',
@@ -393,7 +395,23 @@ function textOn(hex) {
 const tagStyle = (color) => `background:${color};color:${textOn(color)}`;
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Severity badges share the colors of the "error" and "warning" tags.
+function applySeverityColors() {
+  const style = document.documentElement.style;
+  for (const name of ['error', 'warning']) {
+    const tag = state.tags.find((x) => String(x.pattern).toLowerCase() === name && /^#[0-9a-f]{6}$/i.test(x.color));
+    if (tag) {
+      style.setProperty(`--tag-${name}`, tag.color);
+      style.setProperty(`--tag-${name}-text`, textOn(tag.color));
+    } else {
+      style.removeProperty(`--tag-${name}`);
+      style.removeProperty(`--tag-${name}-text`);
+    }
+  }
+}
+
 function compileMatchers() {
+  applySeverityColors();
   const out = [];
   for (const tag of state.tags) {
     if (!tag.enabled || !tag.pattern) continue;
@@ -457,10 +475,14 @@ function rowHTML(r, isNew) {
   const cls = SEV_CLASS[sev] || 'info';
   return `<article class="row sev-${cls}${isNew ? ' new' : ''}" tabindex="0">`
     + `<time class="rcv" title="${esc(t('rcvTitle'))}">${r.received ? esc(fmtFull(r.received)) : '—'}</time>`
-    + `<time class="mt" title="${esc(t('msgTimeTitle'))}">${fmtTime(r._time)}</time>`
+    + `<time class="mt" title="${esc(t('msgTimeTitle'))}">${fmtTime(r.msg_time || r._time)}</time>`
     + `<span class="sev">${esc(sev || '—')}</span>`
-    + `<span class="host" title="${esc(hostTitle(r))}">${esc(r.host_name || r.host)}</span>`
-    + `<span class="app" title="${esc(r.app)}">${esc(r.app)}</span>`
+    + (r.host
+      ? `<span class="host" data-act="host" title="${esc(hostTitle(r) + ' · ' + t('clickHost'))}">${esc(r.host_name || r.host)}</span>`
+      : '<span class="host"></span>')
+    + (r.app
+      ? `<span class="app" data-act="app" title="${esc(r.app + ' · ' + t('clickApp'))}">${esc(r.app)}</span>`
+      : '<span class="app"></span>')
     + `<div class="msg">${highlight(r._msg)}</div>`
     + '</article>';
 }
@@ -482,7 +504,32 @@ function bindRows(first, rows) {
   }
 }
 
+// Adds the hosts/apps of displayed logs to the filter lists (live logs can
+// show a host before the next refresh of /api/facets).
+function addFacetValues(rows) {
+  for (const id of ['host', 'app']) {
+    const sel = $('#' + id);
+    const have = new Set([...sel.options].map((o) => o.value));
+    let added = false;
+    for (const r of rows) {
+      const v = r[id];
+      if (!v || have.has(v)) continue;
+      have.add(v);
+      sel.add(new Option(id === 'host' && r.host_name ? `${r.host_name} (${v})` : v, v));
+      added = true;
+    }
+    if (added) {
+      const cur = sel.value;
+      const [first, ...rest] = [...sel.options];
+      rest.sort((a, b) => a.text.localeCompare(b.text));
+      sel.replaceChildren(first, ...rest);
+      sel.value = cur;
+    }
+  }
+}
+
 function renderList() {
+  addFacetValues(state.rows);
   list.innerHTML = state.rows.map((r) => rowHTML(r, false)).join('');
   bindRows(list.firstElementChild, state.rows);
   $('#empty').hidden = state.rows.length > 0 || !$('#error').hidden;
@@ -497,6 +544,7 @@ function rehighlight() {
 
 function prependRows(rows) {
   if (!rows.length) return;
+  addFacetValues(rows);
   list.insertAdjacentHTML('afterbegin', rows.map((r) => rowHTML(r, true)).join(''));
   bindRows(list.firstElementChild, rows);
   state.rows = rows.concat(state.rows);
@@ -515,12 +563,13 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['received', '_time', 'host', 'host_name', 'host_ip', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
   const hidden = new Set(['_stream_id', '_stream', 'sevnum']);
-  const keys = order.filter((k) => r[k] != null && r[k] !== '')
+  if (r.msg_time) hidden.add('_time'); // same as the reception time
+  const keys = order.filter((k) => r[k] != null && r[k] !== '' && !hidden.has(k))
     .concat(Object.keys(r).filter((k) => !order.includes(k) && !hidden.has(k)).sort());
-  const label = { host_name: t('fHostName'), host_ip: t('fHostIp'), received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
-  const val = (k) => (k === '_time' || k === 'received'
+  const label = { msg_time: t('fTime'), host_name: t('fHostName'), host_ip: t('fHostIp'), received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
+  const val = (k) => (k === '_time' || k === 'received' || k === 'msg_time'
     ? `${esc(fmtFull(r[k]))} <span class="muted">(${esc(r[k])})</span>`
     : esc(r[k]));
   return '<div class="details"><dl>'
@@ -744,6 +793,7 @@ async function loadFacets() {
       sel.replaceChildren(first, ...(f[id] || []).map((x) => new Option(x.label || x.value, x.value)));
       if (cur) setSelect(id, cur);
     }
+    addFacetValues(state.rows);
   } catch { /* VictoriaLogs not ready yet: retried later */ }
 }
 

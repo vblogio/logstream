@@ -26,10 +26,29 @@ type Tag struct {
 
 func defaultTags() []Tag {
 	return []Tag{
-		{ID: "warning", Pattern: "warning", Color: "#f59e0b", WholeWord: true, Enabled: true},
-		{ID: "error", Pattern: "error", Color: "#ef4444", WholeWord: true, Enabled: true},
-		{ID: "ok", Pattern: "ok", Color: "#22c55e", WholeWord: true, Enabled: true},
+		{ID: "warning", Pattern: "warning", Color: "#fdba74", WholeWord: true, Enabled: true},
+		{ID: "error", Pattern: "error", Color: "#fca5a5", WholeWord: true, Enabled: true},
+		{ID: "ok", Pattern: "ok", Color: "#86efac", WholeWord: true, Enabled: true},
 	}
+}
+
+// Colors of the default tags in earlier versions: still unchanged, they are
+// switched to the new pastel defaults when the file is loaded.
+var oldDefaultColors = map[string]string{"warning": "#f59e0b", "error": "#ef4444", "ok": "#22c55e"}
+
+func migrateDefaultColors(tags []Tag) bool {
+	newColors := map[string]string{}
+	for _, t := range defaultTags() {
+		newColors[t.ID] = t.Color
+	}
+	changed := false
+	for i := range tags {
+		if old, ok := oldDefaultColors[tags[i].ID]; ok && strings.EqualFold(tags[i].Color, old) {
+			tags[i].Color = newColors[tags[i].ID]
+			changed = true
+		}
+	}
+	return changed
 }
 
 // codedError carries a stable code the UI can translate.
@@ -86,6 +105,11 @@ func LoadTagStore(path string) (*TagStore, error) {
 	}
 	if err := json.Unmarshal(b, &s.tags); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if migrateDefaultColors(s.tags) {
+		if err := s.save(); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
