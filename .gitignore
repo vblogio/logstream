@@ -1,1 +1,4 @@
 .env
+# local runs outside Docker
+data/
+/logstream
