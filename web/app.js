@@ -73,8 +73,11 @@ const I18N = {
     dockerOff: 'The Docker source is disabled on this server. Set DOCKER_LOGS=on (see docker-compose.yml).',
     dockerErr: 'Cannot reach Docker: ',
     dockerOk: ({ h, n, f }) => `Connected to Docker on ${h}: ${n} containers, ${f} followed.`,
-    dockerStandalone: 'Standalone containers',
-    stFollowing: 'followed', stIgnored: 'running, ignored', stStopped: 'stopped',
+    dockerStopped: (n) => `Show stopped containers (${n})`,
+    dockerFilter: 'Filter containers',
+    dockerLegend: 'Colored: followed · grey: not followed · dashed: stopped · the color identifies the compose project. Click a label to switch it.',
+    dockerNoMatch: 'No container',
+    stFollowing: 'followed', stSelected: 'followed when running', stIgnored: 'not followed', stStopped: 'stopped',
     stLocked: 'excluded', stLockedTitle: 'Logstream itself, or label logstream.exclude=true',
     dockerHelp: 'Logs are read through docker-socket-proxy, a read-only gateway: Logstream can list containers and read their logs, nothing else. Choices apply per compose service (or container name), so they survive container re-creations.',
     fContainer: 'container', fContainerId: 'container ID', fImage: 'image', fProject: 'compose project',
@@ -174,8 +177,11 @@ const I18N = {
     dockerOff: 'La source Docker est désactivée sur ce serveur. Réglez DOCKER_LOGS=on (voir docker-compose.yml).',
     dockerErr: 'Docker injoignable : ',
     dockerOk: ({ h, n, f }) => `Connecté à Docker sur ${h} : ${n} conteneurs, ${f} suivis.`,
-    dockerStandalone: 'Conteneurs isolés',
-    stFollowing: 'suivi', stIgnored: 'actif, ignoré', stStopped: 'arrêté',
+    dockerStopped: (n) => `Afficher les conteneurs arrêtés (${n})`,
+    dockerFilter: 'Filtrer les conteneurs',
+    dockerLegend: 'En couleur : suivis · en gris : non suivis · pointillés : arrêtés · la couleur identifie le projet compose. Cliquez sur une étiquette pour la basculer.',
+    dockerNoMatch: 'Aucun conteneur',
+    stFollowing: 'suivi', stSelected: 'suivi dès qu\'il tourne', stIgnored: 'non suivi', stStopped: 'arrêté',
     stLocked: 'exclu', stLockedTitle: 'Logstream lui-même, ou étiquette logstream.exclude=true',
     dockerHelp: 'Les logs sont lus via docker-socket-proxy, une passerelle en lecture seule : Logstream peut lister les conteneurs et lire leurs logs, rien d\'autre. Les choix s\'appliquent par service compose (ou nom de conteneur), ils survivent donc à la recréation des conteneurs.',
     fContainer: 'conteneur', fContainerId: 'ID du conteneur', fImage: 'image', fProject: 'projet compose',
@@ -370,6 +376,7 @@ function applyLang() {
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
   for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle);
   for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  for (const el of document.querySelectorAll('[data-i18n-ph]')) el.placeholder = t(el.dataset.i18nPh);
   for (const b of document.querySelectorAll('#langSwitch [data-lang]')) b.setAttribute('aria-checked', String(b.dataset.lang === lang));
 }
 
@@ -645,10 +652,18 @@ function rowHTML(r, isNew) {
       ? `<span class="host" data-act="host" title="${esc(hostTitle(r) + ' · ' + t('clickHost'))}">${esc(r.host_name || r.host)}</span>`
       : '<span class="host"></span>')
     + (r.app
-      ? `<span class="app" data-act="app" title="${esc((r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${esc(r.app)}</span>`
+      ? `<span class="app${r.source_type === 'docker' ? ' proj' : ''}" data-act="app"${r.source_type === 'docker' ? ` style="--h:${hueOf(r.compose_project || r.container || r.app)}"` : ''} title="${esc((r.compose_project ? r.compose_project + '/' : '') + (r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${esc(r.app)}</span>`
       : '<span class="app"></span>')
     + `<div class="msg">${highlight(r._msg)}</div>`
     + '</article>';
+}
+
+// Stable hue (0-359) for a name: the compose project color, shared by the
+// Sources labels and the Docker app names in the log list.
+function hueOf(name) {
+  let h = 0;
+  for (const ch of String(name)) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return h % 360;
 }
 
 const DOCKER_ICON = '<svg class="src-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>';
@@ -1083,10 +1098,37 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setExpor
 /* ================= Docker source ================= */
 
 let dockerState = null;
+const dockerView = { showStopped: store.get('dockerShowStopped', '0') === '1', filter: '' };
+const LOCK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 
 async function loadDocker() {
   try { dockerState = await api('/api/docker'); } catch (e) { dockerState = { enabled: true, connected: false, error: e.message }; }
   renderDocker();
+}
+
+// One label per choice key ("project/service"): replicas of a service share it.
+function dockerChips() {
+  const byKey = new Map();
+  for (const c of (dockerState && dockerState.containers) || []) {
+    const k = byKey.get(c.key);
+    if (!k) {
+      byKey.set(c.key, { ...c, names: [c.name], running: c.state === 'running', following: c.following });
+    } else {
+      k.names.push(c.name);
+      k.running = k.running || c.state === 'running';
+      k.following = k.following || c.following;
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function chipHTML(c) {
+  const state = c.locked ? t('stLocked') : !c.running ? t('stStopped') : c.following ? t('stFollowing') : c.enabled ? t('stSelected') : t('stIgnored');
+  const title = [c.key, c.names.join(', '), c.image, state + (c.locked ? ` (${t('stLockedTitle')})` : '')].join('\n');
+  const cls = ['chip', c.enabled && !c.locked ? 'on' : '', c.running ? '' : 'stopped', c.locked ? 'locked' : ''].filter(Boolean).join(' ');
+  return `<button type="button" class="${cls}" style="--h:${hueOf(c.project || c.name)}" data-key="${esc(c.key)}"`
+    + ` aria-pressed="${c.enabled && !c.locked}"${c.locked ? ' disabled' : ''} title="${esc(title)}">`
+    + `${c.locked ? LOCK_ICON : ''}${esc(c.key)}</button>`;
 }
 
 function renderDocker() {
@@ -1110,33 +1152,20 @@ function renderDocker() {
   }
   body.hidden = !cs.length && !d.connected;
   $('#dockerDefault').checked = !!d.defaultEnabled;
+  $('#dockerStopped').checked = dockerView.showStopped;
 
-  // Group by compose project; standalone containers last.
-  const groups = new Map();
-  for (const c of cs) {
-    const g = c.project || '';
-    if (!groups.has(g)) groups.set(g, []);
-    groups.get(g).push(c);
-  }
-  const names = [...groups.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
-  let html = '';
-  for (const g of names) {
-    html += `<div class="dk-group"><div class="dk-group-title">${esc(g || t('dockerStandalone'))}</div>`;
-    for (const c of groups.get(g)) {
-      let st = 'stopped';
-      let label = t('stStopped');
-      if (c.locked) { st = 'locked'; label = t('stLocked'); }
-      else if (c.following) { st = 'following'; label = t('stFollowing'); }
-      else if (c.state === 'running') { st = 'ignored'; label = t('stIgnored'); }
-      html += `<label class="dk-row${c.locked ? ' locked' : ''}">
-        <input type="checkbox" class="switch" data-key="${esc(c.key)}"${c.enabled ? ' checked' : ''}${c.locked ? ' disabled' : ''}>
-        <span class="dk-main"><strong>${esc(c.service || c.name)}</strong><small>${esc(c.name)} · ${esc(c.image)}</small></span>
-        <span class="dk-state ${st}"${c.locked ? ` title="${esc(t('stLockedTitle'))}"` : ''}>${esc(label)}</span>
-      </label>`;
-    }
-    html += '</div>';
-  }
-  $('#dockerList').innerHTML = html;
+  const chips = dockerChips();
+  $('#dockerStoppedLbl').textContent = t('dockerStopped', chips.filter((c) => !c.running && !c.locked).length);
+  const q = dockerView.filter.toLowerCase();
+  const visible = chips.filter((c) => (dockerView.showStopped || c.running) && (!q || c.key.toLowerCase().includes(q) || c.image.toLowerCase().includes(q)));
+  const groups = [
+    visible.filter((c) => c.enabled && !c.locked),
+    visible.filter((c) => !c.enabled && !c.locked),
+    visible.filter((c) => c.locked),
+  ].filter((g) => g.length);
+  $('#dockerList').innerHTML = groups.length
+    ? groups.map((g) => g.map(chipHTML).join('')).join('<span class="chip-sep" aria-hidden="true"></span>')
+    : `<span class="chip-empty">${esc(t('dockerNoMatch'))}</span>`;
 }
 
 async function configureDocker(body) {
@@ -1144,18 +1173,36 @@ async function configureDocker(body) {
     dockerState = await api('/api/docker', { method: 'PUT', body });
     renderDocker();
     setTimeout(loadDocker, 1500); // followers start or stop in the background
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(e.message); loadDocker(); }
 }
 
 $('#dockerDefault').addEventListener('change', (ev) => configureDocker({ defaultEnabled: ev.target.checked }));
-$('#dockerList').addEventListener('change', (ev) => {
-  const key = ev.target.dataset.key;
-  if (key) configureDocker({ containers: { [key]: ev.target.checked } });
+$('#dockerStopped').addEventListener('change', (ev) => {
+  dockerView.showStopped = ev.target.checked;
+  store.set('dockerShowStopped', dockerView.showStopped ? '1' : '0');
+  renderDocker();
+});
+$('#dockerFilter').addEventListener('input', (ev) => { dockerView.filter = ev.target.value.trim(); renderDocker(); });
+$('#dockerList').addEventListener('click', (ev) => {
+  const chip = ev.target.closest('.chip[data-key]');
+  if (!chip || chip.disabled) return;
+  const key = chip.dataset.key;
+  const on = !chip.classList.contains('on');
+  // Immediate feedback, confirmed by the server answer.
+  for (const c of (dockerState && dockerState.containers) || []) if (c.key === key) c.enabled = on;
+  renderDocker();
+  configureDocker({ containers: { [key]: on } });
 });
 for (const [id, on] of [['#dockerAll', true], ['#dockerNone', false]]) {
   $(id).addEventListener('click', () => {
+    // Applies to the labels currently shown (filter and stopped option included).
+    const q = dockerView.filter.toLowerCase();
     const containers = {};
-    for (const c of (dockerState && dockerState.containers) || []) if (!c.locked) containers[c.key] = on;
+    for (const c of dockerChips()) {
+      if (c.locked || (!dockerView.showStopped && !c.running)) continue;
+      if (q && !c.key.toLowerCase().includes(q) && !c.image.toLowerCase().includes(q)) continue;
+      containers[c.key] = on;
+    }
     configureDocker({ containers });
   });
 }

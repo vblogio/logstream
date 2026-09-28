@@ -69,13 +69,17 @@ colored and exported like syslog messages:
   each log also carries `container`, `container_id`, `image`, `compose_project`,
   `compose_service` and `stream` (stdout/stderr), visible in the row details.
 - The **Source** filter shows only syslog or only Docker logs; Docker rows have a small cube
-  before the app name.
+  before the app name, colored like its compose project.
 - The severity comes from the line itself when the application writes it: JSON
   (`"level":"error"`), logfmt (`level=warn`), `[ERROR]`, or an upper-case level word at the
   start of the line (`ERROR`, `WARN`…). Otherwise it is `info`. Terminal color codes are removed.
-- **Settings > Sources** lists the containers grouped by compose project, with a switch for
-  each one, "Enable all" / "Disable all", and whether new containers are followed
-  automatically (on by default). Choices are saved per compose service (or container name)
+- **Settings > Sources** shows one label per container (`project/service`) in a single field:
+  followed containers in color, then not followed ones in grey; a click switches a label.
+  The color identifies the compose project, and Docker app names in the log list use the
+  same color. Stopped containers are hidden by default ("Show stopped containers" displays
+  them, dashed, and they stay editable). A filter box and "Enable all" / "Disable all" (applied
+  to the labels shown) help with many containers. New containers are followed automatically
+  unless that option is turned off. Choices are saved per compose service (or container name)
   in `/data/docker.json`, so they survive re-creations.
 - Logstream remembers the position read in each container (`/data/docker-state.json`): after a
   restart it resumes without losing or duplicating lines. A container seen for the first time

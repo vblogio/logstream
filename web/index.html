@@ -182,15 +182,23 @@
               <h3 data-i18n="dockerTitle">Docker containers</h3>
               <p id="dockerStatus" class="docker-status"></p>
               <div id="dockerBody" hidden>
-                <label class="switch-row">
-                  <input id="dockerDefault" type="checkbox" class="switch">
-                  <span data-i18n="dockerDefault">Follow new containers automatically</span>
-                </label>
-                <div class="docker-actions">
-                  <button id="dockerAll" class="btn" type="button" data-i18n="dockerAll">Enable all</button>
-                  <button id="dockerNone" class="btn ghost" type="button" data-i18n="dockerNone">Disable all</button>
+                <div class="dk-opts">
+                  <label class="switch-row">
+                    <input id="dockerDefault" type="checkbox" class="switch">
+                    <span data-i18n="dockerDefault">Follow new containers automatically</span>
+                  </label>
+                  <label class="switch-row">
+                    <input id="dockerStopped" type="checkbox" class="switch">
+                    <span id="dockerStoppedLbl">Show stopped containers</span>
+                  </label>
                 </div>
-                <div id="dockerList" class="docker-list"></div>
+                <div class="dk-toolbar">
+                  <input id="dockerFilter" type="search" class="dk-filter" autocomplete="off" spellcheck="false" data-i18n-ph="dockerFilter" data-i18n-aria="dockerFilter">
+                  <button id="dockerAll" class="link-btn" type="button" data-i18n="dockerAll">Enable all</button>
+                  <button id="dockerNone" class="link-btn" type="button" data-i18n="dockerNone">Disable all</button>
+                </div>
+                <div id="dockerList" class="chip-field"></div>
+                <p class="dk-legend" data-i18n="dockerLegend"></p>
               </div>
               <p class="muted small" data-i18n="dockerHelp"></p>
             </section>
