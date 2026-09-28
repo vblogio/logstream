@@ -75,7 +75,7 @@ func (a *API) logs(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rows, err := a.store.Query(r.Context(), q)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err)
+		writeErr(w, queryStatus(err), err)
 		return
 	}
 	a.annotateHosts(rows)
@@ -105,7 +105,7 @@ func (a *API) histogram(w http.ResponseWriter, r *http.Request) {
 	q := filter + " | stats by (_time:" + step.expr + ") count() hits | sort by (_time)"
 	rows, err := a.store.Query(r.Context(), q)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err)
+		writeErr(w, queryStatus(err), err)
 		return
 	}
 	type bucket struct {
@@ -168,7 +168,7 @@ func (a *API) facets(w http.ResponseWriter, r *http.Request) {
 		q := "_time:7d | stats by (" + field + ") count() hits | sort by (hits desc) | limit 300"
 		rows, err := a.store.Query(r.Context(), q)
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, err)
+			writeErr(w, queryStatus(err), err)
 			return
 		}
 		vals := make([]string, 0, len(rows))

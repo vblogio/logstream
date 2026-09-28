@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -170,7 +171,7 @@ func (s *Store) QueryStream(ctx context.Context, query string, fn func(row map[s
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("%s", strings.TrimSpace(string(msg)))
+		return &queryError{status: resp.StatusCode, msg: strings.TrimSpace(string(msg))}
 	}
 
 	sc := bufio.NewScanner(resp.Body)
@@ -243,6 +244,24 @@ func (s *Store) deleteCall(ctx context.Context, path string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
 	}
 	return body, nil
+}
+
+// queryError is an error answer of VictoriaLogs to a query.
+type queryError struct {
+	status int
+	msg    string
+}
+
+func (e *queryError) Error() string { return e.msg }
+
+// queryStatus is the HTTP status to return for a failed query: 400 when
+// VictoriaLogs rejected the query itself (bad LogsQL), 502 otherwise.
+func queryStatus(err error) int {
+	var qe *queryError
+	if errors.As(err, &qe) && qe.status >= 400 && qe.status < 500 {
+		return http.StatusBadRequest
+	}
+	return http.StatusBadGateway
 }
 
 func (s *Store) Stats() map[string]any {

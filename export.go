@@ -114,7 +114,7 @@ func (a *API) exportCSV(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if cw == nil {
-			writeErr(w, http.StatusBadGateway, err)
+			writeErr(w, queryStatus(err), err)
 			return
 		}
 		// Headers are already sent: the file is truncated, log why.
