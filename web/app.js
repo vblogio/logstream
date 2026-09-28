@@ -66,6 +66,19 @@ const I18N = {
     msgTimeTitle: 'Timestamp from the message',
     fHostName: 'host name (DNS)', fHostIp: 'host IP',
     clickHost: 'Click to filter on this host', clickApp: 'Click to filter on this app',
+    sourceAria: 'Source', srcAll: 'All sources', tabSources: 'Sources',
+    dockerTitle: 'Docker containers',
+    dockerDefault: 'Follow new containers automatically',
+    dockerAll: 'Enable all', dockerNone: 'Disable all',
+    dockerOff: 'The Docker source is disabled on this server. Set DOCKER_LOGS=on (see docker-compose.yml).',
+    dockerErr: 'Cannot reach Docker: ',
+    dockerOk: ({ h, n, f }) => `Connected to Docker on ${h}: ${n} containers, ${f} followed.`,
+    dockerStandalone: 'Standalone containers',
+    stFollowing: 'followed', stIgnored: 'running, ignored', stStopped: 'stopped',
+    stLocked: 'excluded', stLockedTitle: 'Logstream itself, or label logstream.exclude=true',
+    dockerHelp: 'Logs are read through docker-socket-proxy, a read-only gateway: Logstream can list containers and read their logs, nothing else. Choices apply per compose service (or container name), so they survive container re-creations.',
+    fContainer: 'container', fContainerId: 'container ID', fImage: 'image', fProject: 'compose project',
+    fService: 'compose service', fStream: 'stream', fSourceType: 'source',
     export: 'Export', exportCsvHint: 'Comma separated, UTF-8',
     exportExcel: 'CSV for Excel', exportExcelHint: 'Semicolon separated, for Excel in French',
     exportNote: (n) => `Up to ${n} logs matching the current filters, newest first. Dates use the time zone chosen in Settings.`,
@@ -154,6 +167,19 @@ const I18N = {
     msgTimeTitle: 'Horodatage contenu dans le message',
     fHostName: 'nom d\'hôte (DNS)', fHostIp: 'IP de l\'hôte',
     clickHost: 'Cliquer pour filtrer sur cet hôte', clickApp: 'Cliquer pour filtrer sur cette appli',
+    sourceAria: 'Source', srcAll: 'Toutes les sources', tabSources: 'Sources',
+    dockerTitle: 'Conteneurs Docker',
+    dockerDefault: 'Suivre automatiquement les nouveaux conteneurs',
+    dockerAll: 'Tout activer', dockerNone: 'Tout désactiver',
+    dockerOff: 'La source Docker est désactivée sur ce serveur. Réglez DOCKER_LOGS=on (voir docker-compose.yml).',
+    dockerErr: 'Docker injoignable : ',
+    dockerOk: ({ h, n, f }) => `Connecté à Docker sur ${h} : ${n} conteneurs, ${f} suivis.`,
+    dockerStandalone: 'Conteneurs isolés',
+    stFollowing: 'suivi', stIgnored: 'actif, ignoré', stStopped: 'arrêté',
+    stLocked: 'exclu', stLockedTitle: 'Logstream lui-même, ou étiquette logstream.exclude=true',
+    dockerHelp: 'Les logs sont lus via docker-socket-proxy, une passerelle en lecture seule : Logstream peut lister les conteneurs et lire leurs logs, rien d\'autre. Les choix s\'appliquent par service compose (ou nom de conteneur), ils survivent donc à la recréation des conteneurs.',
+    fContainer: 'conteneur', fContainerId: 'ID du conteneur', fImage: 'image', fProject: 'projet compose',
+    fService: 'service compose', fStream: 'flux', fSourceType: 'source',
     export: 'Exporter', exportCsvHint: 'Séparateur virgule, UTF-8',
     exportExcel: 'CSV pour Excel', exportExcelHint: 'Séparateur point-virgule, pour Excel en français',
     exportNote: (n) => `Jusqu'à ${n} logs correspondant aux filtres, du plus récent au plus ancien. Dates dans le fuseau choisi dans Paramètres.`,
@@ -362,6 +388,7 @@ function setLang(next) {
   renderTimeSettings();
   renderPurge();
   renderInterface();
+  renderDocker();
 }
 
 $('#langSwitch').addEventListener('click', (ev) => {
@@ -498,7 +525,7 @@ function params() {
   if (q) p.set('q', q);
   p.set('mode', state.mode);
   p.set('range', $('#range').value);
-  for (const id of ['severity', 'host', 'app']) {
+  for (const id of ['severity', 'host', 'app', 'source']) {
     const v = $('#' + id).value;
     if (v !== '') p.set(id, v);
   }
@@ -518,7 +545,7 @@ function syncControls() {
   btn.disabled = !liveAvailable();
   btn.classList.toggle('on', state.live && liveAvailable());
   btn.title = liveAvailable() ? t('liveTitle') : t('liveUnavailable');
-  for (const id of ['severity', 'host', 'app']) $('#' + id).classList.toggle('set', $('#' + id).value !== '');
+  for (const id of ['severity', 'host', 'app', 'source']) $('#' + id).classList.toggle('set', $('#' + id).value !== '');
 }
 
 /* ================= Tags and highlighting ================= */
@@ -618,11 +645,13 @@ function rowHTML(r, isNew) {
       ? `<span class="host" data-act="host" title="${esc(hostTitle(r) + ' · ' + t('clickHost'))}">${esc(r.host_name || r.host)}</span>`
       : '<span class="host"></span>')
     + (r.app
-      ? `<span class="app" data-act="app" title="${esc(r.app + ' · ' + t('clickApp'))}">${esc(r.app)}</span>`
+      ? `<span class="app" data-act="app" title="${esc((r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${esc(r.app)}</span>`
       : '<span class="app"></span>')
     + `<div class="msg">${highlight(r._msg)}</div>`
     + '</article>';
 }
+
+const DOCKER_ICON = '<svg class="src-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>';
 
 // Tooltip of the host cell: name and IP when both are known.
 function hostTitle(r) {
@@ -700,12 +729,15 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
   const hidden = new Set(['_stream_id', '_stream', 'sevnum']);
   if (r.msg_time) hidden.add('_time'); // same as the reception time
   const keys = order.filter((k) => r[k] != null && r[k] !== '' && !hidden.has(k))
     .concat(Object.keys(r).filter((k) => !order.includes(k) && !hidden.has(k)).sort());
-  const label = { msg_time: t('fTime'), host_name: t('fHostName'), host_ip: t('fHostIp'), received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
+  const label = {
+    container: t('fContainer'), container_id: t('fContainerId'), image: t('fImage'), compose_project: t('fProject'),
+    compose_service: t('fService'), stream: t('fStream'), source_type: t('fSourceType'),
+    msg_time: t('fTime'), host_name: t('fHostName'), host_ip: t('fHostIp'), received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
   const val = (k) => (k === '_time' || k === 'received' || k === 'msg_time'
     ? `${esc(fmtFull(r[k]))} <span class="muted">(${esc(r[k])})</span>`
     : esc(r[k]));
@@ -847,7 +879,7 @@ $('#q').addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter') refresh();
   if (ev.key === 'Escape') { ev.target.value = ''; refresh(); }
 });
-for (const id of ['range', 'severity', 'host', 'app']) $('#' + id).addEventListener('change', onFilterChange);
+for (const id of ['range', 'severity', 'host', 'app', 'source']) $('#' + id).addEventListener('change', onFilterChange);
 
 $('#mode').addEventListener('click', () => {
   state.mode = state.mode === 'simple' ? 'logsql' : 'simple';
@@ -1048,6 +1080,90 @@ $('#exportMenu').addEventListener('click', (ev) => {
 document.addEventListener('click', (ev) => { if (!ev.target.closest('.export')) setExportMenu(false); });
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setExportMenu(false); });
 
+/* ================= Docker source ================= */
+
+let dockerState = null;
+
+async function loadDocker() {
+  try { dockerState = await api('/api/docker'); } catch (e) { dockerState = { enabled: true, connected: false, error: e.message }; }
+  renderDocker();
+}
+
+function renderDocker() {
+  const status = $('#dockerStatus');
+  const body = $('#dockerBody');
+  const d = dockerState;
+  if (!d) { status.textContent = ''; body.hidden = true; return; }
+  if (!d.enabled) {
+    status.textContent = t('dockerOff');
+    status.className = 'docker-status muted';
+    body.hidden = true;
+    return;
+  }
+  const cs = d.containers || [];
+  if (!d.connected) {
+    status.textContent = t('dockerErr') + (d.error || '');
+    status.className = 'docker-status bad';
+  } else {
+    status.textContent = t('dockerOk', { h: d.host || 'docker', n: cs.length, f: cs.filter((c) => c.following).length });
+    status.className = 'docker-status good';
+  }
+  body.hidden = !cs.length && !d.connected;
+  $('#dockerDefault').checked = !!d.defaultEnabled;
+
+  // Group by compose project; standalone containers last.
+  const groups = new Map();
+  for (const c of cs) {
+    const g = c.project || '';
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(c);
+  }
+  const names = [...groups.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+  let html = '';
+  for (const g of names) {
+    html += `<div class="dk-group"><div class="dk-group-title">${esc(g || t('dockerStandalone'))}</div>`;
+    for (const c of groups.get(g)) {
+      let st = 'stopped';
+      let label = t('stStopped');
+      if (c.locked) { st = 'locked'; label = t('stLocked'); }
+      else if (c.following) { st = 'following'; label = t('stFollowing'); }
+      else if (c.state === 'running') { st = 'ignored'; label = t('stIgnored'); }
+      html += `<label class="dk-row${c.locked ? ' locked' : ''}">
+        <input type="checkbox" class="switch" data-key="${esc(c.key)}"${c.enabled ? ' checked' : ''}${c.locked ? ' disabled' : ''}>
+        <span class="dk-main"><strong>${esc(c.service || c.name)}</strong><small>${esc(c.name)} · ${esc(c.image)}</small></span>
+        <span class="dk-state ${st}"${c.locked ? ` title="${esc(t('stLockedTitle'))}"` : ''}>${esc(label)}</span>
+      </label>`;
+    }
+    html += '</div>';
+  }
+  $('#dockerList').innerHTML = html;
+}
+
+async function configureDocker(body) {
+  try {
+    dockerState = await api('/api/docker', { method: 'PUT', body });
+    renderDocker();
+    setTimeout(loadDocker, 1500); // followers start or stop in the background
+  } catch (e) { toast(e.message); }
+}
+
+$('#dockerDefault').addEventListener('change', (ev) => configureDocker({ defaultEnabled: ev.target.checked }));
+$('#dockerList').addEventListener('change', (ev) => {
+  const key = ev.target.dataset.key;
+  if (key) configureDocker({ containers: { [key]: ev.target.checked } });
+});
+for (const [id, on] of [['#dockerAll', true], ['#dockerNone', false]]) {
+  $(id).addEventListener('click', () => {
+    const containers = {};
+    for (const c of (dockerState && dockerState.containers) || []) if (!c.locked) containers[c.key] = on;
+    configureDocker({ containers });
+  });
+}
+// Keep the list fresh while the Sources tab is open.
+setInterval(() => {
+  if ($('#settingsDlg').open && !document.querySelector('[data-panel="sources"]').hidden) loadDocker();
+}, 4000);
+
 /* ================= Purge ================= */
 
 const purge = { allowed: true, running: 0, error: null, code: null, wasRunning: false, timer: null };
@@ -1207,6 +1323,7 @@ $('#settingsBtn').addEventListener('click', () => {
   renderTagList();
   renderInterface();
   loadPurgeStatus();
+  loadDocker();
   showSettingsTab(store.get('settingsTab', 'locale'));
   $('#settingsDlg').showModal();
 });

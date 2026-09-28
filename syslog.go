@@ -35,6 +35,9 @@ type Entry struct {
 	Source   string // sender IP address
 	Proto    string // udp or tcp
 	HostIP   string // original host value when it was an IP resolved through DNS
+
+	SourceType string            // "syslog" or "docker"
+	Extra      map[string]string // additional fields (docker: container, image, …)
 }
 
 // Record returns the entry in the shape stored in VictoriaLogs and returned by the API.
@@ -65,6 +68,14 @@ func (e *Entry) Record() map[string]string {
 	if e.HostIP != "" {
 		r["host_ip"] = e.HostIP
 	}
+	if e.SourceType != "" {
+		r["source_type"] = e.SourceType
+	}
+	for k, v := range e.Extra {
+		if v != "" {
+			r[k] = v
+		}
+	}
 	return r
 }
 
@@ -81,7 +92,7 @@ func ParseSyslog(raw []byte, source, proto string, now time.Time) *Entry {
 	if !utf8.ValidString(s) {
 		s = strings.ToValidUTF8(s, "\uFFFD")
 	}
-	e := &Entry{Time: now, Received: now, Host: source, Source: source, Proto: proto}
+	e := &Entry{Time: now, Received: now, Host: source, Source: source, Proto: proto, SourceType: "syslog"}
 	e.setPri(13) // user.notice, the RFC 3164 default
 
 	if len(s) > 2 && s[0] == '<' {

@@ -14,7 +14,8 @@ type Filter struct {
 	Range    string // 5m, 15m, 1h, 6h, 24h, 7d, 30d; anything else = no time limit
 	Host     string
 	App      string
-	Severity int // highest severity number included (0 = emerg … 7 = debug), -1 = all
+	Severity int    // highest severity number included (0 = emerg … 7 = debug), -1 = all
+	Source   string // "syslog", "docker" or "" for all
 }
 
 var validRanges = map[string]bool{"5m": true, "15m": true, "1h": true, "6h": true, "24h": true, "7d": true, "30d": true}
@@ -27,6 +28,7 @@ func FilterFromRequest(r *http.Request) Filter {
 		Range:    q.Get("range"),
 		Host:     q.Get("host"),
 		App:      q.Get("app"),
+		Source:   q.Get("source"),
 		Severity: -1,
 	}
 	if v, err := strconv.Atoi(q.Get("severity")); err == nil && v >= 0 && v <= 7 {
@@ -89,6 +91,12 @@ func (f Filter) filterExpr() string {
 	}
 	if f.App != "" {
 		parts = append(parts, "app:="+strconv.Quote(f.App))
+	}
+	switch f.Source {
+	case "docker":
+		parts = append(parts, `source_type:="docker"`)
+	case "syslog": // also matches logs stored before source_type existed
+		parts = append(parts, `!(source_type:="docker")`)
 	}
 	if f.Severity >= 0 && f.Severity < 7 {
 		names := make([]string, 0, 8)
@@ -171,6 +179,9 @@ func (m *Matcher) Match(e *Entry) bool {
 		return false
 	}
 	if m.f.App != "" && e.App != m.f.App {
+		return false
+	}
+	if (m.f.Source == "docker") != (e.SourceType == "docker") && m.f.Source != "" {
 		return false
 	}
 	if m.f.Severity >= 0 && e.SevNum > m.f.Severity {

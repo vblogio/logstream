@@ -22,6 +22,9 @@ var exportColumns = []struct{ field, name string }{
 	{"procid", "pid"},
 	{"source", "source_ip"},
 	{"proto", "proto"},
+	{"source_type", "source_type"},
+	{"container", "container"},
+	{"image", "image"},
 	{"_msg", "message"},
 }
 

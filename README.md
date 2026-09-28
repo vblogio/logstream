@@ -59,6 +59,34 @@ Severity badges `err`/`crit` and `warning` use the colors of the `error` and `wa
 
 Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
+## Docker container logs
+
+Logstream also collects the logs of the Docker containers running on the machine where it is
+installed (`DOCKER_LOGS=on`, the default in `docker-compose.yml`). They are searched, filtered,
+colored and exported like syslog messages:
+
+- **host** is the Docker host name, **app** the compose service (or the container name), and
+  each log also carries `container`, `container_id`, `image`, `compose_project`,
+  `compose_service` and `stream` (stdout/stderr), visible in the row details.
+- The **Source** filter shows only syslog or only Docker logs; Docker rows have a small cube
+  before the app name.
+- The severity comes from the line itself when the application writes it: JSON
+  (`"level":"error"`), logfmt (`level=warn`), `[ERROR]`, or an upper-case level word at the
+  start of the line (`ERROR`, `WARN`…). Otherwise it is `info`. Terminal color codes are removed.
+- **Settings > Sources** lists the containers grouped by compose project, with a switch for
+  each one, "Enable all" / "Disable all", and whether new containers are followed
+  automatically (on by default). Choices are saved per compose service (or container name)
+  in `/data/docker.json`, so they survive re-creations.
+- Logstream remembers the position read in each container (`/data/docker-state.json`): after a
+  restart it resumes without losing or duplicating lines. A container seen for the first time
+  is read from `DOCKER_BACKFILL` ago (1 hour by default).
+- Logstream itself and the proxy below are never collected; add the label
+  `logstream.exclude=true` to any other container to exclude it for good.
+
+**Security**: access to the Docker socket is equivalent to root on the machine. Logstream
+therefore goes through [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy),
+which only lets through listing containers, reading logs, events and engine info (`GET` only).
+
 ## CSV export
 
 The **Export** button (next to the log count) downloads every stored log matching the
@@ -136,6 +164,9 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `DNS_SERVER` | empty | DNS server for reverse lookups (`ip` or `ip:port`) |
 | `ALLOW_PURGE` | `true` | allow "Delete all logs" in Settings |
 | `EXPORT_MAX` | `100000` | maximum number of rows in a CSV export |
+| `DOCKER_LOGS` | `on` in compose | collect the logs of the local Docker containers |
+| `DOCKER_HOST` | `tcp://docker-proxy:2375` in compose | Docker API address (`unix:///var/run/docker.sock` outside compose) |
+| `DOCKER_BACKFILL` | `1h` | history read from a container seen for the first time |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
 
@@ -163,6 +194,7 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `hub.go` | pushes new messages to browsers (SSE) |
 | `rdns.go` | cached reverse DNS lookups |
 | `export.go` | streamed CSV export |
+| `docker.go` | Docker container logs (API, followers, positions, level detection) |
 | `tags.go` | color tag storage |
 | `api.go` | `/api/*` HTTP routes |
 | `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`) |

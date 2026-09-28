@@ -35,6 +35,9 @@ type config struct {
 	dnsServer  string
 	allowPurge bool
 	exportMax  int
+	dockerLogs bool
+	dockerHost string
+	backfill   time.Duration
 	batchSize  int
 	queueSize  int
 	flushEvery time.Duration
@@ -64,6 +67,13 @@ func getenvBool(key string, def bool) bool {
 	return def
 }
 
+func getenvDuration(key string, def time.Duration) time.Duration {
+	if d, err := time.ParseDuration(os.Getenv(key)); err == nil && d >= 0 {
+		return d
+	}
+	return def
+}
+
 func main() {
 	cfg := config{
 		syslogAddr: getenv("SYSLOG_ADDR", ":5514"),
@@ -76,6 +86,9 @@ func main() {
 		dnsServer:  os.Getenv("DNS_SERVER"),
 		allowPurge: getenvBool("ALLOW_PURGE", true),
 		exportMax:  getenvInt("EXPORT_MAX", 100000),
+		dockerLogs: getenvBool("DOCKER_LOGS", false),
+		dockerHost: getenv("DOCKER_HOST", "unix:///var/run/docker.sock"),
+		backfill:   getenvDuration("DOCKER_BACKFILL", time.Hour),
 		batchSize:  getenvInt("BATCH_SIZE", 1000),
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
@@ -117,6 +130,16 @@ func main() {
 	}
 	mux := http.NewServeMux()
 	api := &API{store: store, hub: hub, tags: tags, rdns: rdns, allowPurge: cfg.allowPurge, exportMax: cfg.exportMax}
+	if cfg.dockerLogs {
+		dm, err := NewDockerManager(cfg.dockerHost, cfg.dataDir, cfg.backfill, sink)
+		if err != nil {
+			log.Printf("docker logs disabled: %v", err)
+		} else {
+			go dm.Run(ctx)
+			api.docker = dm
+			log.Printf("docker logs enabled through %s", cfg.dockerHost)
+		}
+	}
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))
 

@@ -66,6 +66,11 @@
     </select>
     <select id="host" data-i18n-aria="hostAria"><option value="" data-i18n="allHosts">All hosts</option></select>
     <select id="app" data-i18n-aria="appAria"><option value="" data-i18n="allApps">All apps</option></select>
+    <select id="source" data-i18n-aria="sourceAria">
+      <option value="" data-i18n="srcAll">All sources</option>
+      <option value="syslog">Syslog</option>
+      <option value="docker">Docker</option>
+    </select>
     <span class="spacer"></span>
     <span id="count" class="muted"></span>
     <div class="export">
@@ -121,6 +126,10 @@
             <svg viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/></svg>
             <span data-i18n="tabFilters">Filters</span>
           </button>
+          <button type="button" role="tab" data-tab="sources">
+            <svg viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
+            <span data-i18n="tabSources">Sources</span>
+          </button>
           <button type="button" role="tab" data-tab="interface">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
             <span data-i18n="tabInterface">Interface</span>
@@ -164,6 +173,26 @@
                 <button id="addTag" class="btn primary" type="button" data-i18n="addTag">+ Add tag</button>
                 <button id="resetTags" class="btn ghost" type="button" data-i18n="resetTags">Restore default tags</button>
               </footer>
+            </section>
+          </div>
+
+          <!-- Sources -->
+          <div class="set-panel" role="tabpanel" data-panel="sources" hidden>
+            <section class="set-section">
+              <h3 data-i18n="dockerTitle">Docker containers</h3>
+              <p id="dockerStatus" class="docker-status"></p>
+              <div id="dockerBody" hidden>
+                <label class="switch-row">
+                  <input id="dockerDefault" type="checkbox" class="switch">
+                  <span data-i18n="dockerDefault">Follow new containers automatically</span>
+                </label>
+                <div class="docker-actions">
+                  <button id="dockerAll" class="btn" type="button" data-i18n="dockerAll">Enable all</button>
+                  <button id="dockerNone" class="btn ghost" type="button" data-i18n="dockerNone">Disable all</button>
+                </div>
+                <div id="dockerList" class="docker-list"></div>
+              </div>
+              <p class="muted small" data-i18n="dockerHelp"></p>
             </section>
           </div>
 

@@ -19,6 +19,7 @@ type API struct {
 	rdns       *ReverseDNS
 	allowPurge bool
 	exportMax  int
+	docker     *DockerManager // nil when DOCKER_LOGS is off
 }
 
 func (a *API) Routes(mux *http.ServeMux) {
@@ -36,6 +37,38 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/purge", a.purgeStatus)
 	mux.HandleFunc("POST /api/purge", a.purge)
 	mux.HandleFunc("GET /api/export.csv", a.exportCSV)
+	mux.HandleFunc("GET /api/docker", a.dockerStatus)
+	mux.HandleFunc("PUT /api/docker", a.dockerConfigure)
+}
+
+// GET /api/docker: Docker source state and containers (Settings > Sources).
+func (a *API) dockerStatus(w http.ResponseWriter, r *http.Request) {
+	if a.docker == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, a.docker.Status())
+}
+
+// PUT /api/docker {"defaultEnabled": bool, "containers": {"project/service": bool}}
+func (a *API) dockerConfigure(w http.ResponseWriter, r *http.Request) {
+	if a.docker == nil {
+		writeErr(w, http.StatusConflict, &codedError{code: "docker_off", msg: "the Docker source is disabled (DOCKER_LOGS=off)"})
+		return
+	}
+	var body struct {
+		DefaultEnabled *bool           `json:"defaultEnabled"`
+		Containers     map[string]bool `json:"containers"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256*1024)).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := a.docker.Configure(body.DefaultEnabled, body.Containers); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a.docker.Status())
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -218,6 +218,9 @@ body.busy .progress::after {
 .menu small { font-size: 12px; color: var(--muted); }
 .menu-note { margin: 4px 0 0; padding: 8px 10px 4px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); }
 
+/* Docker logs */
+.src-ico { width: 1em; height: 1em; vertical-align: -.15em; margin-right: 4px; color: #2496ed; }
+
 /* ---------- Histogram ---------- */
 .histo { padding: 0 20px 6px; }
 .histo .bars {
@@ -411,6 +414,48 @@ select.field:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 
 .purge-status { font-size: 12.5px; }
 .purge-status.bad { color: var(--sev-err); }
 .purge-status.good { color: var(--sev-info); }
+.docker-status { font-size: 13px; margin: 0 0 12px !important; }
+.docker-status.good::before, .docker-status.bad::before { content: "●"; margin-right: 6px; }
+.docker-status.good::before { color: var(--sev-info); }
+.docker-status.bad { color: var(--sev-err); }
+.switch-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 550; cursor: pointer; }
+.docker-actions { display: flex; gap: 8px; margin: 12px 0; }
+.docker-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 12px; }
+.dk-group { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.dk-group-title {
+  padding: 7px 12px; background: var(--panel-2);
+  font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+}
+.dk-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 8px 12px; border-top: 1px solid var(--border); cursor: pointer;
+}
+.dk-row:hover { background: var(--row-hover); }
+.dk-row.locked { cursor: default; opacity: .65; }
+.dk-main { display: flex; flex-direction: column; min-width: 0; }
+.dk-main strong { font-size: 13.5px; font-weight: 600; }
+.dk-main small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-state { font-size: 12px; white-space: nowrap; color: var(--muted); }
+.dk-state::before { content: "●"; margin-right: 5px; }
+.dk-state.following { color: var(--sev-info); }
+.dk-state.ignored::before { color: var(--sev-warning); }
+.dk-state.stopped::before, .dk-state.locked::before { opacity: .4; }
+
+/* Toggle switch */
+input.switch {
+  appearance: none; -webkit-appearance: none; flex: none;
+  width: 34px; height: 20px; margin: 0; border-radius: 999px;
+  background: var(--border); position: relative; cursor: pointer; transition: background .15s;
+}
+input.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s;
+}
+input.switch:checked { background: var(--accent); }
+input.switch:checked::after { transform: translateX(14px); }
+input.switch:disabled { cursor: not-allowed; }
+input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .set-section footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; margin-top: 14px; }
 
 .seg { display: inline-flex; padding: 3px; gap: 3px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
@@ -483,7 +528,7 @@ select.field:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 
   dialog.settings { height: calc(100vh - 24px); width: calc(100vw - 16px); }
   .set-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   .set-nav {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px;
     border-right: 0; border-bottom: 1px solid var(--border);
   }
   .set-nav button {
