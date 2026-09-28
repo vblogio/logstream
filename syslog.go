@@ -225,30 +225,6 @@ func parseHostTag(e *Entry, s string, withHost bool) {
 	e.Message = s
 }
 
-// StartSyslog starts the UDP and TCP listeners on the same address.
-func StartSyslog(ctx context.Context, addr string, sink func(*Entry)) error {
-	pc, err := net.ListenPacket("udp", addr)
-	if err != nil {
-		return err
-	}
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		pc.Close()
-		return err
-	}
-	if uc, ok := pc.(*net.UDPConn); ok {
-		_ = uc.SetReadBuffer(8 << 20)
-	}
-	go func() {
-		<-ctx.Done()
-		pc.Close()
-		ln.Close()
-	}()
-	go serveUDP(ctx, pc, sink)
-	go serveTCP(ctx, ln, sink)
-	return nil
-}
-
 func serveUDP(ctx context.Context, pc net.PacketConn, sink func(*Entry)) {
 	buf := make([]byte, 65536)
 	for {

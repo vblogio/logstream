@@ -67,6 +67,12 @@ const I18N = {
     fHostName: 'host name (DNS)', fHostIp: 'host IP',
     clickHost: 'Click to filter on this host', clickApp: 'Click to filter on this app',
     sourceAria: 'Source', srcAll: 'All sources', tabSources: 'Sources',
+    syslogEnabled: 'Receive syslog messages', syslogProtocols: 'Protocols', syslogPort: 'Port',
+    syslogListening: ({ port, protos }) => `Listening on port ${port} (${protos}).`,
+    syslogOff: 'Syslog reception is off: syslog messages are ignored (Docker logs are still collected).',
+    syslogNone: 'No protocol selected: syslog messages are ignored.',
+    syslogErr: (p) => `Cannot listen over ${p}: `,
+    syslogPortHelp: (i) => `Published by docker-compose (container port ${i}). To change it, set SYSLOG_PORT in .env, then run docker compose up -d.`,
     dockerTitle: 'Docker containers',
     dockerDefault: 'Follow new containers automatically',
     dockerAll: 'Enable all', dockerNone: 'Disable all',
@@ -171,6 +177,12 @@ const I18N = {
     fHostName: 'nom d\'hôte (DNS)', fHostIp: 'IP de l\'hôte',
     clickHost: 'Cliquer pour filtrer sur cet hôte', clickApp: 'Cliquer pour filtrer sur cette appli',
     sourceAria: 'Source', srcAll: 'Toutes les sources', tabSources: 'Sources',
+    syslogEnabled: 'Recevoir les messages syslog', syslogProtocols: 'Protocoles', syslogPort: 'Port',
+    syslogListening: ({ port, protos }) => `Écoute sur le port ${port} (${protos}).`,
+    syslogOff: 'Réception syslog désactivée : les messages syslog sont ignorés (les logs Docker sont toujours collectés).',
+    syslogNone: 'Aucun protocole sélectionné : les messages syslog sont ignorés.',
+    syslogErr: (p) => `Impossible d'écouter en ${p} : `,
+    syslogPortHelp: (i) => `Publié par docker-compose (port ${i} dans le conteneur). Pour le changer, modifiez SYSLOG_PORT dans .env, puis lancez docker compose up -d.`,
     dockerTitle: 'Conteneurs Docker',
     dockerDefault: 'Suivre automatiquement les nouveaux conteneurs',
     dockerAll: 'Tout activer', dockerNone: 'Tout désactiver',
@@ -395,6 +407,7 @@ function setLang(next) {
   renderTimeSettings();
   renderPurge();
   renderInterface();
+  renderSyslog();
   renderDocker();
 }
 
@@ -1095,6 +1108,66 @@ $('#exportMenu').addEventListener('click', (ev) => {
 document.addEventListener('click', (ev) => { if (!ev.target.closest('.export')) setExportMenu(false); });
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setExportMenu(false); });
 
+/* ================= Syslog source ================= */
+
+let syslogState = null;
+
+async function loadSyslog() {
+  try { syslogState = await api('/api/syslog'); } catch { syslogState = null; }
+  renderSyslog();
+}
+
+function renderSyslog() {
+  const s = syslogState;
+  const status = $('#syslogStatus');
+  if (!s) { status.textContent = ''; return; }
+  $('#syslogEnabled').checked = s.enabled;
+  for (const b of document.querySelectorAll('#syslogProtos [data-proto]')) {
+    const on = !!s[b.dataset.proto];
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+    b.disabled = !s.enabled;
+  }
+  $('#syslogProtos').classList.toggle('off', !s.enabled);
+  $('#syslogPortVal').textContent = s.port || s.internalAddr;
+  const internal = String(s.internalAddr || '').replace(/^:/, '');
+  $('#syslogPortHelp').textContent = t('syslogPortHelp', internal);
+
+  const errs = [];
+  if (s.udpError) errs.push(t('syslogErr', 'UDP') + s.udpError);
+  if (s.tcpError) errs.push(t('syslogErr', 'TCP') + s.tcpError);
+  const protos = [s.udpListening && 'UDP', s.tcpListening && 'TCP'].filter(Boolean).join(' + ');
+  if (errs.length) {
+    status.textContent = errs.join(' · ');
+    status.className = 'docker-status bad';
+  } else if (!s.enabled) {
+    status.textContent = t('syslogOff');
+    status.className = 'docker-status muted';
+  } else if (!protos) {
+    status.textContent = t('syslogNone');
+    status.className = 'docker-status muted';
+  } else {
+    status.textContent = t('syslogListening', { port: s.port || internal, protos });
+    status.className = 'docker-status good';
+  }
+}
+
+async function configureSyslog(change) {
+  const s = syslogState || { enabled: true, udp: true, tcp: true };
+  const body = { enabled: s.enabled, udp: s.udp, tcp: s.tcp, ...change };
+  syslogState = { ...s, ...body };
+  renderSyslog();
+  try { syslogState = await api('/api/syslog', { method: 'PUT', body }); } catch (e) { toast(e.message); }
+  renderSyslog();
+}
+
+$('#syslogEnabled').addEventListener('change', (ev) => configureSyslog({ enabled: ev.target.checked }));
+$('#syslogProtos').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-proto]');
+  if (!b || b.disabled || !syslogState) return;
+  configureSyslog({ [b.dataset.proto]: !syslogState[b.dataset.proto] });
+});
+
 /* ================= Docker source ================= */
 
 let dockerState = null;
@@ -1370,6 +1443,7 @@ $('#settingsBtn').addEventListener('click', () => {
   renderTagList();
   renderInterface();
   loadPurgeStatus();
+  loadSyslog();
   loadDocker();
   showSettingsTab(store.get('settingsTab', 'locale'));
   $('#settingsDlg').showModal();

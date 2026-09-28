@@ -179,6 +179,24 @@
           <!-- Sources -->
           <div class="set-panel" role="tabpanel" data-panel="sources" hidden>
             <section class="set-section">
+              <h3>Syslog</h3>
+              <p id="syslogStatus" class="docker-status"></p>
+              <label class="switch-row">
+                <input id="syslogEnabled" type="checkbox" class="switch">
+                <span data-i18n="syslogEnabled">Receive syslog messages</span>
+              </label>
+              <div class="sl-grid">
+                <span class="lbl" data-i18n="syslogProtocols">Protocols</span>
+                <div id="syslogProtos" class="chip-field sl-protos">
+                  <button type="button" class="chip" data-proto="udp" style="--h:205">UDP</button>
+                  <button type="button" class="chip" data-proto="tcp" style="--h:265">TCP</button>
+                </div>
+                <span class="lbl" data-i18n="syslogPort">Port</span>
+                <div class="sl-port"><code id="syslogPortVal">514</code><span id="syslogPortHelp" class="muted small"></span></div>
+              </div>
+            </section>
+
+            <section class="set-section">
               <h3 data-i18n="dockerTitle">Docker containers</h3>
               <p id="dockerStatus" class="docker-status"></p>
               <div id="dockerBody" hidden>

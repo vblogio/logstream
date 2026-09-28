@@ -12,6 +12,7 @@ services:
       - "${HTTP_PORT:-8080}:8080"
     environment:
       VLOGS_URL: http://victorialogs:9428
+      SYSLOG_PUBLIC_PORT: ${SYSLOG_PORT:-514}     # shown in Settings > Sources (the mapping is set above)
       TZ: ${TZ:-Europe/Paris}
       AUTH_USER: ${AUTH_USER:-}   # leave empty to disable authentication
       AUTH_PASS: ${AUTH_PASS:-}

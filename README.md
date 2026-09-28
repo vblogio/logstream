@@ -28,6 +28,11 @@ Then open <http://localhost:8080>.
 - **Manual test**: `logger -n 127.0.0.1 -P 514 -d "hello error"` (util-linux) or
   `echo "<14>test ok" | nc -u -w1 127.0.0.1 514`.
 
+**Settings > Sources > Syslog** turns syslog reception on or off and chooses the protocols
+(UDP, TCP) without restarting; the choice is saved in `/data/syslog.json`. It also shows the
+listening state (and the error if the port is already in use). The port itself is published
+by docker-compose: change `SYSLOG_PORT` in `.env`, then run `docker compose up -d`.
+
 Supported formats: RFC 3164 (BSD) and RFC 5424. Over TCP, both "one message per line"
 and "octet counting" (RFC 6587) framing are accepted.
 
@@ -222,6 +227,7 @@ To update one of them:
 | `rdns.go` | cached reverse DNS lookups |
 | `export.go` | streamed CSV export |
 | `docker.go` | Docker container logs (API, followers, positions, level detection) |
+| `syslogserver.go` | syslog listeners opened and closed from Settings > Sources |
 | `tags.go` | color tag storage |
 | `api.go` | `/api/*` HTTP routes |
 | `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`) |

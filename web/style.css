@@ -426,6 +426,14 @@ select.field:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 
 .docker-status.bad { color: var(--sev-err); }
 .switch-row { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 550; cursor: pointer; }
 .dk-opts { display: flex; flex-direction: column; gap: 8px; }
+.sl-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 12px 14px; align-items: baseline; margin-top: 14px; }
+.sl-protos { display: inline-flex; min-height: 0; padding: 5px; justify-self: start; }
+.sl-protos.off { opacity: .5; }
+.sl-port { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.sl-port code {
+  font: 12px var(--mono); padding: 2px 8px; border-radius: 5px;
+  background: var(--panel-2); border: 1px solid var(--border);
+}
 .dk-toolbar { display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; }
 .dk-filter {
   flex: 1; min-width: 0; height: 28px; padding: 0 10px;

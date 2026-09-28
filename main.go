@@ -120,16 +120,15 @@ func main() {
 		store.Enqueue(e)
 		hub.Publish(e)
 	}
-	if err := StartSyslog(ctx, cfg.syslogAddr, sink); err != nil {
-		log.Fatalf("syslog: %v", err)
-	}
+	// Listening errors (port already used…) are shown in Settings > Sources.
+	syslogSrv := NewSyslogServer(ctx, cfg.syslogAddr, getenv("SYSLOG_PUBLIC_PORT", ""), cfg.dataDir, sink)
 
 	static, err := fs.Sub(webFS, "web")
 	if err != nil {
 		log.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	api := &API{store: store, hub: hub, tags: tags, rdns: rdns, allowPurge: cfg.allowPurge, exportMax: cfg.exportMax}
+	api := &API{store: store, hub: hub, tags: tags, rdns: rdns, allowPurge: cfg.allowPurge, exportMax: cfg.exportMax, syslog: syslogSrv}
 	if cfg.dockerLogs {
 		dm, err := NewDockerManager(cfg.dockerHost, cfg.dataDir, cfg.backfill, sink)
 		if err != nil {

@@ -20,6 +20,7 @@ type API struct {
 	allowPurge bool
 	exportMax  int
 	docker     *DockerManager // nil when DOCKER_LOGS is off
+	syslog     *SyslogServer
 }
 
 func (a *API) Routes(mux *http.ServeMux) {
@@ -37,8 +38,30 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/purge", a.purgeStatus)
 	mux.HandleFunc("POST /api/purge", a.purge)
 	mux.HandleFunc("GET /api/export.csv", a.exportCSV)
+	mux.HandleFunc("GET /api/syslog", a.syslogStatus)
+	mux.HandleFunc("PUT /api/syslog", a.syslogConfigure)
 	mux.HandleFunc("GET /api/docker", a.dockerStatus)
 	mux.HandleFunc("PUT /api/docker", a.dockerConfigure)
+}
+
+// GET /api/syslog: syslog reception state (Settings > Sources).
+func (a *API) syslogStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.syslog.Status())
+}
+
+// PUT /api/syslog {"enabled": bool, "udp": bool, "tcp": bool}
+func (a *API) syslogConfigure(w http.ResponseWriter, r *http.Request) {
+	var cfg syslogConfig
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&cfg); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := a.syslog.Configure(cfg); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Printf("syslog reception changed from %s: %+v", r.RemoteAddr, cfg)
+	writeJSON(w, http.StatusOK, a.syslog.Status())
 }
 
 // GET /api/docker: Docker source state and containers (Settings > Sources).
