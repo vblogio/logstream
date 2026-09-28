@@ -14,6 +14,9 @@ services:
       TZ: ${TZ:-Europe/Paris}
       AUTH_USER: ${AUTH_USER:-}   # leave empty to disable authentication
       AUTH_PASS: ${AUTH_PASS:-}
+      RDNS: ${RDNS:-on}               # replace IP hosts with their DNS name (PTR)
+      DNS_SERVER: ${DNS_SERVER:-}     # e.g. 192.168.1.1 to query your LAN DNS; empty = system resolver
+      ALLOW_PURGE: ${ALLOW_PURGE:-true}
     volumes:
       - logstream-data:/data         # tags.json
 
@@ -26,6 +29,7 @@ services:
       - -storageDataPath=/vlogs
       - -retentionPeriod=${RETENTION:-30d}
       - -httpListenAddr=:9428
+      - -delete.enable                # required by "Delete all logs" in Settings
     volumes:
       - vlogs-data:/vlogs
     ports:

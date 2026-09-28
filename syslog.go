@@ -34,6 +34,7 @@ type Entry struct {
 	Message  string
 	Source   string // sender IP address
 	Proto    string // udp or tcp
+	HostIP   string // original host value when it was an IP resolved through DNS
 }
 
 // Record returns the entry in the shape stored in VictoriaLogs and returned by the API.
@@ -55,6 +56,9 @@ func (e *Entry) Record() map[string]string {
 	}
 	if e.SD != "" {
 		r["sd"] = e.SD
+	}
+	if e.HostIP != "" {
+		r["host_ip"] = e.HostIP
 	}
 	return r
 }

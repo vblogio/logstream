@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -11,9 +13,11 @@ import (
 )
 
 type API struct {
-	store *Store
-	hub   *Hub
-	tags  *TagStore
+	store      *Store
+	hub        *Hub
+	tags       *TagStore
+	rdns       *ReverseDNS
+	allowPurge bool
 }
 
 func (a *API) Routes(mux *http.ServeMux) {
@@ -28,6 +32,8 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tags/reset", a.resetTags)
 	mux.HandleFunc("PUT /api/tags/{id}", a.updateTag)
 	mux.HandleFunc("DELETE /api/tags/{id}", a.deleteTag)
+	mux.HandleFunc("GET /api/purge", a.purgeStatus)
+	mux.HandleFunc("POST /api/purge", a.purge)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -70,6 +76,7 @@ func (a *API) logs(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, err)
 		return
 	}
+	a.annotateHosts(rows)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"query":   q,
 		"rows":    rows,
@@ -122,9 +129,39 @@ func toInt(v any) int64 {
 	return 0
 }
 
+// annotateHosts adds "host_name" to rows whose host is still an IP address
+// (logs stored before DNS resolution, or resolved too slowly at reception).
+func (a *API) annotateHosts(rows []map[string]any) {
+	seen := map[string]bool{}
+	var ips []string
+	for _, row := range rows {
+		if h, _ := row["host"].(string); h != "" && !seen[h] && net.ParseIP(h) != nil {
+			seen[h] = true
+			ips = append(ips, h)
+		}
+	}
+	if len(ips) == 0 {
+		return
+	}
+	if len(ips) > 100 {
+		ips = ips[:100]
+	}
+	names := a.rdns.LookupMany(ips, time.Second)
+	for _, row := range rows {
+		if h, _ := row["host"].(string); names[h] != "" {
+			row["host_name"] = names[h]
+		}
+	}
+}
+
+type facet struct {
+	Value string `json:"value"` // stored value, used for filtering
+	Label string `json:"label"` // displayed text ("name (ip)" for resolved IPs)
+}
+
 // GET /api/facets: hosts and apps seen over 7 days, for the filter dropdowns.
 func (a *API) facets(w http.ResponseWriter, r *http.Request) {
-	res := map[string][]string{}
+	res := map[string][]facet{}
 	for _, field := range []string{"host", "app"} {
 		q := "_time:7d | stats by (" + field + ") count() hits | sort by (hits desc) | limit 300"
 		rows, err := a.store.Query(r.Context(), q)
@@ -133,13 +170,26 @@ func (a *API) facets(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		vals := make([]string, 0, len(rows))
+		var ips []string
 		for _, row := range rows {
 			if v, _ := row[field].(string); v != "" {
 				vals = append(vals, v)
+				if field == "host" && net.ParseIP(v) != nil {
+					ips = append(ips, v)
+				}
 			}
 		}
-		sort.Strings(vals)
-		res[field] = vals
+		names := a.rdns.LookupMany(ips, time.Second)
+		list := make([]facet, 0, len(vals))
+		for _, v := range vals {
+			label := v
+			if n := names[v]; n != "" {
+				label = n + " (" + v + ")"
+			}
+			list = append(list, facet{Value: v, Label: label})
+		}
+		sort.Slice(list, func(i, j int) bool { return list[i].Label < list[j].Label })
+		res[field] = list
 	}
 	writeJSON(w, http.StatusOK, res)
 }
@@ -264,6 +314,46 @@ func (a *API) deleteTag(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// GET /api/purge: whether purging is allowed and how many deletions are running.
+func (a *API) purgeStatus(w http.ResponseWriter, r *http.Request) {
+	res := map[string]any{"allowed": a.allowPurge, "running": 0}
+	if a.allowPurge {
+		n, err := a.store.PurgeRunning(r.Context())
+		if err != nil {
+			res["error"] = err.Error()
+			var ce *codedError
+			if errors.As(err, &ce) {
+				res["code"] = ce.code
+			}
+		}
+		res["running"] = n
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// POST /api/purge {"confirm":"PURGE"}: deletes every stored log.
+func (a *API) purge(w http.ResponseWriter, r *http.Request) {
+	if !a.allowPurge {
+		writeErr(w, http.StatusForbidden, &codedError{code: "purge_forbidden", msg: "purging is disabled (ALLOW_PURGE=false)"})
+		return
+	}
+	var body struct {
+		Confirm string `json:"confirm"`
+	}
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body)
+	if body.Confirm != "PURGE" {
+		writeErr(w, http.StatusBadRequest, &codedError{code: "purge_confirm", msg: `type "PURGE" to confirm`})
+		return
+	}
+	id, err := a.store.Purge(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err)
+		return
+	}
+	log.Printf("purge of all logs requested from %s (task %s)", r.RemoteAddr, id)
+	writeJSON(w, http.StatusOK, map[string]string{"task_id": id})
 }
 
 func (a *API) resetTags(w http.ResponseWriter, r *http.Request) {

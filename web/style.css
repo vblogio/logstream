@@ -332,6 +332,14 @@ select.field:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 
   margin: 10px 0 6px !important; padding: 8px 12px; border-radius: 8px;
   background: var(--panel-2); font-family: var(--mono); font-size: 12.5px;
 }
+.set-section.danger h3 { color: var(--sev-err); }
+.purge-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.btn.danger { color: var(--sev-err); border-color: color-mix(in srgb, var(--sev-err) 45%, var(--border)); }
+.btn.danger:hover:not(:disabled) { background: var(--sev-err); border-color: var(--sev-err); color: #fff; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.purge-status { font-size: 12.5px; }
+.purge-status.bad { color: var(--sev-err); }
+.purge-status.good { color: var(--sev-info); }
 .set-section footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; margin-top: 14px; }
 
 .seg { display: inline-flex; padding: 3px; gap: 3px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }

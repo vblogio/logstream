@@ -64,6 +64,18 @@ const I18N = {
     fReceived: 'received',
     rcvTitle: 'Received by the server',
     msgTimeTitle: 'Timestamp from the message',
+    fHostName: 'host name (DNS)', fHostIp: 'host IP',
+    dangerZone: 'Danger zone',
+    purgeHelp: 'Permanently delete every stored log to start from scratch. Color tags and settings are kept.',
+    purgeBtn: 'Delete all logs…',
+    purgePrompt: 'This permanently deletes ALL stored logs.\n\nType PURGE to confirm:',
+    purgeStarted: 'Deletion started',
+    purgeRunning: 'Deletion in progress… logs disappear gradually.',
+    purgeDone: 'All logs have been deleted.',
+    purgeForbidden: 'Purging is disabled on this server (ALLOW_PURGE=false).',
+    err_purge_unavailable: 'VictoriaLogs refuses deletions: start it with -delete.enable (see docker-compose.yml)',
+    err_purge_forbidden: 'Purging is disabled on this server (ALLOW_PURGE=false)',
+    err_purge_confirm: 'Type PURGE to confirm',
   },
   fr: {
     locale: 'fr-FR',
@@ -126,6 +138,18 @@ const I18N = {
     fReceived: 'réception',
     rcvTitle: 'Reçu par le serveur',
     msgTimeTitle: 'Horodatage contenu dans le message',
+    fHostName: 'nom d\'hôte (DNS)', fHostIp: 'IP de l\'hôte',
+    dangerZone: 'Zone de danger',
+    purgeHelp: 'Supprime définitivement tous les logs stockés pour repartir de zéro. Les tags de couleur et les réglages sont conservés.',
+    purgeBtn: 'Supprimer tous les logs…',
+    purgePrompt: 'Cette action supprime définitivement TOUS les logs stockés.\n\nTapez PURGE pour confirmer :',
+    purgeStarted: 'Suppression lancée',
+    purgeRunning: 'Suppression en cours… les logs disparaissent progressivement.',
+    purgeDone: 'Tous les logs ont été supprimés.',
+    purgeForbidden: 'La purge est désactivée sur ce serveur (ALLOW_PURGE=false).',
+    err_purge_unavailable: 'VictoriaLogs refuse les suppressions : lancez-le avec -delete.enable (voir docker-compose.yml)',
+    err_purge_forbidden: 'La purge est désactivée sur ce serveur (ALLOW_PURGE=false)',
+    err_purge_confirm: 'Tapez PURGE pour confirmer',
   },
 };
 
@@ -180,11 +204,10 @@ const TIME_ZONES = {
 
 // Each format receives the date parts in the selected time zone (and the Date itself).
 const TIME_FORMATS = [
-  { id: 'ymd-dash', label: 'YYYY-MM-DD - HH:MM:SS:mmm', f: (p) => `${p.Y}-${p.M}-${p.D} - ${p.h}:${p.m}:${p.s}:${p.ms}` },
-  { id: 'ymd-ms', label: 'YYYY-MM-DD HH:MM:SS.mmm', f: (p) => `${p.Y}-${p.M}-${p.D} ${p.h}:${p.m}:${p.s}.${p.ms}` },
-  { id: 'ymd', label: 'YYYY-MM-DD HH:MM:SS', f: (p) => `${p.Y}-${p.M}-${p.D} ${p.h}:${p.m}:${p.s}` },
-  { id: 'dmy-ms', label: 'DD/MM/YYYY HH:MM:SS.mmm', f: (p) => `${p.D}/${p.M}/${p.Y} ${p.h}:${p.m}:${p.s}.${p.ms}` },
   { id: 'dmy', label: 'DD/MM/YYYY HH:MM:SS', f: (p) => `${p.D}/${p.M}/${p.Y} ${p.h}:${p.m}:${p.s}` },
+  { id: 'dmy-ms', label: 'DD/MM/YYYY HH:MM:SS.mmm', f: (p) => `${p.D}/${p.M}/${p.Y} ${p.h}:${p.m}:${p.s}.${p.ms}` },
+  { id: 'ymd', label: 'YYYY-MM-DD HH:MM:SS', f: (p) => `${p.Y}-${p.M}-${p.D} ${p.h}:${p.m}:${p.s}` },
+  { id: 'ymd-ms', label: 'YYYY-MM-DD HH:MM:SS.mmm', f: (p) => `${p.Y}-${p.M}-${p.D} ${p.h}:${p.m}:${p.s}.${p.ms}` },
   { id: 'mdy12', label: 'MM/DD/YYYY hh:MM:SS.mmm AM/PM', f: (p) => {
     const H = Number(p.h);
     return `${p.M}/${p.D}/${p.Y} ${pad(H % 12 || 12)}:${p.m}:${p.s}.${p.ms} ${H < 12 ? 'AM' : 'PM'}`;
@@ -194,7 +217,8 @@ const TIME_FORMATS = [
   { id: 'epoch', label: null, f: (p, d) => String(d.getTime()) },
 ];
 
-const timePrefs = { tz: '', fmt: 'ymd-dash' }; // tz '' = browser time zone
+const DEFAULT_TIME_FMT = 'dmy'; // usual French display: 28/09/2026 14:55:23
+const timePrefs = { tz: '', fmt: DEFAULT_TIME_FMT }; // tz '' = browser time zone
 const partsFormatters = new Map();
 
 function validTimeZone(tz) {
@@ -306,6 +330,7 @@ function setLang(next) {
   renderStats();
   renderTagList();
   renderTimeSettings();
+  renderPurge();
 }
 
 $('#langSwitch').addEventListener('click', (ev) => {
@@ -434,10 +459,17 @@ function rowHTML(r, isNew) {
     + `<time class="rcv" title="${esc(t('rcvTitle'))}">${r.received ? esc(fmtFull(r.received)) : '—'}</time>`
     + `<time class="mt" title="${esc(t('msgTimeTitle'))}">${fmtTime(r._time)}</time>`
     + `<span class="sev">${esc(sev || '—')}</span>`
-    + `<span class="host" title="${esc(r.host)}">${esc(r.host)}</span>`
+    + `<span class="host" title="${esc(hostTitle(r))}">${esc(r.host_name || r.host)}</span>`
     + `<span class="app" title="${esc(r.app)}">${esc(r.app)}</span>`
     + `<div class="msg">${highlight(r._msg)}</div>`
     + '</article>';
+}
+
+// Tooltip of the host cell: name and IP when both are known.
+function hostTitle(r) {
+  const ip = r.host_ip || (r.host_name ? r.host : '');
+  const name = r.host_name || r.host;
+  return ip ? `${name} (${ip})` : name;
 }
 
 // Map the .row elements starting at `first` to their records.
@@ -483,11 +515,11 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['received', '_time', 'host', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const order = ['received', '_time', 'host', 'host_name', 'host_ip', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
   const hidden = new Set(['_stream_id', '_stream', 'sevnum']);
   const keys = order.filter((k) => r[k] != null && r[k] !== '')
     .concat(Object.keys(r).filter((k) => !order.includes(k) && !hidden.has(k)).sort());
-  const label = { received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
+  const label = { host_name: t('fHostName'), host_ip: t('fHostIp'), received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
   const val = (k) => (k === '_time' || k === 'received'
     ? `${esc(fmtFull(r[k]))} <span class="muted">(${esc(r[k])})</span>`
     : esc(r[k]));
@@ -709,7 +741,7 @@ async function loadFacets() {
       const sel = $('#' + id);
       const cur = sel.value;
       const first = sel.options[0];
-      sel.replaceChildren(first, ...(f[id] || []).map((v) => new Option(v, v)));
+      sel.replaceChildren(first, ...(f[id] || []).map((x) => new Option(x.label || x.value, x.value)));
       if (cur) setSelect(id, cur);
     }
   } catch { /* VictoriaLogs not ready yet: retried later */ }
@@ -774,6 +806,60 @@ function onTimePrefsChange() {
 $('#tzSelect').addEventListener('change', onTimePrefsChange);
 $('#fmtSelect').addEventListener('change', onTimePrefsChange);
 setInterval(() => { if ($('#settingsDlg').open) updateTimePreview(); }, 1000);
+
+/* ================= Purge ================= */
+
+const purge = { allowed: true, running: 0, error: null, code: null, wasRunning: false, timer: null };
+
+function renderPurge() {
+  const btn = $('#purgeBtn');
+  const status = $('#purgeStatus');
+  btn.disabled = !purge.allowed || purge.running > 0;
+  let msg = '';
+  let cls = 'muted';
+  if (!purge.allowed) msg = t('purgeForbidden');
+  else if (purge.code && I18N[lang]['err_' + purge.code]) { msg = t('err_' + purge.code); cls = 'bad'; }
+  else if (purge.running > 0) msg = t('purgeRunning');
+  else if (purge.wasRunning) { msg = t('purgeDone'); cls = 'good'; }
+  status.textContent = msg;
+  status.className = 'purge-status ' + cls;
+  status.hidden = !msg;
+}
+
+async function loadPurgeStatus() {
+  try {
+    const s = await api('/api/purge');
+    purge.allowed = s.allowed;
+    purge.code = s.code || null;
+    if (purge.running > 0 && !s.running) {
+      purge.wasRunning = true;
+      refresh();
+      loadFacets();
+      loadStats();
+    }
+    purge.running = s.running || 0;
+  } catch { /* shown on the next attempt */ }
+  renderPurge();
+  clearTimeout(purge.timer);
+  if (purge.running > 0) purge.timer = setTimeout(loadPurgeStatus, 2000);
+}
+
+$('#purgeBtn').addEventListener('click', async () => {
+  const answer = prompt(t('purgePrompt'));
+  if (answer === null) return;
+  try {
+    await api('/api/purge', { method: 'POST', body: { confirm: answer.trim() } });
+    toast(t('purgeStarted'));
+    purge.running = 1;
+    purge.wasRunning = false;
+    state.rows = [];
+    renderList();
+    updateCount();
+    loadPurgeStatus();
+  } catch (e) {
+    toast(e.message);
+  }
+});
 
 /* ================= Tag management ================= */
 
@@ -875,7 +961,12 @@ $('#resetTags').addEventListener('click', async () => {
   } catch (e) { toast(e.message); }
 });
 
-$('#settingsBtn').addEventListener('click', () => { renderTimeSettings(); renderTagList(); $('#settingsDlg').showModal(); });
+$('#settingsBtn').addEventListener('click', () => {
+  renderTimeSettings();
+  renderTagList();
+  loadPurgeStatus();
+  $('#settingsDlg').showModal();
+});
 $('#closeSettings').addEventListener('click', () => $('#settingsDlg').close());
 $('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });
 
@@ -884,8 +975,8 @@ $('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.curre
 {
   const tz = store.get('tz', '');
   timePrefs.tz = validTimeZone(tz) ? tz : '';
-  const fmt = store.get('timefmt', 'ymd-dash');
-  timePrefs.fmt = TIME_FORMATS.some((f) => f.id === fmt) ? fmt : 'ymd-dash';
+  const fmt = store.get('timefmt', DEFAULT_TIME_FMT);
+  timePrefs.fmt = TIME_FORMATS.some((f) => f.id === fmt) ? fmt : DEFAULT_TIME_FMT;
 }
 applyLang();
 $('#range').value = store.get('range', '1h');

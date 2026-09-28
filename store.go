@@ -171,6 +171,60 @@ func (s *Store) Query(ctx context.Context, query string) ([]map[string]any, erro
 	return rows, sc.Err()
 }
 
+// Purge starts a VictoriaLogs task that deletes every stored log, and resets
+// the counters. VictoriaLogs must run with -delete.enable.
+func (s *Store) Purge(ctx context.Context) (string, error) {
+	body, err := s.deleteCall(ctx, "/delete/run_task?filter="+url.QueryEscape("*"))
+	if err != nil {
+		return "", err
+	}
+	var res struct {
+		TaskID string `json:"task_id"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil {
+		return "", fmt.Errorf("unexpected VictoriaLogs answer: %s", strings.TrimSpace(string(body)))
+	}
+	s.received.Store(0)
+	s.ingested.Store(0)
+	s.dropped.Store(0)
+	s.lastErr.Store("")
+	return res.TaskID, nil
+}
+
+// PurgeRunning returns the number of deletion tasks still running in VictoriaLogs.
+func (s *Store) PurgeRunning(ctx context.Context) (int, error) {
+	body, err := s.deleteCall(ctx, "/delete/active_tasks")
+	if err != nil {
+		return 0, err
+	}
+	var tasks []json.RawMessage
+	if err := json.Unmarshal(body, &tasks); err != nil {
+		return 0, fmt.Errorf("unexpected VictoriaLogs answer: %s", strings.TrimSpace(string(body)))
+	}
+	return len(tasks), nil
+}
+
+func (s *Store) deleteCall(ctx context.Context, path string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.base+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		msg := strings.TrimSpace(string(body))
+		if resp.StatusCode == http.StatusNotFound || strings.Contains(msg, "delete.enable") {
+			return nil, &codedError{code: "purge_unavailable", msg: "VictoriaLogs refuses deletions: start it with -delete.enable (see docker-compose.yml)", detail: msg}
+		}
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
+	}
+	return body, nil
+}
+
 func (s *Store) Stats() map[string]any {
 	return map[string]any{
 		"received":  s.received.Load(),

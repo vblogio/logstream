@@ -58,8 +58,25 @@ The gear icon opens the settings panel:
 
 - **Language**: English or French. The choice is remembered in the browser.
 - **Date & time**: time zone (browser zone, UTC, or about 80 common zones) and the display
-  format of the reception time, e.g. `YYYY-MM-DD - HH:MM:SS:mmm` (default), ISO 8601,
-  12-hour clock or Unix epoch. The time zone applies to every date shown. Remembered in the browser.
+  format of the reception time: `DD/MM/YYYY HH:MM:SS` (default, the usual French display),
+  with milliseconds, `YYYY-MM-DD`, 12-hour clock, ISO 8601 or Unix epoch. The time zone
+  applies to every date shown. Remembered in the browser.
+- **Danger zone**: "Delete all logs" permanently erases every stored log (you must type
+  `PURGE` to confirm). Tags and settings are kept. VictoriaLogs needs `-delete.enable`
+  (already set in `docker-compose.yml`); set `ALLOW_PURGE=false` to disable the feature.
+  Anyone who can open the UI can purge: set `AUTH_USER` / `AUTH_PASS` if the UI is reachable
+  by others.
+
+## Host names (reverse DNS)
+
+When a device sends its IP address as host name (or no host name at all), Logstream looks up
+its DNS name (PTR record) and stores the name in `host` and the IP in `host_ip`. Results are
+cached (1 hour, 10 minutes when there is no name). Logs stored earlier with an IP are resolved
+on display, and the host filter shows `name (IP)`.
+
+The container uses Docker's DNS, which forwards to the host's resolvers. If your local names
+are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
+`DNS_SERVER=192.168.1.1` (its address). Set `RDNS=off` to disable lookups.
 - **Color tags**: each tag has a keyword, a background color (the text automatically
   switches to black or white to stay readable) and options: whole word, match case,
   regular expression, active. Tags are stored in `/data/tags.json` (`logstream-data` volume).
@@ -73,6 +90,9 @@ The gear icon opens the settings panel:
 | `HTTP_PORT` | `8080` | web UI port |
 | `RETENTION` | `30d` | how long VictoriaLogs keeps logs |
 | `AUTH_USER` / `AUTH_PASS` | empty | HTTP Basic authentication for the UI |
+| `RDNS` | `on` | resolve IP hosts to DNS names |
+| `DNS_SERVER` | empty | DNS server for reverse lookups (`ip` or `ip:port`) |
+| `ALLOW_PURGE` | `true` | allow "Delete all logs" in Settings |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
 
@@ -98,6 +118,7 @@ The gear icon opens the settings panel:
 | `store.go` | batched inserts into VictoriaLogs and LogsQL queries |
 | `query.go` | turns UI filters into LogsQL; live-view filter |
 | `hub.go` | pushes new messages to browsers (SSE) |
+| `rdns.go` | cached reverse DNS lookups |
 | `tags.go` | color tag storage |
 | `api.go` | `/api/*` HTTP routes |
 | `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`) |
