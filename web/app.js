@@ -126,6 +126,7 @@ const I18N = {
     hDivision: (s) => `interval ${s}`, hCapped: 'enlarged',
     hCappedTitle: 'The chosen division would exceed 300 intervals over this range: it has been enlarged.',
     hUnzoom: '× Reset zoom', unitDay: 'd',
+    toTop: 'Back to top',
     colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colMsg: 'Message',
     colGrip: 'Drag to resize, double-click for the automatic width',
     resetCols: 'Reset column widths', colsReset: 'Column widths reset',
@@ -254,6 +255,7 @@ const I18N = {
     hDivision: (s) => `intervalle ${s}`, hCapped: 'élargi',
     hCappedTitle: 'La division choisie dépasserait 300 intervalles sur cette plage : elle a été élargie.',
     hUnzoom: '× Annuler le zoom', unitDay: 'j',
+    toTop: 'Revenir en haut',
     colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colMsg: 'Message',
     colGrip: 'Glisser pour redimensionner, double-clic pour la largeur automatique',
     resetCols: 'Réinitialiser les colonnes', colsReset: 'Largeurs de colonnes réinitialisées',
@@ -1516,6 +1518,15 @@ $('#newPill').addEventListener('click', () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 window.addEventListener('scroll', debounce(() => { if (window.scrollY <= 80) flushPending(); }, 150), { passive: true });
+
+// "Back to top" button, shown once the page has scrolled a little.
+const syncToTop = () => { $('#toTop').hidden = window.scrollY < 400; };
+window.addEventListener('scroll', syncToTop, { passive: true });
+$('#toTop').addEventListener('click', () => {
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+});
+syncToTop();
 
 $('#live').addEventListener('click', () => {
   state.live = !state.live;
