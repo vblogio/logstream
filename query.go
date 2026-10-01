@@ -5,20 +5,34 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Filter holds the search criteria sent by the UI.
 type Filter struct {
 	Mode     string // "simple" or "logsql"
 	Text     string
-	Range    string // 5m, 15m, 1h, 6h, 24h, 7d, 30d; anything else = no time limit
+	Range    string    // 5m, 15m, 1h, 6h, 24h, 7d, 30d; anything else = no time limit
+	From, To time.Time // absolute range (timeline zoom), replaces Range when From is set
 	Host     string
 	App      string
 	Severity int    // highest severity number included (0 = emerg … 7 = debug), -1 = all
 	Source   string // "syslog", "docker" or "" for all
 }
 
-var validRanges = map[string]bool{"5m": true, "15m": true, "1h": true, "6h": true, "24h": true, "7d": true, "30d": true}
+var rangeDurations = map[string]time.Duration{
+	"5m": 5 * time.Minute, "15m": 15 * time.Minute, "1h": time.Hour, "6h": 6 * time.Hour,
+	"24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour,
+}
+
+// msParam reads a Unix time in milliseconds (zero time when absent or invalid).
+func msParam(v string) time.Time {
+	ms, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || ms <= 0 {
+		return time.Time{}
+	}
+	return time.UnixMilli(ms)
+}
 
 func FilterFromRequest(r *http.Request) Filter {
 	q := r.URL.Query()
@@ -33,6 +47,13 @@ func FilterFromRequest(r *http.Request) Filter {
 	}
 	if v, err := strconv.Atoi(q.Get("severity")); err == nil && v >= 0 && v <= 7 {
 		f.Severity = v
+	}
+	// from/to: Unix milliseconds, sent when the timeline is zoomed.
+	if from := msParam(q.Get("from")); !from.IsZero() {
+		f.From, f.To = from, msParam(q.Get("to"))
+		if !f.To.IsZero() && !f.To.After(f.From) {
+			f.To = time.Time{}
+		}
 	}
 	return f
 }
@@ -83,7 +104,12 @@ func parseTerms(s string) []term {
 // filterExpr turns the criteria (except raw LogsQL text) into a LogsQL filter.
 func (f Filter) filterExpr() string {
 	var parts []string
-	if validRanges[f.Range] {
+	switch {
+	case !f.From.IsZero() && !f.To.IsZero():
+		parts = append(parts, "_time:["+logsqlTime(f.From)+", "+logsqlTime(f.To)+")")
+	case !f.From.IsZero():
+		parts = append(parts, "_time:>="+logsqlTime(f.From))
+	case rangeDurations[f.Range] > 0:
 		parts = append(parts, "_time:"+f.Range)
 	}
 	if f.Host != "" {
@@ -118,6 +144,8 @@ func (f Filter) filterExpr() string {
 	}
 	return strings.Join(parts, " ")
 }
+
+func logsqlTime(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
 // LogsQL returns the filter part and any pipes ("| …") typed in LogsQL mode.
 func (f Filter) LogsQL() (filter, pipes string) {

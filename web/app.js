@@ -112,6 +112,20 @@ const I18N = {
     err_purge_unavailable: 'VictoriaLogs refuses deletions: start it with -delete.enable (see docker-compose.yml)',
     err_purge_forbidden: 'Purging is disabled on this server (ALLOW_PURGE=false)',
     err_purge_confirm: 'Type PURGE to confirm',
+    liveZoomed: 'Live view is not available on a zoomed range',
+    connZoom: 'live paused (zoom)',
+    histoTitle: 'Timeline',
+    hScale: 'Scale', hLinear: 'Linear', hHeight: 'Height', hColor: 'Color',
+    hColSeverity: 'Severity', hColIntensity: 'Intensity', hColNone: 'None',
+    hRender: 'Display', hBars: 'Bars', hArea: 'Area',
+    hStep: 'Division', hAuto: 'Automatic', hRefresh: 'Refresh', hOff: 'Off', hRefreshAuto: 'At each new interval',
+    histoHelp: 'Click a bar to zoom on its interval, or drag across several. The √ scale keeps small volumes visible next to bursts. Intensity compares each interval with the median of the window: calm, burst (more than 3×), anomaly (more than 10×). In live mode, the last interval is updated as messages arrive.',
+    hLeg_err: 'error and above', hLeg_warn: 'warning', hLeg_other: 'notice, info, debug',
+    hLeg_calm: 'calm', hLeg_burst: 'burst > 3×', hLeg_anom: 'anomaly > 10×',
+    hTotal: 'Total', hRatio: (x) => `${x}× the median`, hUnshown: 'not detailed (high rate)',
+    hDivision: (s) => `interval ${s}`, hCapped: 'enlarged',
+    hCappedTitle: 'The chosen division would exceed 300 intervals over this range: it has been enlarged.',
+    hUnzoom: '× Reset zoom', unitDay: 'd',
   },
   fr: {
     locale: 'fr-FR',
@@ -222,6 +236,20 @@ const I18N = {
     err_purge_unavailable: 'VictoriaLogs refuse les suppressions : lancez-le avec -delete.enable (voir docker-compose.yml)',
     err_purge_forbidden: 'La purge est désactivée sur ce serveur (ALLOW_PURGE=false)',
     err_purge_confirm: 'Tapez PURGE pour confirmer',
+    liveZoomed: 'Le direct n\'est pas disponible sur une plage zoomée',
+    connZoom: 'direct en pause (zoom)',
+    histoTitle: 'Frise',
+    hScale: 'Échelle', hLinear: 'Linéaire', hHeight: 'Hauteur', hColor: 'Couleur',
+    hColSeverity: 'Sévérité', hColIntensity: 'Intensité', hColNone: 'Aucune',
+    hRender: 'Rendu', hBars: 'Barres', hArea: 'Aire',
+    hStep: 'Division', hAuto: 'Automatique', hRefresh: 'Rafraîchissement', hOff: 'Désactivé', hRefreshAuto: 'À chaque nouvel intervalle',
+    histoHelp: 'Cliquez sur une barre pour zoomer sur son intervalle, ou glissez sur plusieurs. L\'échelle √ garde visibles les petits volumes à côté des rafales. L\'intensité compare chaque intervalle à la médiane de la fenêtre : calme, rafale (plus de 3×), anomalie (plus de 10×). En direct, le dernier intervalle se met à jour à l\'arrivée des messages.',
+    hLeg_err: 'error et plus', hLeg_warn: 'warning', hLeg_other: 'notice, info, debug',
+    hLeg_calm: 'calme', hLeg_burst: 'rafale > 3×', hLeg_anom: 'anomalie > 10×',
+    hTotal: 'Total', hRatio: (x) => `${x}× la médiane`, hUnshown: 'sans détail (débit élevé)',
+    hDivision: (s) => `intervalle ${s}`, hCapped: 'élargi',
+    hCappedTitle: 'La division choisie dépasserait 300 intervalles sur cette plage : elle a été élargie.',
+    hUnzoom: '× Annuler le zoom', unitDay: 'j',
   },
 };
 
@@ -372,7 +400,7 @@ const state = {
   live: store.get('live', '1') === '1',
   es: null,
   reqId: 0,
-  histo: null,
+  zoom: null,        // {from, to} in ms when the timeline is zoomed (range "custom")
   tookMs: null,
   conn: ['', 'connPaused'],
   stats: null,
@@ -401,7 +429,8 @@ function setLang(next) {
   setConn(...state.conn);
   renderList();
   updateCount(state.tookMs);
-  renderHisto(state.histo);
+  setZoomOption();
+  renderHisto();
   renderStats();
   renderTagList();
   renderTimeSettings();
@@ -498,6 +527,7 @@ function renderInterface() {
   sel.innerHTML = LOG_FONTS.map((f) => `<option value="${f.id}">${esc(f.family || t('fontSystem'))}</option>`).join('');
   sel.value = ui.font;
   renderFontPreview();
+  renderHistoSettings();
 }
 
 function renderFontPreview() {
@@ -544,7 +574,13 @@ function params() {
   const q = $('#q').value.trim();
   if (q) p.set('q', q);
   p.set('mode', state.mode);
-  p.set('range', $('#range').value);
+  if (state.zoom) {
+    p.set('range', 'custom');
+    p.set('from', state.zoom.from);
+    p.set('to', state.zoom.to);
+  } else {
+    p.set('range', $('#range').value);
+  }
   for (const id of ['severity', 'host', 'app', 'source']) {
     const v = $('#' + id).value;
     if (v !== '') p.set(id, v);
@@ -553,7 +589,7 @@ function params() {
 }
 
 function liveAvailable() {
-  return !(state.mode === 'logsql' && $('#q').value.trim());
+  return !state.zoom && !(state.mode === 'logsql' && $('#q').value.trim());
 }
 
 function syncControls() {
@@ -564,7 +600,7 @@ function syncControls() {
   const btn = $('#live');
   btn.disabled = !liveAvailable();
   btn.classList.toggle('on', state.live && liveAvailable());
-  btn.title = liveAvailable() ? t('liveTitle') : t('liveUnavailable');
+  btn.title = liveAvailable() ? t('liveTitle') : t(state.zoom ? 'liveZoomed' : 'liveUnavailable');
   for (const id of ['severity', 'host', 'app', 'source']) $('#' + id).classList.toggle('set', $('#' + id).value !== '');
 }
 
@@ -822,42 +858,477 @@ list.addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter' && ev.target.classList.contains('row')) ev.target.click();
 });
 
-/* ================= Histogram ================= */
+/* ================= Timeline (histogram) ================= */
 
-function renderHisto(h) {
-  const el = $('#histo');
-  if (!h || !h.buckets) { el.innerHTML = ''; return; }
-  const stepMs = h.step * 1000;
-  const counts = new Map();
-  for (const b of h.buckets) counts.set(Math.floor(parseTime(b.t).getTime() / stepMs), b.n);
+// Settings > Interface > Timeline, remembered per browser; the first value is the default.
+const HISTO_OPTS = {
+  scale: ['sqrt', 'linear', 'log'],
+  height: ['m', 's', 'l'],
+  color: ['severity', 'intensity', 'none'],
+  render: ['bars', 'area'],
+  step: ['auto', '1s', '10s', '1m', '5m', '1h', '1d'],
+  refresh: ['auto', 'off', '5', '15', '30', '60'],
+};
+const HISTO_HEIGHTS = { s: 40, m: 80, l: 120 };
+const histoPrefs = {};
+for (const [k, vals] of Object.entries(HISTO_OPTS)) {
+  const v = store.get('histo.' + k, vals[0]);
+  histoPrefs[k] = vals.includes(v) ? v : vals[0];
+}
 
-  const span = RANGE_MS[$('#range').value];
-  const end = Math.floor(Date.now() / stepMs);
-  let start = span ? Math.floor((Date.now() - span) / stepMs) + 1 : (counts.size ? Math.min(...counts.keys()) : end);
-  if (end - start > 400) start = end - 400;
+const HISTO_LAG = 1500; // logs reach VictoriaLogs in batches (FLUSH_MS): resync a bit after a boundary
+const SEV_ORDER = ['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug'];
+// Stacked layers, bottom to top: error and above, warning, everything else.
+const sevLayer = (sev) => { const n = SEV_ORDER.indexOf(sev); return n < 0 ? 2 : n <= 3 ? 0 : n === 4 ? 1 : 2; };
+const SEV_LAYERS = ['err', 'warn', 'other'];
+const INTENSITY = ['calm', 'burst', 'anom']; // <= 3x, > 3x, > 10x the median of the window
 
-  let max = 1;
-  for (let k = start; k <= end; k++) max = Math.max(max, counts.get(k) || 0);
-  const loc = t('locale');
-  const label = (k) => {
-    const d = new Date(k * stepMs);
-    const timeZone = timePrefs.tz || undefined;
-    return stepMs >= 864e5
-      ? d.toLocaleDateString(loc, { timeZone })
-      : d.toLocaleString(loc, { timeZone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const histo = {
+  data: null,      // see buildHisto
+  reqId: 0,
+  slideTimer: 0,   // end of the last interval
+  refreshTimer: 0, // periodic refresh (5 s … 1 min)
+  resyncTimer: 0,  // reload shortly after a new interval
+  drag: null,      // {a, b}: interval indexes of a drag selection
+  ticksKey: '',
+  ticks: [],
+};
+
+const sliding = () => !state.zoom; // the window follows the current time
+
+// Server answer -> dense arrays. offset = server clock - browser clock: the
+// timeline runs on the server clock, like the reception times it counts.
+function buildHisto(res, localNow) {
+  const d = {
+    step: res.step, start: res.start, count: res.count, capped: res.capped, offset: res.now - localNow,
+    n: [], layers: [], sev: [],
   };
-  let bars = '';
-  for (let k = start; k <= end; k++) {
-    const n = counts.get(k) || 0;
-    const hgt = n ? Math.max(4, (n / max) * 100) : 0;
-    bars += `<i style="height:${hgt}%" title="${label(k)}: ${fmtNum(n)}"></i>`;
+  for (let i = 0; i < d.count; i++) { d.n.push(0); d.layers.push([0, 0, 0]); d.sev.push({}); }
+  for (const b of res.buckets || []) {
+    if (!(b.i >= 0 && b.i < d.count)) continue;
+    d.n[b.i] = b.n;
+    for (const [s, c] of Object.entries(b.sev || {})) {
+      d.sev[b.i][s] = c;
+      d.layers[b.i][sevLayer(s)] += c;
+    }
   }
-  el.innerHTML = `<div class="bars">${bars}</div><div class="axis"><span>${label(start)}</span><span>${t('histoMax', fmtNum(max))}</span><span>${label(end)}</span></div>`;
+  return d;
 }
 
 async function refreshHisto() {
-  try { state.histo = await api('/api/histogram?' + params()); } catch { state.histo = null; }
-  renderHisto(state.histo);
+  const id = ++histo.reqId;
+  clearTimeout(histo.resyncTimer);
+  const p = params();
+  p.set('step', histoPrefs.step);
+  p.set('tz', timePrefs.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  const t0 = Date.now();
+  let res = null;
+  try { res = await api('/api/histogram?' + p); } catch { /* shown as an empty timeline */ }
+  if (id !== histo.reqId) return;
+  histo.data = res && buildHisto(res, (t0 + Date.now()) / 2);
+  renderHisto();
+  scheduleSlide();
+  scheduleRefresh();
+}
+
+// Moves the window k intervals forward (new empty intervals on the right).
+function histoSlide(k, resync) {
+  const d = histo.data;
+  k = Math.min(Math.max(k, 0), d.count);
+  if (!k) return;
+  d.start += k * d.step;
+  for (const a of [d.n, d.layers, d.sev]) a.splice(0, k);
+  for (let j = 0; j < k; j++) { d.n.push(0); d.layers.push([0, 0, 0]); d.sev.push({}); }
+  if (resync && !document.hidden) {
+    clearTimeout(histo.resyncTimer);
+    histo.resyncTimer = setTimeout(refreshHisto, HISTO_LAG);
+  }
+}
+
+const liveOn = () => state.live && liveAvailable();
+
+// At the end of the last interval: slide, so that the axis keeps up with the
+// clock even without new logs. Off only when nothing refreshes the timeline.
+function scheduleSlide() {
+  clearTimeout(histo.slideTimer);
+  const d = histo.data;
+  if (!d || !sliding() || document.hidden || (!liveOn() && histoPrefs.refresh === 'off')) return;
+  const delay = d.start + d.count * d.step - (Date.now() + d.offset);
+  histo.slideTimer = setTimeout(() => {
+    const x = histo.data;
+    if (!x) return;
+    const late = Date.now() + x.offset - (x.start + x.count * x.step);
+    histoSlide(Math.floor(late / x.step) + 1, liveOn() || histoPrefs.refresh === 'auto');
+    renderHisto();
+    scheduleSlide();
+  }, Math.min(Math.max(delay, 50), 2 ** 31 - 1));
+}
+
+function scheduleRefresh() {
+  clearTimeout(histo.refreshTimer);
+  const sec = Number(histoPrefs.refresh);
+  if (!sec || !histo.data || !sliding() || document.hidden) return;
+  histo.refreshTimer = setTimeout(refreshHisto, sec * 1000);
+}
+
+function scheduleHisto() {
+  scheduleSlide();
+  scheduleRefresh();
+}
+
+// Live view: count the new messages right away; the next resync corrects the
+// approximations (messages skipped by the stream, late arrivals).
+function histoAddLive(rows, skipped) {
+  const d = histo.data;
+  if (!d || !sliding() || document.hidden) return;
+  let changed = false;
+  for (const r of rows) {
+    const t = parseTime(r.received || r._time).getTime();
+    if (isNaN(t)) continue;
+    let i = Math.floor((t - d.start) / d.step);
+    if (i >= d.count) {
+      histoSlide(i - d.count + 1, true);
+      i = Math.floor((t - d.start) / d.step);
+    }
+    if (i < 0 || i >= d.count) continue;
+    const sev = r.severity || 'info';
+    d.n[i]++;
+    d.layers[i][sevLayer(sev)]++;
+    d.sev[i][sev] = (d.sev[i][sev] || 0) + 1;
+    changed = true;
+  }
+  if (skipped > 0) {
+    d.n[d.count - 1] += skipped;
+    d.layers[d.count - 1][2] += skipped;
+    changed = true;
+  }
+  if (changed) renderHisto();
+}
+
+/* ---- Rendering ---- */
+
+function histoScale(n, max) {
+  if (n <= 0 || max <= 0) return 0;
+  const v = histoPrefs.scale === 'linear' ? n / max
+    : histoPrefs.scale === 'log' ? Math.log1p(n) / Math.log1p(max)
+      : Math.sqrt(n / max);
+  return Math.max(v, 0.04); // a single log stays visible
+}
+
+// Median of the non-empty intervals (0 when too few to judge).
+function histoMedian(d) {
+  const v = d.n.filter((x) => x > 0).sort((a, b) => a - b);
+  if (v.length < 3) return 0;
+  const m = v.length >> 1;
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+const intensityOf = (n, med) => (!med || !n ? 0 : n > 10 * med ? 2 : n > 3 * med ? 1 : 0);
+
+// Local wall-clock offset (ms) of a date in the selected time zone.
+function zoneOffset(ms) {
+  const m = /^([+-])(\d\d):(\d\d)$/.exec(zoneParts(new Date(ms)).off);
+  return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60000 : 0;
+}
+
+const TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400, 172800, 604800]
+  .map((s) => s * 1000);
+const dayLabel = (p) => (lang === 'fr' ? `${p.D}/${p.M}` : `${p.M}/${p.D}`);
+
+// Vertical graduations on interval boundaries, at least ~70 px apart, on
+// round local times; labels hh:mm:ss, hh:mm or dd/mm depending on the spacing.
+function histoTicks(d, width) {
+  const key = [d.start, d.step, d.count, width, timePrefs.tz, lang].join();
+  if (histo.ticksKey === key) return histo.ticks;
+  const pxPerMs = width / (d.count * d.step);
+  const every = TICK_STEPS.find((s) => s >= d.step && s % d.step === 0 && s * pxPerMs >= 70)
+    || d.step * Math.max(1, Math.ceil(70 / (pxPerMs * d.step)));
+  const endMs = d.start + d.count * d.step;
+  const off0 = zoneOffset(d.start);
+  const sameOffset = off0 === zoneOffset(endMs); // no DST change in the window
+  const ticks = [];
+  for (let i = 0; i <= d.count; i++) {
+    const t = d.start + i * d.step;
+    const wall = t + (sameOffset ? off0 : zoneOffset(t));
+    if (((wall % every) + every) % every !== 0) continue;
+    const x = i / d.count;
+    if (x < 0.03 || x > 0.97) continue; // labels would be cut at the edges
+    const p = zoneParts(new Date(t));
+    const midnight = wall % 864e5 === 0;
+    const label = every >= 864e5 || (midnight && every >= 6e4) ? dayLabel(p)
+      : every < 6e4 ? `${p.h}:${p.m}:${p.s}` : `${p.h}:${p.m}`;
+    ticks.push({ x, label, day: midnight });
+  }
+  histo.ticksKey = key;
+  histo.ticks = ticks;
+  return ticks;
+}
+
+// "01/10 19:52 → 20:07" (with seconds for short intervals).
+function fmtSpan(from, to, withSec) {
+  const a = zoneParts(new Date(from));
+  const b = zoneParts(new Date(to - 1));
+  const e = zoneParts(new Date(to));
+  const hm = (p) => `${p.h}:${p.m}${withSec ? ':' + p.s : ''}`;
+  return `${dayLabel(a)} ${hm(a)} → ${a.D === b.D && a.M === b.M ? '' : dayLabel(e) + ' '}${hm(e)}`;
+}
+
+function fmtStep(ms) {
+  const units = [[864e5, t('unitDay')], [36e5, 'h'], [6e4, 'min'], [1e3, 's']];
+  const [size, unit] = units.find(([u]) => ms % u === 0) || units[3];
+  return `${fmtNum(ms / size)} ${unit}`;
+}
+
+function histoSVG(d) {
+  const N = d.count;
+  const max = Math.max(0, ...d.n);
+  if (!max) return '';
+  const area = histoPrefs.render === 'area';
+  const mode = histoPrefs.color;
+  const med = mode === 'intensity' ? histoMedian(d) : 0;
+  const top = (n) => histoScale(n, max) * 100; // height in % of the plot
+  const y = (h) => (100 - h).toFixed(2);
+
+  if (!area) {
+    const g = N > 120 ? 0.08 : 0.15;
+    const groups = {};
+    const rect = (cls, i, y0, h) => {
+      if (h <= 0) return;
+      groups[cls] = (groups[cls] || '') + `<rect x="${(i + g).toFixed(2)}" y="${y(y0 + h)}" width="${(1 - 2 * g).toFixed(2)}" height="${h.toFixed(2)}"/>`;
+    };
+    for (let i = 0; i < N; i++) {
+      const n = d.n[i];
+      if (!n) continue;
+      const h = top(n);
+      if (mode === 'severity') {
+        let y0 = 0;
+        d.layers[i].forEach((c, k) => { const hk = (h * c) / n; rect('l-' + SEV_LAYERS[k], i, y0, hk); y0 += hk; });
+      } else {
+        rect(mode === 'intensity' ? 'l-' + INTENSITY[intensityOf(n, med)] : 'l-all', i, 0, h);
+      }
+    }
+    return Object.entries(groups).map(([cls, r]) => `<g class="${cls}">${r}</g>`).join('');
+  }
+
+  // Area: one point per interval center, stacked by severity when asked.
+  const line = (vals) => vals.map((v, i) => `${i === 0 ? '0' : (i + 0.5).toFixed(2)},${y(v)}`).join(' L')
+    + ` L${N},${y(vals[N - 1])}`;
+  const back = (vals) => [...vals.keys()].reverse().map((i) => `L${i === 0 ? '0' : (i + 0.5).toFixed(2)},${y(vals[i])}`).join(' ');
+  if (mode === 'severity') {
+    let below = d.n.map(() => 0);
+    let out = '';
+    for (let k = 0; k < 3; k++) {
+      const cum = d.n.map((n, i) => (n ? below[i] + (top(n) * d.layers[i][k]) / n : 0));
+      out += `<path class="l-${SEV_LAYERS[k]}" d="M${line(cum)} L${N},${y(below[N - 1])} ${back(below)} Z"/>`;
+      below = cum;
+    }
+    return out;
+  }
+  const tops = d.n.map(top);
+  const path = `M0,100 L${line(tops)} L${N},100 Z`;
+  if (mode !== 'intensity') return `<path class="l-all" d="${path}"/>`;
+  // Intensity: a horizontal gradient with one color band per interval.
+  let stops = '';
+  for (let i = 0; i < N; i++) {
+    const c = `var(--h-${INTENSITY[intensityOf(d.n[i], med)]})`;
+    stops += `<stop offset="${i / N}" style="stop-color:${c}"/><stop offset="${(i + 1) / N}" style="stop-color:${c}"/>`;
+  }
+  return `<defs><linearGradient id="hGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${N}" y2="0">${stops}</linearGradient></defs>`
+    + `<path d="${path}" fill="url(#hGrad)"/>`;
+}
+
+function histoLegend() {
+  const items = histoPrefs.color === 'severity' ? SEV_LAYERS.map((k) => [k, t('hLeg_' + k)])
+    : histoPrefs.color === 'intensity' ? INTENSITY.map((k) => [k, t('hLeg_' + k)]) : [];
+  return items.map(([k, label]) => `<span><i class="sw" style="background:var(--h-${k})"></i>${esc(label)}</span>`).join('');
+}
+
+function renderHisto() {
+  const el = $('#histo');
+  const d = histo.data;
+  el.style.setProperty('--histo-h', HISTO_HEIGHTS[histoPrefs.height] + 'px');
+  el.hidden = !d;
+  if (!d) return;
+  const plot = el.querySelector('.h-plot');
+  const svg = el.querySelector('.h-svg');
+  svg.setAttribute('viewBox', `0 0 ${d.count} 100`);
+  svg.innerHTML = histoSVG(d);
+  const ticks = histoTicks(d, plot.clientWidth || 1000);
+  el.querySelector('.h-grid').innerHTML = ticks.map((k) => `<i class="${k.day ? 'day' : ''}" style="left:${(k.x * 100).toFixed(3)}%"></i>`).join('');
+  el.querySelector('.h-axis').innerHTML = ticks.map((k) => `<span class="${k.day ? 'day' : ''}" style="left:${(k.x * 100).toFixed(3)}%">${esc(k.label)}</span>`).join('');
+  const max = Math.max(0, ...d.n);
+  el.querySelector('.h-meta').innerHTML = `<span class="h-leg">${histoLegend()}</span><span class="sp"></span>`
+    + `<span>${esc(t('histoMax', fmtNum(max)))} · ${esc(t('hDivision', fmtStep(d.step)))}`
+    + (d.capped ? ` <span class="warn" title="${esc(t('hCappedTitle'))}">${esc(t('hCapped'))}</span>` : '') + '</span>'
+    + (state.zoom ? `<button type="button" class="link-btn" data-act="unzoom">${esc(t('hUnzoom'))}</button>` : '');
+  if (histo.tipIdx != null) showHistoTip(histo.tipIdx);
+}
+
+/* ---- Tooltip, zoom ---- */
+
+function histoIdx(ev) {
+  const d = histo.data;
+  const r = $('#histo .h-plot').getBoundingClientRect();
+  return Math.min(d.count - 1, Math.max(0, Math.floor(((ev.clientX - r.left) / r.width) * d.count)));
+}
+
+function showHistoTip(i, clientX) {
+  const d = histo.data;
+  const tip = $('#histo .h-tip');
+  const hover = $('#histo .h-hover');
+  if (!d || i >= d.count) { hideHistoTip(); return; }
+  histo.tipIdx = i;
+  const from = d.start + i * d.step;
+  const n = d.n[i];
+  let html = `<div class="hd">${esc(fmtSpan(from, from + d.step, d.step < 6e4))}</div>`
+    + `<div class="ln"><span>${esc(t('hTotal'))}</span><b>${fmtNum(n)}</b></div>`;
+  if (histoPrefs.color === 'intensity' && n) {
+    const med = histoMedian(d);
+    if (med) html += `<div class="ln muted"><span>${esc(t('hLeg_' + INTENSITY[intensityOf(n, med)]))}</span><span>${esc(t('hRatio', (n / med).toLocaleString(t('locale'), { maximumFractionDigits: 1 })))}</span></div>`;
+  }
+  const sevs = Object.keys(d.sev[i]).sort((a, b) => SEV_ORDER.indexOf(a) - SEV_ORDER.indexOf(b));
+  for (const s of sevs) {
+    html += `<div class="ln"><span><i class="sw" style="background:var(--sev-${SEV_CLASS[s] || 'info'})"></i>${esc(s)}</span><span>${fmtNum(d.sev[i][s])}</span></div>`;
+  }
+  const other = n - sevs.reduce((sum, s) => sum + d.sev[i][s], 0);
+  if (other > 0) html += `<div class="ln muted"><span>${esc(t('hUnshown'))}</span><span>${fmtNum(other)}</span></div>`;
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const plot = $('#histo .h-plot');
+  const w = plot.clientWidth;
+  hover.hidden = false;
+  hover.style.left = (i / d.count) * 100 + '%';
+  hover.style.width = 100 / d.count + '%';
+  if (clientX != null) histo.tipX = clientX - plot.getBoundingClientRect().left;
+  const x = histo.tipX ?? ((i + 0.5) / d.count) * w;
+  tip.style.left = Math.min(Math.max(x + 12 + plot.offsetLeft, 0), plot.offsetLeft + w - tip.offsetWidth) + 'px';
+  tip.style.top = plot.offsetTop + plot.offsetHeight + 4 + 'px';
+}
+
+function hideHistoTip() {
+  histo.tipIdx = null;
+  $('#histo .h-tip').hidden = true;
+  $('#histo .h-hover').hidden = true;
+}
+
+function showHistoSel() {
+  const d = histo.data;
+  const sel = $('#histo .h-sel');
+  const a = Math.min(histo.drag.a, histo.drag.b);
+  const b = Math.max(histo.drag.a, histo.drag.b);
+  sel.hidden = false;
+  sel.style.left = (a / d.count) * 100 + '%';
+  sel.style.width = ((b - a + 1) / d.count) * 100 + '%';
+}
+
+function setZoomOption() {
+  const sel = $('#range');
+  let opt = sel.querySelector('option[value="custom"]');
+  if (!state.zoom) {
+    if (opt) opt.remove();
+    return;
+  }
+  if (!opt) { opt = new Option('', 'custom'); sel.add(opt); }
+  opt.textContent = fmtSpan(state.zoom.from, state.zoom.to, state.zoom.to - state.zoom.from < 3e5);
+  sel.value = 'custom';
+}
+
+function zoomTo(from, to) {
+  state.zoom = { from: Math.round(from), to: Math.round(to) };
+  setZoomOption();
+  hideHistoTip();
+  refresh();
+}
+
+function unzoom() {
+  state.zoom = null;
+  setZoomOption();
+  $('#range').value = store.get('range', '1h');
+  if (!$('#range').value) $('#range').value = '1h';
+  refresh();
+}
+
+{
+  const el = $('#histo');
+  el.innerHTML = '<div class="h-plot"><svg class="h-svg" preserveAspectRatio="none" aria-hidden="true"></svg>'
+    + '<div class="h-grid"></div><div class="h-hover" hidden></div><div class="h-sel" hidden></div></div>'
+    + '<div class="h-axis"></div><div class="h-meta"></div><div class="h-tip" role="tooltip" hidden></div>';
+  el.hidden = true;
+  const plot = el.querySelector('.h-plot');
+  plot.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 || !histo.data) return;
+    const i = histoIdx(ev);
+    histo.drag = { a: i, b: i };
+    plot.setPointerCapture(ev.pointerId);
+    showHistoSel();
+  });
+  plot.addEventListener('pointermove', (ev) => {
+    if (!histo.data) return;
+    const i = histoIdx(ev);
+    if (histo.drag) { histo.drag.b = i; showHistoSel(); }
+    showHistoTip(i, ev.clientX);
+  });
+  plot.addEventListener('pointerup', () => {
+    const d = histo.data;
+    const dr = histo.drag;
+    histo.drag = null;
+    el.querySelector('.h-sel').hidden = true;
+    if (!dr || !d) return;
+    const a = Math.min(dr.a, dr.b);
+    const b = Math.max(dr.a, dr.b);
+    zoomTo(d.start + a * d.step, d.start + (b + 1) * d.step); // click = one interval, drag = the selection
+  });
+  plot.addEventListener('pointercancel', () => { histo.drag = null; el.querySelector('.h-sel').hidden = true; });
+  plot.addEventListener('pointerleave', () => { if (!histo.drag) hideHistoTip(); });
+  el.querySelector('.h-meta').addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-act="unzoom"]')) unzoom();
+  });
+  plot.title = '';
+  window.addEventListener('resize', debounce(() => renderHisto(), 200));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearTimeout(histo.slideTimer);
+      clearTimeout(histo.refreshTimer);
+      clearTimeout(histo.resyncTimer);
+    } else if (histo.data && sliding()) {
+      refreshHisto(); // catch up on what happened while the tab was hidden
+    }
+  });
+}
+
+/* ---- Settings > Interface > Timeline ---- */
+
+const HISTO_SELECT_LABELS = {
+  step: (v) => (v === 'auto' ? t('hAuto') : fmtStep({ s: 1e3, m: 6e4, h: 36e5, d: 864e5 }[v.slice(-1)] * parseInt(v, 10))),
+  refresh: (v) => (v === 'auto' ? t('hRefreshAuto') : v === 'off' ? t('hOff') : fmtStep(Number(v) * 1000)),
+};
+
+function renderHistoSettings() {
+  for (const seg of document.querySelectorAll('.seg[data-histo]')) {
+    for (const b of seg.querySelectorAll('[data-v]')) b.setAttribute('aria-checked', String(b.dataset.v === histoPrefs[seg.dataset.histo]));
+  }
+  for (const sel of document.querySelectorAll('select[data-histo]')) {
+    const k = sel.dataset.histo;
+    sel.innerHTML = HISTO_OPTS[k].map((v) => `<option value="${v}">${esc(HISTO_SELECT_LABELS[k](v))}</option>`).join('');
+    sel.value = histoPrefs[k];
+  }
+}
+
+function setHistoPref(k, v) {
+  if (!HISTO_OPTS[k] || !HISTO_OPTS[k].includes(v)) return;
+  histoPrefs[k] = v;
+  store.set('histo.' + k, v);
+  renderHistoSettings();
+  if (k === 'step') refreshHisto();
+  else if (k === 'refresh') { scheduleHisto(); if (v !== 'off') refreshHisto(); }
+  else renderHisto();
+}
+
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('.seg[data-histo] [data-v]');
+  if (b) setHistoPref(b.closest('.seg').dataset.histo, b.dataset.v);
+});
+for (const sel of document.querySelectorAll('select[data-histo]')) {
+  sel.addEventListener('change', () => setHistoPref(sel.dataset.histo, sel.value));
 }
 
 /* ================= Search ================= */
@@ -896,8 +1367,12 @@ async function refresh() {
   refreshHisto();
 }
 
-const onFilterChange = () => {
-  store.set('range', $('#range').value);
+const onFilterChange = (ev) => {
+  if (ev && ev.target.id === 'range' && state.zoom && ev.target.value !== 'custom') {
+    state.zoom = null; // another range chosen: leave the zoom
+    setZoomOption();
+  }
+  if (!state.zoom) store.set('range', $('#range').value);
   store.set('severity', $('#severity').value);
   refresh();
 };
@@ -935,7 +1410,7 @@ function setConn(cls, key) {
 function connectLive() {
   if (state.es) { state.es.close(); state.es = null; }
   if (!state.live || !liveAvailable()) {
-    setConn('', state.live ? 'connLogsql' : 'connPaused');
+    setConn('', !state.live ? 'connPaused' : state.zoom ? 'connZoom' : 'connLogsql');
     return;
   }
   const es = new EventSource('/api/stream?' + params());
@@ -947,6 +1422,7 @@ function connectLive() {
     const data = JSON.parse(ev.data);
     const rows = (data.rows || []).reverse(); // newest first
     if (data.skipped) toast(t('skipped', fmtNum(data.skipped)));
+    histoAddLive(rows, data.skipped);
     if (window.scrollY > 80) {
       state.pending = rows.concat(state.pending).slice(0, MAX_ROWS);
       const pill = $('#newPill');
@@ -975,7 +1451,7 @@ $('#live').addEventListener('click', () => {
   state.live = !state.live;
   store.set('live', state.live ? '1' : '0');
   if (state.live) refresh(); // catch up on what arrived while paused
-  else { syncControls(); connectLive(); }
+  else { syncControls(); connectLive(); scheduleHisto(); }
 });
 
 /* ================= Host / app lists, stats ================= */
@@ -1049,7 +1525,8 @@ function onTimePrefsChange() {
   store.set('timefmt', timePrefs.fmt);
   updateTimePreview();
   renderList();
-  renderHisto(state.histo);
+  setZoomOption();
+  refreshHisto(); // intervals are aligned on the local time
 }
 $('#tzSelect').addEventListener('change', onTimePrefsChange);
 $('#fmtSelect').addEventListener('change', onTimePrefsChange);
@@ -1473,5 +1950,4 @@ $('#severity').value = store.get('severity', '');
   refresh();
   setInterval(loadStats, 5000);
   setInterval(loadFacets, 60000);
-  setInterval(() => { if (state.live && liveAvailable() && !document.hidden) refreshHisto(); }, 30000);
 })();

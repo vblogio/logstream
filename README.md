@@ -64,6 +64,31 @@ Severity badges `err`/`crit` and `warning` use the colors of the `error` and `wa
 
 Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
+## Timeline
+
+The timeline above the list shows the volume of logs per interval, counted by **reception
+time** on the server clock (so it matches the times shown in the rows).
+
+- Hover an interval: its bounds, total and detail per severity.
+- Click a bar to zoom on that interval, or drag across several bars to zoom on the selection.
+  The time range then shows the zoomed period ("× Reset zoom" or any other range leaves it);
+  the list, the counters and the CSV export follow the zoom, and the live view pauses.
+- In live mode the last interval grows as messages arrive, and the timeline reloads at each new
+  interval. Nothing is refreshed while the browser tab is hidden; it catches up when shown again.
+
+**Settings > Interface > Timeline** (remembered per browser): scale (linear, √ by default, log),
+height (S/M/L: 40/80/120 px), color (stacked by severity, intensity compared with the median of
+the window: calm, burst above 3×, anomaly above 10×, or none), bars or area, division
+(automatic, about 100 intervals, or fixed: 1 s, 10 s, 1 min, 5 min, 1 h, 1 day) and refresh
+(off, 5 s, 15 s, 30 s, 1 min, or at each new interval). A fixed division that would exceed
+300 intervals over the range is enlarged (shown as "enlarged"). Intervals are aligned on the
+local time of the time zone chosen in Settings (days start at local midnight).
+
+API: `curl 'localhost:8080/api/histogram?range=24h&step=auto&tz=Europe/Paris'` returns
+`step` (ms), `start` (ms), `count`, `now` (server clock) and the non-empty `buckets`
+(`i` = interval index, `n` = total, `sev` = count per severity). Every log endpoint also accepts
+`from` / `to` (Unix milliseconds) instead of `range`.
+
 ## Docker container logs
 
 Logstream also collects the logs of the Docker containers running on the machine where it is
@@ -223,6 +248,7 @@ To update one of them:
 | `syslog.go` | UDP/TCP listeners and RFC 3164 / 5424 parsing |
 | `store.go` | batched inserts into VictoriaLogs and LogsQL queries |
 | `query.go` | turns UI filters into LogsQL; live-view filter |
+| `histogram.go` | timeline: division, interval alignment, `/api/histogram` |
 | `hub.go` | pushes new messages to browsers (SSE) |
 | `rdns.go` | cached reverse DNS lookups |
 | `export.go` | streamed CSV export |

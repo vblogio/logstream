@@ -142,40 +142,6 @@ func (a *API) logs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var histSteps = map[string]struct {
-	expr string
-	sec  int
-}{
-	"5m": {"10s", 10}, "15m": {"30s", 30}, "1h": {"1m", 60}, "6h": {"5m", 300},
-	"24h": {"15m", 900}, "7d": {"2h", 7200}, "30d": {"12h", 43200},
-}
-
-// GET /api/histogram: message count per time bucket.
-func (a *API) histogram(w http.ResponseWriter, r *http.Request) {
-	f := FilterFromRequest(r)
-	step, ok := histSteps[f.Range]
-	if !ok {
-		step.expr, step.sec = "1d", 86400
-	}
-	filter, _ := f.LogsQL()
-	q := filter + " | stats by (_time:" + step.expr + ") count() hits | sort by (_time)"
-	rows, err := a.store.Query(r.Context(), q)
-	if err != nil {
-		writeErr(w, queryStatus(err), err)
-		return
-	}
-	type bucket struct {
-		T string `json:"t"`
-		N int64  `json:"n"`
-	}
-	out := make([]bucket, 0, len(rows))
-	for _, row := range rows {
-		t, _ := row["_time"].(string)
-		out = append(out, bucket{T: t, N: toInt(row["hits"])})
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"step": step.sec, "buckets": out})
-}
-
 func toInt(v any) int64 {
 	switch x := v.(type) {
 	case string:

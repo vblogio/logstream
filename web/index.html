@@ -90,7 +90,7 @@
     </div>
   </section>
 
-  <section id="histo" class="histo" data-i18n-aria="histoAria"></section>
+  <section id="histo" class="histo" data-i18n-aria="histoAria" hidden></section>
 
   <div id="error" class="error-banner" hidden></div>
   <button id="newPill" class="pill" type="button" hidden></button>
@@ -248,6 +248,39 @@
               </div>
               <div id="fontPreview" class="list preview-list" aria-hidden="true"></div>
               <p class="muted small" data-i18n="fontHelp"></p>
+            </section>
+            <section class="set-section">
+              <h3 data-i18n="histoTitle">Timeline</h3>
+              <div class="field-grid">
+                <span class="lbl" data-i18n="hScale">Scale</span>
+                <div class="seg" role="radiogroup" data-histo="scale" data-i18n-aria="hScale">
+                  <button type="button" role="radio" data-v="linear" data-i18n="hLinear">Linear</button>
+                  <button type="button" role="radio" data-v="sqrt">√</button>
+                  <button type="button" role="radio" data-v="log">Log</button>
+                </div>
+                <span class="lbl" data-i18n="hHeight">Height</span>
+                <div class="seg" role="radiogroup" data-histo="height" data-i18n-aria="hHeight">
+                  <button type="button" role="radio" data-v="s">S</button>
+                  <button type="button" role="radio" data-v="m">M</button>
+                  <button type="button" role="radio" data-v="l">L</button>
+                </div>
+                <span class="lbl" data-i18n="hColor">Color</span>
+                <div class="seg" role="radiogroup" data-histo="color" data-i18n-aria="hColor">
+                  <button type="button" role="radio" data-v="severity" data-i18n="hColSeverity">Severity</button>
+                  <button type="button" role="radio" data-v="intensity" data-i18n="hColIntensity">Intensity</button>
+                  <button type="button" role="radio" data-v="none" data-i18n="hColNone">None</button>
+                </div>
+                <span class="lbl" data-i18n="hRender">Display</span>
+                <div class="seg" role="radiogroup" data-histo="render" data-i18n-aria="hRender">
+                  <button type="button" role="radio" data-v="bars" data-i18n="hBars">Bars</button>
+                  <button type="button" role="radio" data-v="area" data-i18n="hArea">Area</button>
+                </div>
+                <label for="histoStep" data-i18n="hStep">Division</label>
+                <select id="histoStep" class="field" data-histo="step"></select>
+                <label for="histoRefresh" data-i18n="hRefresh">Refresh</label>
+                <select id="histoRefresh" class="field" data-histo="refresh"></select>
+              </div>
+              <p class="muted small" data-i18n="histoHelp"></p>
             </section>
           </div>
 
