@@ -262,7 +262,7 @@ body.busy .progress::after {
   position: relative; height: var(--histo-h, 80px); cursor: crosshair; touch-action: none;
   border-bottom: 1px solid var(--border);
 }
-.h-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.h-svg { position: absolute; inset: 0; width: 100%; height: 100%; stroke: none; } /* no icon outline (global svg rule): it would be stretched with the bars */
 .h-svg rect { shape-rendering: crispEdges; }
 .h-svg .l-err { fill: var(--h-err); }
 .h-svg .l-warn { fill: var(--h-warn); }
