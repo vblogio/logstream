@@ -126,6 +126,10 @@ const I18N = {
     hDivision: (s) => `interval ${s}`, hCapped: 'enlarged',
     hCappedTitle: 'The chosen division would exceed 300 intervals over this range: it has been enlarged.',
     hUnzoom: '× Reset zoom', unitDay: 'd',
+    colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colMsg: 'Message',
+    colGrip: 'Drag to resize, double-click for the automatic width',
+    resetCols: 'Reset column widths', colsReset: 'Column widths reset',
+    colsHelp: 'Drag the edge of a column header in the log list to resize it (remembered by this browser).',
   },
   fr: {
     locale: 'fr-FR',
@@ -250,6 +254,10 @@ const I18N = {
     hDivision: (s) => `intervalle ${s}`, hCapped: 'élargi',
     hCappedTitle: 'La division choisie dépasserait 300 intervalles sur cette plage : elle a été élargie.',
     hUnzoom: '× Annuler le zoom', unitDay: 'j',
+    colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colMsg: 'Message',
+    colGrip: 'Glisser pour redimensionner, double-clic pour la largeur automatique',
+    resetCols: 'Réinitialiser les colonnes', colsReset: 'Largeurs de colonnes réinitialisées',
+    colsHelp: 'Glissez le bord d\'un en-tête de colonne de la liste pour la redimensionner (mémorisé par ce navigateur).',
   },
 };
 
@@ -762,6 +770,7 @@ function renderList() {
   addFacetValues(state.rows);
   list.innerHTML = state.rows.map((r) => rowHTML(r, false)).join('');
   bindRows(list.firstElementChild, state.rows);
+  $('#table').hidden = !state.rows.length;
   $('#empty').hidden = state.rows.length > 0 || !$('#error').hidden;
 }
 
@@ -778,6 +787,7 @@ function prependRows(rows) {
   list.insertAdjacentHTML('afterbegin', rows.map((r) => rowHTML(r, true)).join(''));
   bindRows(list.firstElementChild, rows);
   state.rows = rows.concat(state.rows);
+  $('#table').hidden = false;
   while (state.rows.length > MAX_ROWS) {
     state.rows.pop();
     list.lastElementChild?.remove();
@@ -857,6 +867,66 @@ list.addEventListener('click', (ev) => {
 list.addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter' && ev.target.classList.contains('row')) ev.target.click();
 });
+
+/* ================= Column widths ================= */
+
+// Resizable columns of the log list: width in px per column, remembered per
+// browser (logstream.cols.<name>); no stored width = automatic default (CSS).
+const COLS = { rcv: [60, 420], mt: [60, 420], sev: [36, 200], host: [50, 600], app: [40, 600] }; // [min, max]
+const clampCol = (k, w) => Math.min(COLS[k][1], Math.max(COLS[k][0], Math.round(w)));
+
+function applyColWidths() {
+  const table = $('#table');
+  for (const k of Object.keys(COLS)) {
+    const w = parseInt(store.get('cols.' + k, ''), 10);
+    if (w > 0) table.style.setProperty('--col-' + k, clampCol(k, w) + 'px');
+    else table.style.removeProperty('--col-' + k);
+  }
+}
+
+$('#listHead').addEventListener('pointerdown', (ev) => {
+  const grip = ev.target.closest('.grip');
+  if (!grip || ev.button !== 0) return;
+  ev.preventDefault();
+  const k = grip.parentElement.dataset.col;
+  const x0 = ev.clientX;
+  const w0 = grip.parentElement.getBoundingClientRect().width;
+  const table = $('#table');
+  grip.setPointerCapture(ev.pointerId);
+  grip.classList.add('active');
+  document.body.classList.add('col-resizing');
+  const move = (e) => table.style.setProperty('--col-' + k, clampCol(k, w0 + e.clientX - x0) + 'px');
+  const end = () => {
+    grip.removeEventListener('pointermove', move);
+    grip.removeEventListener('pointerup', end);
+    grip.removeEventListener('pointercancel', end);
+    grip.classList.remove('active');
+    document.body.classList.remove('col-resizing');
+    const w = parseInt(table.style.getPropertyValue('--col-' + k), 10);
+    if (w > 0 && w !== Math.round(w0)) store.set('cols.' + k, String(w));
+  };
+  grip.addEventListener('pointermove', move);
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', end);
+});
+// Double-click on a handle: back to the automatic width.
+$('#listHead').addEventListener('dblclick', (ev) => {
+  const grip = ev.target.closest('.grip');
+  if (!grip) return;
+  store.set('cols.' + grip.parentElement.dataset.col, '');
+  applyColWidths();
+});
+$('#resetCols').addEventListener('click', () => {
+  for (const k of Object.keys(COLS)) store.set('cols.' + k, '');
+  applyColWidths();
+  toast(t('colsReset'));
+});
+
+// The header sticks right under the top bar, whose height changes with the layout.
+new ResizeObserver(([e]) => {
+  document.documentElement.style.setProperty('--topbar-h', Math.ceil(e.target.getBoundingClientRect().height) + 'px');
+}).observe($('.topbar'));
+applyColWidths();
 
 /* ================= Timeline (histogram) ================= */
 

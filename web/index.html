@@ -95,7 +95,17 @@
   <div id="error" class="error-banner" hidden></div>
   <button id="newPill" class="pill" type="button" hidden></button>
 
-  <main id="list" class="list"></main>
+  <div id="table" class="table" hidden>
+    <div id="listHead" class="list-head" role="presentation">
+      <span data-col="rcv"><span class="lbl" data-i18n="colRcv">Received</span><i class="grip" data-i18n-title="colGrip"></i></span>
+      <span data-col="mt"><span class="lbl" data-i18n="colMt">Message time</span><i class="grip" data-i18n-title="colGrip"></i></span>
+      <span data-col="sev"><span class="lbl" data-i18n="colSev">Severity</span><i class="grip" data-i18n-title="colGrip"></i></span>
+      <span data-col="host"><span class="lbl" data-i18n="colHost">Host</span><i class="grip" data-i18n-title="colGrip"></i></span>
+      <span data-col="app"><span class="lbl" data-i18n="colApp">App</span><i class="grip" data-i18n-title="colGrip"></i></span>
+      <span data-col="msg"><span class="lbl" data-i18n="colMsg">Message</span></span>
+    </div>
+    <main id="list" class="list"></main>
+  </div>
   <div id="empty" class="empty" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/></svg>
     <p><strong data-i18n="emptyTitle">No matching logs.</strong></p>
@@ -248,6 +258,10 @@
               </div>
               <div id="fontPreview" class="list preview-list" aria-hidden="true"></div>
               <p class="muted small" data-i18n="fontHelp"></p>
+              <div class="cols-row">
+                <button id="resetCols" class="btn ghost" type="button" data-i18n="resetCols">Reset column widths</button>
+                <span class="muted small" data-i18n="colsHelp"></span>
+              </div>
             </section>
             <section class="set-section">
               <h3 data-i18n="histoTitle">Timeline</h3>

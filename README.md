@@ -64,6 +64,12 @@ Severity badges `err`/`crit` and `warning` use the colors of the `error` and `wa
 
 Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
+The column headers stay visible while scrolling. Drag the edge of a header (received, message
+time, severity, host, app) to resize the column, double-click it to go back to the automatic
+width; the message takes the remaining space. Widths are remembered by the browser
+(**Settings > Interface > Reset column widths** restores them all). On phones the list keeps its
+two-line layout without columns.
+
 ## Timeline
 
 The timeline above the list shows the volume of logs per interval, counted by **reception
