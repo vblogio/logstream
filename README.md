@@ -1,3 +1,5 @@
+English | [Français](README.fr.md)
+
 # Logstream
 
 A simple syslog sink: receives logs over UDP/TCP on port 514, stores them in
