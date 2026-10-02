@@ -18,7 +18,8 @@ devices ──514 udp/tcp──▶ logstream (Go) ──HTTP batches──▶ Vi
   on IP hosts), then the `Store` queue, which sends them in batches to VictoriaLogs.
 - **Live view**: `sink()` also publishes each message to the `Hub`, which streams it to the
   browsers over SSE.
-- **Search**: the HTTP API turns the UI filters into LogsQL queries sent to VictoriaLogs.
+- **Search**: the HTTP API turns the UI filters into LogsQL queries sent to VictoriaLogs;
+  `histogram.go` computes the timeline intervals (division, time zone, count per severity).
 - **State**: tags and source settings live in `/data` (`logstream-data` volume); the logs
   themselves in the `vlogs-data` volume.
 
