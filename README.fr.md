@@ -231,12 +231,6 @@ Le conteneur utilise le DNS de Docker, qui relaie vers les résolveurs de l'hôt
 locaux ne sont connus que de votre routeur ou d'un DNS local (Pi-hole, AdGuard, Unbound…),
 définissez `DNS_SERVER=192.168.1.1` (son adresse). Mettez `RDNS=off` pour désactiver les
 résolutions.
-- **Tags de couleur** : chaque tag a un mot-clé, une couleur de fond (le texte passe
-  automatiquement en noir ou en blanc pour rester lisible) et des options : mot entier, respect
-  de la casse, expression régulière, actif. Les tags sont stockés dans `/data/tags.json`
-  (volume `logstream-data`). Tags par défaut (pastel) : `warning` (orange), `error` (rouge),
-  `ok` (vert). Les tags par défaut qui utilisent encore les couleurs des versions précédentes
-  passent automatiquement aux couleurs pastel.
 
 ## Configuration
 

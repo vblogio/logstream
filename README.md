@@ -206,11 +206,6 @@ on display, and the host filter shows `name (IP)`.
 The container uses Docker's DNS, which forwards to the host's resolvers. If your local names
 are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 `DNS_SERVER=192.168.1.1` (its address). Set `RDNS=off` to disable lookups.
-- **Color tags**: each tag has a keyword, a background color (the text automatically
-  switches to black or white to stay readable) and options: whole word, match case,
-  regular expression, active. Tags are stored in `/data/tags.json` (`logstream-data` volume).
-  Default tags (pastel): `warning` (orange), `error` (red), `ok` (green). Default tags
-  still using the colors of earlier versions are switched to the pastel ones automatically.
 
 ## Configuration
 
