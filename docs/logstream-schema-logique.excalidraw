@@ -8,7 +8,7 @@
    "type": "text",
    "x": 380,
    "y": -40,
-   "width": 638,
+   "width": 403.0,
    "height": 35.0,
    "angle": 0,
    "strokeColor": "#1e1e1e",
@@ -29,8 +29,8 @@
    "updated": 1759385400000,
    "link": null,
    "locked": false,
-   "text": "LogStream : schéma logique (commit 32593b9)",
-   "originalText": "LogStream : schéma logique (commit 32593b9)",
+   "text": "LogStream : schéma logique",
+   "originalText": "LogStream : schéma logique",
    "fontSize": 28,
    "fontFamily": 1,
    "textAlign": "left",
@@ -44,7 +44,7 @@
    "type": "text",
    "x": 380,
    "y": 0,
-   "width": 836,
+   "width": 991.6,
    "height": 20.0,
    "angle": 0,
    "strokeColor": "#757575",
@@ -65,8 +65,8 @@
    "updated": 1759385400000,
    "link": null,
    "locked": false,
-   "text": "Go stdlib, binaire unique, UI embarquée ; stockage VictoriaLogs ; déploiement docker compose (3 services)",
-   "originalText": "Go stdlib, binaire unique, UI embarquée ; stockage VictoriaLogs ; déploiement docker compose (3 services)",
+   "text": "État de main au 02/10/2026 · Go stdlib, binaire unique, UI embarquée ; stockage VictoriaLogs ; déploiement docker compose (3 services)",
+   "originalText": "État de main au 02/10/2026 · Go stdlib, binaire unique, UI embarquée ; stockage VictoriaLogs ; déploiement docker compose (3 services)",
    "fontSize": 16,
    "fontFamily": 1,
    "textAlign": "left",
@@ -955,6 +955,10 @@
     {
      "type": "arrow",
      "id": "a_nav"
+    },
+    {
+     "type": "arrow",
+     "id": "a_ah"
     }
    ],
    "updated": 1759385400000,
@@ -1001,9 +1005,9 @@
    "id": "query",
    "type": "rectangle",
    "x": 900,
-   "y": 520,
+   "y": 515,
    "width": 240,
-   "height": 90,
+   "height": 100,
    "angle": 0,
    "strokeColor": "#8b5cf6",
    "backgroundColor": "#d0bfff",
@@ -1042,10 +1046,10 @@
   {
    "id": "query_lbl",
    "type": "text",
-   "x": 937.5,
-   "y": 535.0,
-   "width": 165,
-   "height": 60.0,
+   "x": 937.05,
+   "y": 525.0,
+   "width": 165.9,
+   "height": 80.0,
    "angle": 0,
    "strokeColor": "#1e1e1e",
    "backgroundColor": "transparent",
@@ -1065,13 +1069,262 @@
    "updated": 1759385400000,
    "link": null,
    "locked": false,
-   "text": "Query\nfiltres UI → LogsQL\nMatcher (filtre live)",
-   "originalText": "Query\nfiltres UI → LogsQL\nMatcher (filtre live)",
+   "text": "Query\nfiltres UI → LogsQL\nMatcher (filtre live)\nplage from/to (zoom)",
+   "originalText": "Query\nfiltres UI → LogsQL\nMatcher (filtre live)\nplage from/to (zoom)",
    "fontSize": 16,
    "fontFamily": 1,
    "textAlign": "center",
    "verticalAlign": "middle",
    "containerId": "query",
+   "lineHeight": 1.25,
+   "autoResize": true
+  },
+  {
+   "id": "hist",
+   "type": "rectangle",
+   "x": 900,
+   "y": 650,
+   "width": 250,
+   "height": 90,
+   "angle": 0,
+   "strokeColor": "#8b5cf6",
+   "backgroundColor": "#d0bfff",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": {
+    "type": 3
+   },
+   "seed": 771234567,
+   "version": 1,
+   "versionNonce": 1234987,
+   "isDeleted": false,
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "hist_lbl"
+    },
+    {
+     "type": "arrow",
+     "id": "a_ah"
+    },
+    {
+     "type": "arrow",
+     "id": "a_hv"
+    }
+   ],
+   "updated": 1759385400000,
+   "link": null,
+   "locked": false
+  },
+  {
+   "id": "hist_lbl",
+   "type": "text",
+   "x": 918.35,
+   "y": 665.0,
+   "width": 213.3,
+   "height": 60.0,
+   "angle": 0,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": null,
+   "seed": 771234568,
+   "version": 1,
+   "versionNonce": 1234988,
+   "isDeleted": false,
+   "boundElements": [],
+   "updated": 1759385400000,
+   "link": null,
+   "locked": false,
+   "text": "Histogram (histogram.go)\npas auto/fixe ≤ 300 interv.\nfuseau, détail par sévérité",
+   "originalText": "Histogram (histogram.go)\npas auto/fixe ≤ 300 interv.\nfuseau, détail par sévérité",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "hist",
+   "lineHeight": 1.25,
+   "autoResize": true
+  },
+  {
+   "id": "a_ah",
+   "type": "arrow",
+   "x": 860,
+   "y": 695,
+   "width": 40,
+   "height": 0,
+   "angle": 0,
+   "strokeColor": "#22c55e",
+   "backgroundColor": "transparent",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": {
+    "type": 2
+   },
+   "seed": 771234569,
+   "version": 1,
+   "versionNonce": 1234989,
+   "isDeleted": false,
+   "boundElements": [],
+   "updated": 1759385400000,
+   "link": null,
+   "locked": false,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     40,
+     0
+    ]
+   ],
+   "lastCommittedPoint": null,
+   "startArrowhead": null,
+   "endArrowhead": "arrow",
+   "elbowed": false,
+   "startBinding": {
+    "elementId": "api",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": [
+     1,
+     0.875
+    ]
+   },
+   "endBinding": {
+    "elementId": "hist",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": [
+     0,
+     0.5
+    ]
+   }
+  },
+  {
+   "id": "a_hv",
+   "type": "arrow",
+   "x": 1150,
+   "y": 695,
+   "width": 110,
+   "height": 360,
+   "angle": 0,
+   "strokeColor": "#0f9f8f",
+   "backgroundColor": "transparent",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": {
+    "type": 2
+   },
+   "seed": 771234570,
+   "version": 1,
+   "versionNonce": 1234990,
+   "isDeleted": false,
+   "boundElements": [
+    {
+     "type": "text",
+     "id": "a_hv_lbl"
+    }
+   ],
+   "updated": 1759385400000,
+   "link": null,
+   "locked": false,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     85,
+     0
+    ],
+    [
+     85,
+     -360
+    ],
+    [
+     110,
+     -360
+    ]
+   ],
+   "lastCommittedPoint": null,
+   "startArrowhead": null,
+   "endArrowhead": "arrow",
+   "elbowed": false,
+   "startBinding": {
+    "elementId": "hist",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": [
+     1,
+     0.5
+    ]
+   },
+   "endBinding": {
+    "elementId": "vl",
+    "focus": 0,
+    "gap": 4,
+    "fixedPoint": [
+     0,
+     0.97
+    ]
+   }
+  },
+  {
+   "id": "a_hv_lbl",
+   "type": "text",
+   "x": 1217.7,
+   "y": 506.25,
+   "width": 34.6,
+   "height": 17.5,
+   "angle": 0,
+   "strokeColor": "#0f9f8f",
+   "backgroundColor": "transparent",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": null,
+   "seed": 771234571,
+   "version": 1,
+   "versionNonce": 1234991,
+   "isDeleted": false,
+   "boundElements": [],
+   "updated": 1759385400000,
+   "link": null,
+   "locked": false,
+   "text": "stats",
+   "originalText": "stats",
+   "fontSize": 14,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "a_hv",
    "lineHeight": 1.25,
    "autoResize": true
   },
@@ -1157,9 +1410,9 @@
    "id": "ui",
    "type": "rectangle",
    "x": 340,
-   "y": 660,
+   "y": 655,
    "width": 230,
-   "height": 80,
+   "height": 95,
    "angle": 0,
    "strokeColor": "#22c55e",
    "backgroundColor": "#b2f2bb",
@@ -1194,10 +1447,10 @@
   {
    "id": "ui_lbl",
    "type": "text",
-   "x": 372.0,
-   "y": 670.0,
-   "width": 166,
-   "height": 60.0,
+   "x": 372.05,
+   "y": 662.5,
+   "width": 165.9,
+   "height": 80.0,
    "angle": 0,
    "strokeColor": "#1e1e1e",
    "backgroundColor": "transparent",
@@ -1217,8 +1470,8 @@
    "updated": 1759385400000,
    "link": null,
    "locked": false,
-   "text": "UI web embarquée\ngo:embed web/\nHTML/CSS/JS vanilla",
-   "originalText": "UI web embarquée\ngo:embed web/\nHTML/CSS/JS vanilla",
+   "text": "UI web embarquée\ngo:embed web/\nHTML/CSS/JS vanilla\nfrise, colonnes, live",
+   "originalText": "UI web embarquée\ngo:embed web/\nHTML/CSS/JS vanilla\nfrise, colonnes, live",
    "fontSize": 16,
    "fontFamily": 1,
    "textAlign": "center",
@@ -1332,6 +1585,10 @@
     {
      "type": "arrow",
      "id": "a_vd"
+    },
+    {
+     "type": "arrow",
+     "id": "a_hv"
     }
    ],
    "updated": 1759385400000,
