@@ -1235,9 +1235,7 @@
    "opacity": 100,
    "groupIds": [],
    "frameId": null,
-   "roundness": {
-    "type": 2
-   },
+   "roundness": null,
    "seed": 771234570,
    "version": 1,
    "versionNonce": 1234990,
@@ -2747,9 +2745,7 @@
    "opacity": 100,
    "groupIds": [],
    "frameId": null,
-   "roundness": {
-    "type": 2
-   },
+   "roundness": null,
    "seed": 656439678,
    "version": 1,
    "versionNonce": 1605947757,
@@ -2918,9 +2914,7 @@
    "opacity": 100,
    "groupIds": [],
    "frameId": null,
-   "roundness": {
-    "type": 2
-   },
+   "roundness": null,
    "seed": 83651971,
    "version": 1,
    "versionNonce": 480468220,
@@ -3354,9 +3348,7 @@
    "opacity": 100,
    "groupIds": [],
    "frameId": null,
-   "roundness": {
-    "type": 2
-   },
+   "roundness": null,
    "seed": 1817363616,
    "version": 1,
    "versionNonce": 909666338,
