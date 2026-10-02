@@ -12,24 +12,23 @@ services:
       - "${HTTP_PORT:-8080}:8080"
     environment:
       VLOGS_URL: http://victorialogs:9428
-      SYSLOG_PUBLIC_PORT: ${SYSLOG_PORT:-514}     # shown in Settings > Sources (the mapping is set above)
+      SYSLOG_PUBLIC_PORT: ${SYSLOG_PORT:-514}     # le port d'ecoute syslog par defaut (attention aux ports <1024)
       TZ: ${TZ:-Europe/Paris}
-      AUTH_USER: ${AUTH_USER:-}   # leave empty to disable authentication
+      AUTH_USER: ${AUTH_USER:-}   # vide = pas d'authentification, on delegue ca au reverse proxy traefik
       AUTH_PASS: ${AUTH_PASS:-}
-      RDNS: ${RDNS:-on}               # replace IP hosts with their DNS name (PTR)
-      DNS_SERVER: ${DNS_SERVER:-}     # e.g. 192.168.1.1 to query your LAN DNS; empty = system resolver
+      RDNS: ${RDNS:-on}               # resol dns
+      DNS_SERVER: ${DNS_SERVER:-}     # si resolv directe
       ALLOW_PURGE: ${ALLOW_PURGE:-true}
       EXPORT_MAX: ${EXPORT_MAX:-100000}
-      DOCKER_LOGS: ${DOCKER_LOGS:-on}             # collect the logs of this machine's containers
-      DOCKER_HOST: tcp://docker-proxy:2375        # read-only Docker API gateway (below)
-      DOCKER_BACKFILL: ${DOCKER_BACKFILL:-1h}     # history read from a container seen for the first time
+      DOCKER_LOGS: ${DOCKER_LOGS:-on}             # collecte des logs des conteneurs Docker
+      DOCKER_HOST: tcp://docker-proxy:2375        # lecture seul de l'API Docker
+      DOCKER_BACKFILL: ${DOCKER_BACKFILL:-1h}
     volumes:
-      - logstream-data:/data         # tags.json, docker.json (container choices)
+      - logstream-data:/data         # tags.json, docker.json (les choix des conteneurs)
     labels:
-      logstream.exclude: "true"      # never collect Logstream's own logs
+      logstream.exclude: "true"      # pas de collect des logs logstream
 
   victorialogs:
-    # Pinned version: see "Updating" in the README before changing it
     image: victoriametrics/victoria-logs:v1.52.0
     container_name: logstream-victorialogs
     restart: unless-stopped
@@ -37,7 +36,7 @@ services:
       - -storageDataPath=/vlogs
       - -retentionPeriod=${RETENTION:-30d}
       - -httpListenAddr=:9428
-      - -delete.enable                # required by "Delete all logs" in Settings
+      - -delete.enable                # obliger pour autoriser la purge de la base via l'interface
     volumes:
       - vlogs-data:/vlogs
     ports:
@@ -45,9 +44,7 @@ services:
       - "127.0.0.1:9428:9428"
 
   docker-proxy:
-    # Read-only gateway to the Docker API: Logstream can only list containers,
-    # read their logs, receive events and engine info. Anything else (start,
-    # stop, exec, images, volumes…) is refused.
+    # Docker proxy pour eviter de solliciter directement l'API docker
     image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: logstream-docker-proxy
     restart: unless-stopped
@@ -59,7 +56,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
-      logstream.exclude: "true"      # its access log would only echo Logstream's own requests
+      logstream.exclude: "true"      # pour exclure les logs propres de logstream
 
 volumes:
   logstream-data:
