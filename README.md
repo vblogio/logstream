@@ -10,6 +10,22 @@ devices ──514 udp/tcp──▶ logstream (Go) ──HTTP batches──▶ Vi
                               └──── API / UI ◀─────────┘
 ```
 
+## Architecture
+
+![Schéma logique de Logstream](docs/logstream-schema-logique.png)
+
+- **Ingestion**: syslog (UDP/TCP) and Docker container logs both go through `sink()` (reverse DNS
+  on IP hosts), then the `Store` queue, which sends them in batches to VictoriaLogs.
+- **Live view**: `sink()` also publishes each message to the `Hub`, which streams it to the
+  browsers over SSE.
+- **Search**: the HTTP API turns the UI filters into LogsQL queries sent to VictoriaLogs.
+- **State**: tags and source settings live in `/data` (`logstream-data` volume); the logs
+  themselves in the `vlogs-data` volume.
+
+The editable source of the diagram is
+[`docs/logstream-schema-logique.excalidraw`](docs/logstream-schema-logique.excalidraw)
+(open it on [excalidraw.com](https://excalidraw.com)).
+
 ## Getting started
 
 ```bash
