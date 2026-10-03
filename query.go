@@ -17,7 +17,7 @@ type Filter struct {
 	Host     string
 	App      string
 	Severity int    // highest severity number included (0 = emerg … 7 = debug), -1 = all
-	Source   string // "syslog", "docker" or "" for all
+	Source   string // "syslog", "docker", "host" or "" for all
 }
 
 var rangeDurations = map[string]time.Duration{
@@ -119,10 +119,10 @@ func (f Filter) filterExpr() string {
 		parts = append(parts, "app:="+strconv.Quote(f.App))
 	}
 	switch f.Source {
-	case "docker":
-		parts = append(parts, `source_type:="docker"`)
+	case "docker", "host":
+		parts = append(parts, `source_type:=`+strconv.Quote(f.Source))
 	case "syslog": // also matches logs stored before source_type existed
-		parts = append(parts, `!(source_type:="docker")`)
+		parts = append(parts, `!(source_type:in("docker","host"))`)
 	}
 	if f.Severity >= 0 && f.Severity < 7 {
 		names := make([]string, 0, 8)
@@ -209,7 +209,7 @@ func (m *Matcher) Match(e *Entry) bool {
 	if m.f.App != "" && e.App != m.f.App {
 		return false
 	}
-	if (m.f.Source == "docker") != (e.SourceType == "docker") && m.f.Source != "" {
+	if m.f.Source != "" && m.f.Source != e.SourceType {
 		return false
 	}
 	if m.f.Severity >= 0 && e.SevNum > m.f.Severity {

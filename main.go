@@ -1,4 +1,4 @@
-// Logstream: a syslog (UDP/TCP) sink stored in VictoriaLogs,
+// Logstream: a syslog (UDP/TCP), Docker and host system logs sink stored in VictoriaLogs,
 // with a web interface to browse and search the logs.
 package main
 
@@ -38,6 +38,8 @@ type config struct {
 	dockerLogs bool
 	dockerHost string
 	backfill   time.Duration
+	hostRoot   string
+	hostFill   time.Duration
 	batchSize  int
 	queueSize  int
 	flushEvery time.Duration
@@ -89,6 +91,8 @@ func main() {
 		dockerLogs: getenvBool("DOCKER_LOGS", false),
 		dockerHost: getenv("DOCKER_HOST", "unix:///var/run/docker.sock"),
 		backfill:   getenvDuration("DOCKER_BACKFILL", time.Hour),
+		hostRoot:   getenv("HOST_LOGS_ROOT", "/host"),
+		hostFill:   getenvDuration("HOST_LOGS_BACKFILL", time.Hour),
 		batchSize:  getenvInt("BATCH_SIZE", 1000),
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
@@ -139,6 +143,9 @@ func main() {
 			log.Printf("docker logs enabled through %s", cfg.dockerHost)
 		}
 	}
+	// System logs of the host (journal or /var/log), off until enabled in Settings > Sources.
+	api.host = NewHostLogs(cfg.hostRoot, cfg.dataDir, cfg.hostFill, sink)
+	go api.host.Run(ctx)
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))
 

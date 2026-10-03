@@ -67,6 +67,19 @@ const I18N = {
     fHostName: 'host name (DNS)', fHostIp: 'host IP',
     clickHost: 'Click to filter on this host', clickApp: 'Click to filter on this app',
     sourceAria: 'Source', srcAll: 'All sources', tabSources: 'Sources',
+    srcHost: 'Host system',
+    hostTitle: 'Host system logs',
+    hostEnabled: 'Collect the system logs of this machine',
+    hostOff: 'Off: the system logs of the machine hosting Logstream are not collected.',
+    hostWaiting: 'Starting…',
+    hostJournal: ({ n, r }) => `Reading the systemd journal (${n} files): ${r} entries since startup.`,
+    hostFiles: ({ n, r }) => `Following ${n} files of /var/log: ${r} lines since startup.`,
+    hostCompressed: (n) => ` ${n} compressed fields skipped (long messages, readable with journalctl).`,
+    host_not_mounted: 'No host log directory found: mount /var/log and /run/log/journal under /host (see docker-compose.yml).',
+    host_permission: 'Permission denied: give the container a group allowed to read the logs (HOST_LOGS_GID in .env, see the README). ',
+    host_empty: 'No systemd journal and no log file found in /var/log.',
+    host_read: 'Cannot read the host logs: ',
+    hostHelp: 'Reads the systemd journal of the host (/var/log/journal, /run/log/journal), or the text files of /var/log (syslog, messages, *.log) when there is no journal. Directories are mounted read-only. When turned on, the last hour is read first (HOST_LOGS_BACKFILL).',
     syslogEnabled: 'Receive syslog messages', syslogProtocols: 'Protocols', syslogPort: 'Port',
     syslogListening: ({ port, protos }) => `Listening on port ${port} (${protos}).`,
     syslogOff: 'Syslog reception is off: syslog messages are ignored (Docker logs are still collected).',
@@ -88,6 +101,7 @@ const I18N = {
     dockerHelp: 'Logs are read through docker-socket-proxy, a read-only gateway: Logstream can list containers and read their logs, nothing else. Choices apply per compose service (or container name), so they survive container re-creations.',
     fContainer: 'container', fContainerId: 'container ID', fImage: 'image', fProject: 'compose project',
     fService: 'compose service', fStream: 'stream', fSourceType: 'source',
+    fUnit: 'systemd unit', fLogFile: 'log file',
     export: 'Export', exportCsvHint: 'Comma separated, UTF-8',
     exportExcel: 'CSV for Excel', exportExcelHint: 'Semicolon separated, for Excel in French',
     exportNote: (n) => `Up to ${n} logs matching the current filters, newest first. Dates use the time zone chosen in Settings.`,
@@ -196,6 +210,19 @@ const I18N = {
     fHostName: 'nom d\'hôte (DNS)', fHostIp: 'IP de l\'hôte',
     clickHost: 'Cliquer pour filtrer sur cet hôte', clickApp: 'Cliquer pour filtrer sur cette appli',
     sourceAria: 'Source', srcAll: 'Toutes les sources', tabSources: 'Sources',
+    srcHost: 'Système hôte',
+    hostTitle: 'Logs système de l\'hôte',
+    hostEnabled: 'Collecter les logs système de cette machine',
+    hostOff: 'Désactivé : les logs système de la machine qui héberge Logstream ne sont pas collectés.',
+    hostWaiting: 'Démarrage…',
+    hostJournal: ({ n, r }) => `Lecture du journal systemd (${n} fichiers) : ${r} entrées depuis le démarrage.`,
+    hostFiles: ({ n, r }) => `Suivi de ${n} fichiers de /var/log : ${r} lignes depuis le démarrage.`,
+    hostCompressed: (n) => ` ${n} champs compressés ignorés (messages longs, lisibles avec journalctl).`,
+    host_not_mounted: 'Aucun répertoire de logs de l\'hôte trouvé : montez /var/log et /run/log/journal sous /host (voir docker-compose.yml).',
+    host_permission: 'Accès refusé : donnez au conteneur un groupe autorisé à lire les logs (HOST_LOGS_GID dans .env, voir le README). ',
+    host_empty: 'Ni journal systemd ni fichier de log trouvé dans /var/log.',
+    host_read: 'Lecture des logs de l\'hôte impossible : ',
+    hostHelp: 'Lit le journal systemd de l\'hôte (/var/log/journal, /run/log/journal), ou les fichiers texte de /var/log (syslog, messages, *.log) s\'il n\'y a pas de journal. Les répertoires sont montés en lecture seule. À l\'activation, la dernière heure est lue d\'abord (HOST_LOGS_BACKFILL).',
     syslogEnabled: 'Recevoir les messages syslog', syslogProtocols: 'Protocoles', syslogPort: 'Port',
     syslogListening: ({ port, protos }) => `Écoute sur le port ${port} (${protos}).`,
     syslogOff: 'Réception syslog désactivée : les messages syslog sont ignorés (les logs Docker sont toujours collectés).',
@@ -217,6 +244,7 @@ const I18N = {
     dockerHelp: 'Les logs sont lus via docker-socket-proxy, une passerelle en lecture seule : Logstream peut lister les conteneurs et lire leurs logs, rien d\'autre. Les choix s\'appliquent par service compose (ou nom de conteneur), ils survivent donc à la recréation des conteneurs.',
     fContainer: 'conteneur', fContainerId: 'ID du conteneur', fImage: 'image', fProject: 'projet compose',
     fService: 'service compose', fStream: 'flux', fSourceType: 'source',
+    fUnit: 'unité systemd', fLogFile: 'fichier de log',
     export: 'Exporter', exportCsvHint: 'Séparateur virgule, UTF-8',
     exportExcel: 'CSV pour Excel', exportExcelHint: 'Séparateur point-virgule, pour Excel en français',
     exportNote: (n) => `Jusqu'à ${n} logs correspondant aux filtres, du plus récent au plus ancien. Dates dans le fuseau choisi dans Paramètres.`,
@@ -447,6 +475,7 @@ function setLang(next) {
   renderPurge();
   renderInterface();
   renderSyslog();
+  renderHost();
   renderDocker();
 }
 
@@ -805,14 +834,14 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'unit', 'log_file', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
   const hidden = new Set(['_stream_id', '_stream', 'sevnum']);
   if (r.msg_time) hidden.add('_time'); // same as the reception time
   const keys = order.filter((k) => r[k] != null && r[k] !== '' && !hidden.has(k))
     .concat(Object.keys(r).filter((k) => !order.includes(k) && !hidden.has(k)).sort());
   const label = {
     container: t('fContainer'), container_id: t('fContainerId'), image: t('fImage'), compose_project: t('fProject'),
-    compose_service: t('fService'), stream: t('fStream'), source_type: t('fSourceType'),
+    compose_service: t('fService'), stream: t('fStream'), source_type: t('fSourceType'), unit: t('fUnit'), log_file: t('fLogFile'),
     msg_time: t('fTime'), host_name: t('fHostName'), host_ip: t('fHostIp'), received: t('fReceived'), _time: t('fTime'), _msg: t('fMsg'), procid: t('fPid'), sd: t('fSd') };
   const val = (k) => (k === '_time' || k === 'received' || k === 'msg_time'
     ? `${esc(fmtFull(r[k]))} <span class="muted">(${esc(r[k])})</span>`
@@ -1726,6 +1755,48 @@ $('#syslogProtos').addEventListener('click', (ev) => {
   configureSyslog({ [b.dataset.proto]: !syslogState[b.dataset.proto] });
 });
 
+/* ================= Host system logs ================= */
+
+let hostState = null;
+
+async function loadHost() {
+  try { hostState = await api('/api/hostlogs'); } catch { hostState = null; }
+  renderHost();
+}
+
+function renderHost() {
+  const s = hostState;
+  const status = $('#hostStatus');
+  if (!s) { status.textContent = ''; return; }
+  $('#hostEnabled').checked = s.enabled;
+  let text = t('hostWaiting');
+  let cls = 'muted';
+  if (!s.enabled) {
+    text = t('hostOff');
+  } else if (s.code) {
+    text = t('host_' + s.code) + (s.code === 'read' || s.code === 'permission' ? s.error || '' : '');
+    cls = 'bad';
+  } else if (s.mode === 'journal') {
+    text = t('hostJournal', { n: s.files, r: fmtNum(s.read) }) + (s.compressed ? t('hostCompressed', fmtNum(s.compressed)) : '');
+    cls = 'good';
+  } else if (s.mode === 'files') {
+    text = t('hostFiles', { n: s.files, r: fmtNum(s.read) });
+    cls = 'good';
+  }
+  status.textContent = text;
+  status.className = 'docker-status ' + cls;
+}
+
+async function configureHost(enabled) {
+  hostState = { ...(hostState || {}), enabled };
+  renderHost();
+  try { hostState = await api('/api/hostlogs', { method: 'PUT', body: { enabled } }); } catch (e) { toast(e.message); }
+  renderHost();
+  setTimeout(loadHost, 1500); // the first scan runs in the background
+}
+
+$('#hostEnabled').addEventListener('change', (ev) => configureHost(ev.target.checked));
+
 /* ================= Docker source ================= */
 
 let dockerState = null;
@@ -1839,7 +1910,10 @@ for (const [id, on] of [['#dockerAll', true], ['#dockerNone', false]]) {
 }
 // Keep the list fresh while the Sources tab is open.
 setInterval(() => {
-  if ($('#settingsDlg').open && !document.querySelector('[data-panel="sources"]').hidden) loadDocker();
+  if ($('#settingsDlg').open && !document.querySelector('[data-panel="sources"]').hidden) {
+    loadDocker();
+    loadHost();
+  }
 }, 4000);
 
 /* ================= Purge ================= */
@@ -2002,6 +2076,7 @@ $('#settingsBtn').addEventListener('click', () => {
   renderInterface();
   loadPurgeStatus();
   loadSyslog();
+  loadHost();
   loadDocker();
   showSettingsTab(store.get('settingsTab', 'locale'));
   $('#settingsDlg').showModal();

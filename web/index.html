@@ -70,6 +70,7 @@
       <option value="" data-i18n="srcAll">All sources</option>
       <option value="syslog">Syslog</option>
       <option value="docker">Docker</option>
+      <option value="host" data-i18n="srcHost">Host system</option>
     </select>
     <span class="spacer"></span>
     <span id="count" class="muted"></span>
@@ -207,6 +208,16 @@
                 <span class="lbl" data-i18n="syslogPort">Port</span>
                 <div class="sl-port"><code id="syslogPortVal">514</code><span id="syslogPortHelp" class="muted small"></span></div>
               </div>
+            </section>
+
+            <section class="set-section">
+              <h3 data-i18n="hostTitle">Host system logs</h3>
+              <p id="hostStatus" class="docker-status"></p>
+              <label class="switch-row">
+                <input id="hostEnabled" type="checkbox" class="switch">
+                <span data-i18n="hostEnabled">Collect the system logs of this machine</span>
+              </label>
+              <p class="muted small" data-i18n="hostHelp"></p>
             </section>
 
             <section class="set-section">
