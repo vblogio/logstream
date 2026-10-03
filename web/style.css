@@ -465,12 +465,12 @@ mark.hit { background: var(--hit); color: inherit; border-radius: 3px; padding: 
 
 /* ---------- Settings dialog ---------- */
 dialog.settings {
-  width: min(900px, calc(100vw - 32px));
-  height: min(660px, calc(100vh - 64px)); max-height: none;
+  width: min(1280px, calc(100vw - 32px));
+  height: calc(100vh - 48px); max-height: 960px;
 }
 dialog.settings .dlg { display: flex; flex-direction: column; height: 100%; padding: 0; }
 dialog.settings .dlg > header { padding: 14px 16px 14px 22px; border-bottom: 1px solid var(--border); }
-.set-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 200px minmax(0, 1fr); }
+.set-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 176px minmax(0, 1fr); }
 .set-nav {
   display: flex; flex-direction: column; gap: 2px;
   padding: 12px 10px; border-right: 1px solid var(--border);
@@ -485,8 +485,19 @@ dialog.settings .dlg > header { padding: 14px 16px 14px 22px; border-bottom: 1px
 .set-nav button:hover { background: var(--panel-2); color: var(--text); }
 .set-nav button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
 .set-nav svg { width: 18px; height: 18px; flex: none; }
-.set-panels { overflow-y: auto; padding: 2px 24px 22px; }
-.set-panel > .set-section:first-child { margin-top: 16px; }
+.set-panels { overflow-y: auto; padding: 16px 20px 20px; }
+/* Sections are cards laid out in columns when there is room; .span ones take the full width. */
+.set-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; align-items: start; grid-auto-flow: row dense; }
+.set-panel[hidden] { display: none; }
+.set-panel.wide { grid-template-columns: minmax(0, 1fr); }
+.set-panel > .set-section, .set-panel > .set-section + .set-section {
+  margin: 0; padding: 14px 16px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-2) 35%, var(--panel));
+}
+.set-panel > .set-section.span { grid-column: 1 / -1; }
+.set-panel > .ro-note { grid-column: 1 / -1; margin: 0; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .hint { margin-top: 8px !important; }
 .lbl { font-size: 13px; font-weight: 550; }
 .set-panel .preview-list { margin: 14px 0 10px; pointer-events: none; }
@@ -605,9 +616,19 @@ input.switch:checked::after { transform: translateX(14px); }
 input.switch:disabled { cursor: not-allowed; }
 input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.set-section footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; margin-top: 14px; }
-.tag-add { display: flex; flex-wrap: wrap; gap: 8px; }
-.tag-add select.field { width: auto; }
+/* Settings > Filters: toolbar kept in view while the list scrolls, dense rows. */
+.tags-section { padding-top: 12px !important; }
+.tag-toolbar {
+  position: sticky; top: -16px; z-index: 2;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 10px -16px 0; padding: 8px 16px;
+  background: color-mix(in srgb, var(--panel-2) 35%, var(--panel));
+  border-bottom: 1px solid var(--border);
+}
+.tag-toolbar .btn { height: 30px; }
+.tag-toolbar select.field { width: auto; height: 30px; }
+.tag-toolbar .dk-filter { flex: 1 1 220px; height: 30px; }
+.tag-toolbar #resetTags { margin-left: auto; }
 
 .seg { display: inline-flex; padding: 3px; gap: 3px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
 .seg button {
@@ -617,34 +638,38 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .seg button:hover { color: var(--text); }
 .seg button[aria-checked="true"] { background: var(--panel); color: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
 
-.tag-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+/* One wide column: long regular expressions stay readable. */
+.tag-list { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; }
 .tag-row {
-  display: grid; align-items: center; gap: 8px 10px;
-  grid-template-columns: auto 38px minmax(8rem, 1fr) 7.5rem auto 36px;
-  padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
-  background: var(--panel-2);
+  display: grid; align-items: center; gap: 4px 6px;
+  grid-template-columns: 2.4em 30px minmax(7rem, 1fr) 10rem auto 26px;
+  padding: 3px 4px 3px 6px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel);
 }
+.tag-row[hidden] { display: none; }
 .tag-row.off { opacity: .55; }
-.tag-row .tag-code { font-size: 12px; padding: 3px 6px; cursor: default; }
+.tag-row .tag-code { font-size: 11px; padding: 2px 4px; cursor: default; text-align: center; }
 .tag-row input[type="color"] {
-  width: 38px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 8px;
+  width: 30px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 6px;
   background: none; cursor: pointer;
 }
-.tag-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; }
+.tag-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
 .tag-row input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 5px; }
 .tag-row input[type="text"] {
-  height: 32px; padding: 0 10px; min-width: 0;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
-  font-family: var(--mono); font-size: 13px; outline: 0;
+  height: 26px; padding: 0 8px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+  font-family: var(--mono); font-size: 12.5px; outline: 0;
 }
 .tag-row input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.tag-row .preview { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
-.tag-row .opts { display: flex; gap: 4px; }
+.tag-row .preview { font-family: var(--mono); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.tag-row .opts { display: flex; gap: 3px; }
 .opt {
-  display: inline-flex; align-items: center; height: 28px; padding: 0 8px;
-  border: 1px solid var(--border); border-radius: 7px; background: var(--panel);
-  font-size: 11.5px; font-weight: 600; color: var(--muted); cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; height: 24px; padding: 0 6px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+  font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; user-select: none;
 }
+.tag-row .icon-btn { width: 26px; height: 26px; border-radius: 6px; }
+.tag-row .icon-btn svg { width: 15px; height: 15px; }
 .opt input { display: none; }
 .opt:has(input:checked) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .tag-row .err { grid-column: 1 / -1; color: var(--sev-err); font-size: 12px; }
@@ -694,13 +719,17 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
     font-size: 11.5px; text-align: center;
   }
   .set-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-  .set-panels { padding: 0 16px 18px; }
+  .set-panels { padding: 12px 12px 18px; }
+  .set-panel { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .set-panel > .set-section, .set-panel > .set-section + .set-section { padding: 12px; }
+  .tag-toolbar { position: static; margin: 10px -12px 0; padding: 8px 12px; }
+  .tag-toolbar #resetTags { margin-left: 0; }
   #sizeSwitch, #densitySwitch { display: flex; }
   #sizeSwitch button, #densitySwitch button { flex: 1; padding: 0 4px; white-space: nowrap; font-size: 12px; }
   :root[data-density="compact"] .row { padding-top: 3px; padding-bottom: 3px; }
   .field-grid select { margin-bottom: 6px; }
   .status { padding: 6px 16px; }
-  .tag-row { grid-template-columns: auto 38px 1fr 36px; }
+  .tag-row { grid-template-columns: auto 30px 1fr 26px; }
   .tag-row .preview { display: none; }
   .tag-row .opts { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
   .tag-row [data-del] { grid-column: 4; grid-row: 1; }
