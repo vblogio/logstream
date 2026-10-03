@@ -339,6 +339,11 @@
           <div class="set-panel wide" role="tabpanel" data-panel="data" hidden>
             <section class="set-section danger">
               <h3 data-i18n="dangerZone">Danger zone</h3>
+              <div class="db-head">
+                <span class="lbl" data-i18n="dbTitle">Database</span>
+                <button id="dbRefresh" class="link-btn" type="button" data-i18n="dbRefresh">Refresh</button>
+              </div>
+              <dl id="dbStats" class="db-stats"></dl>
               <p class="muted small" data-i18n="purgeHelp"></p>
               <div class="purge-row">
                 <button id="purgeBtn" class="btn danger" type="button" data-i18n="purgeBtn">Delete all logs…</button>

@@ -23,6 +23,7 @@ type API struct {
 	docker     *DockerManager // nil when DOCKER_LOGS is off
 	syslog     *SyslogServer
 	host       *HostLogs
+	dbstats    dbStatsCache
 }
 
 func (a *API) Routes(mux *http.ServeMux) {
@@ -32,6 +33,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/facets", a.facets)
 	mux.HandleFunc("GET /api/stream", a.stream)
 	mux.HandleFunc("GET /api/stats", a.stats)
+	mux.HandleFunc("GET /api/dbstats", a.dbStats)
 	mux.HandleFunc("GET /api/tags", a.listTags)
 	mux.HandleFunc("POST /api/tags", a.createTag)
 	mux.HandleFunc("POST /api/tags/reset", a.resetTags)
@@ -312,6 +314,17 @@ func (a *API) stats(w http.ResponseWriter, r *http.Request) {
 	s["clients"] = a.hub.Count()
 	s["exportMax"] = a.exportMax
 	writeJSON(w, http.StatusOK, s)
+}
+
+// GET /api/dbstats[?refresh=1]: size and content of the VictoriaLogs base
+// (Settings > Data), cached for 30 s.
+func (a *API) dbStats(w http.ResponseWriter, r *http.Request) {
+	st, err := a.dbstats.get(r.Context(), a.store, r.URL.Query().Get("refresh") == "1")
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
 }
 
 func (a *API) listTags(w http.ResponseWriter, r *http.Request) {

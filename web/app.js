@@ -126,6 +126,16 @@ const I18N = {
     fontHelp: 'Free fonts. The built-in ones (Inconsolata Condensed, the narrowest, Iosevka and Ubuntu Mono) are served by LogStream itself and work offline; they are narrow, so more text fits on each line. The others are loaded by your browser from Bunny Fonts, a privacy-friendly European font service; without internet access, the system font is used.',
     previewMsgs: ['error: link down on eth1, carrier lost', 'warning: disk /dev/sda temperature 58°C', 'backup finished: ok (12.4 GB in 00:14:32)'],
     dangerZone: 'Danger zone',
+    dbTitle: 'Database', dbRefresh: 'Refresh', dbLoading: 'Loading…',
+    dbUnits: ['B', 'KB', 'MB', 'GB', 'TB'],
+    dbRows: 'Stored lines', dbDisk: 'Size on disk', dbIndex: (x) => `including ${x} of index`,
+    dbRaw: 'Raw size', dbRatio: (x) => `compressed ×${x}`,
+    dbPeriod: 'Period', dbFromTo: (p) => `${p.from} → ${p.to}`, dbDays: (n) => `${n} day${n > 1 ? 's' : ''}`,
+    dbRetention: (r) => `retention ${r}`,
+    dbRecent: 'Last 24 h', dbLastHour: (n) => `${n} in the last hour`,
+    dbSources: 'Sources', dbHostsApps: (p) => `${p.h} host${p.hn > 1 ? 's' : ''} · ${p.a} app${p.an > 1 ? 's' : ''}`,
+    dbFree: 'Free disk space', dbEmpty: 'The database is empty.',
+    dbQueryErr: 'Some figures could not be computed: ',
     purgeHelp: 'Permanently delete every stored log to start from scratch. Color tags and settings are kept.',
     purgeBtn: 'Delete all logs…',
     purgePrompt: 'This permanently deletes ALL stored logs.\n\nType PURGE to confirm:',
@@ -285,6 +295,16 @@ const I18N = {
     fontHelp: 'Polices libres. Les polices intégrées (Inconsolata Condensed, la plus étroite, Iosevka et Ubuntu Mono) sont servies par LogStream lui-même et fonctionnent hors ligne ; elles sont étroites, donc chaque ligne affiche plus de texte. Les autres sont chargées par votre navigateur depuis Bunny Fonts, un service européen respectueux de la vie privée ; sans accès à internet, la police du système est utilisée.',
     previewMsgs: ['error: link down on eth1, carrier lost', 'warning: disk /dev/sda temperature 58°C', 'backup finished: ok (12.4 GB in 00:14:32)'],
     dangerZone: 'Zone de danger',
+    dbTitle: 'Base de données', dbRefresh: 'Actualiser', dbLoading: 'Chargement…',
+    dbUnits: ['o', 'Ko', 'Mo', 'Go', 'To'],
+    dbRows: 'Lignes stockées', dbDisk: 'Taille sur disque', dbIndex: (x) => `dont ${x} d'index`,
+    dbRaw: 'Taille brute', dbRatio: (x) => `compression ×${x}`,
+    dbPeriod: 'Période', dbFromTo: (p) => `${p.from} → ${p.to}`, dbDays: (n) => `${n} jour${n > 1 ? 's' : ''}`,
+    dbRetention: (r) => `rétention ${r}`,
+    dbRecent: 'Dernières 24 h', dbLastHour: (n) => `${n} sur la dernière heure`,
+    dbSources: 'Sources', dbHostsApps: (p) => `${p.h} hôte${p.hn > 1 ? 's' : ''} · ${p.a} application${p.an > 1 ? 's' : ''}`,
+    dbFree: 'Espace disque libre', dbEmpty: 'La base est vide.',
+    dbQueryErr: 'Certains chiffres n\'ont pas pu être calculés : ',
     purgeHelp: 'Supprime définitivement tous les logs stockés pour repartir de zéro. Les tags de couleur et les réglages sont conservés.',
     purgeBtn: 'Supprimer tous les logs…',
     purgePrompt: 'Cette action supprime définitivement TOUS les logs stockés.\n\nTapez PURGE pour confirmer :',
@@ -509,6 +529,7 @@ function setLang(next) {
   renderPresets();
   renderTimeSettings();
   renderPurge();
+  renderDbStats();
   renderInterface();
   renderSyslog();
   renderHost();
@@ -2010,6 +2031,69 @@ setInterval(() => {
   }
 }, 4000);
 
+/* ================= Database statistics ================= */
+
+// 1536 -> "1,5 Ko" / "1.5 KB" (binary multiples, the usual reading for disk sizes).
+function fmtBytes(n) {
+  const units = t('dbUnits');
+  let i = 0;
+  n = Number(n || 0);
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  const digits = i === 0 || n >= 100 ? 0 : 1;
+  return `${n.toLocaleString(t('locale'), { maximumFractionDigits: digits })} ${units[i]}`;
+}
+
+const db = { stats: null, error: null, loading: false };
+
+function renderDbStats() {
+  const el = $('#dbStats');
+  const s = db.stats;
+  if (!s) {
+    el.innerHTML = `<div class="db-msg${db.error ? ' bad' : ''}">${esc(db.error || t('dbLoading'))}</div>`;
+    return;
+  }
+  const row = (k, v, sub) => `<dt>${esc(k)}</dt><dd><b>${esc(v)}</b>${sub ? ` <span class="muted">${esc(sub)}</span>` : ''}</dd>`;
+  const day = (x) => fmtFull(x).replace(/[.,]\d{3}(?=\D*$)/, '');
+  let html = row(t('dbRows'), fmtNum(s.rows));
+  html += row(t('dbDisk'), fmtBytes(s.diskBytes), s.indexBytes ? t('dbIndex', fmtBytes(s.indexBytes)) : '');
+  if (s.rawBytes) {
+    const ratio = s.diskBytes ? (s.rawBytes / s.diskBytes).toLocaleString(t('locale'), { maximumFractionDigits: 1 }) : '';
+    html += row(t('dbRaw'), fmtBytes(s.rawBytes), ratio ? t('dbRatio', ratio) : '');
+  }
+  if (s.oldest && s.newest) {
+    const sub = [s.days ? t('dbDays', s.days) : '', s.retention ? t('dbRetention', s.retention) : ''].filter(Boolean).join(' · ');
+    html += row(t('dbPeriod'), t('dbFromTo', { from: day(s.oldest), to: day(s.newest) }), sub);
+  } else if (s.retention) {
+    html += row(t('dbPeriod'), '—', t('dbRetention', s.retention));
+  }
+  if (s.rows) {
+    html += row(t('dbRecent'), fmtNum(s.last24h), t('dbLastHour', fmtNum(s.last1h)));
+    html += row(t('dbSources'), t('dbHostsApps', { h: fmtNum(s.hosts), hn: s.hosts, a: fmtNum(s.apps), an: s.apps }));
+  }
+  if (s.freeBytes) html += row(t('dbFree'), fmtBytes(s.freeBytes));
+  if (!s.rows) html += `<div class="db-msg">${esc(t('dbEmpty'))}</div>`;
+  if (s.queryError) html += `<div class="db-msg bad">${esc(t('dbQueryErr') + s.queryError)}</div>`;
+  el.innerHTML = html;
+}
+
+async function loadDbStats(refresh = false) {
+  if (db.loading) return;
+  db.loading = true;
+  $('#dbRefresh').disabled = true;
+  try {
+    db.stats = await api('/api/dbstats' + (refresh ? '?refresh=1' : ''));
+    db.error = null;
+  } catch (e) {
+    db.stats = null;
+    db.error = e.message;
+  } finally {
+    db.loading = false;
+    $('#dbRefresh').disabled = false;
+  }
+  renderDbStats();
+}
+$('#dbRefresh').addEventListener('click', () => loadDbStats(true));
+
 /* ================= Purge ================= */
 
 const purge = { allowed: true, running: 0, error: null, code: null, wasRunning: false, timer: null };
@@ -2039,6 +2123,7 @@ async function loadPurgeStatus() {
       refresh();
       loadFacets();
       loadStats();
+      loadDbStats(true);
     }
     purge.running = s.running || 0;
   } catch { /* shown on the next attempt */ }
@@ -2237,6 +2322,8 @@ $('#settingsBtn').addEventListener('click', () => {
   loadSyslog();
   loadHost();
   loadDocker();
+  renderDbStats();
+  loadDbStats();
   showSettingsTab(store.get('settingsTab', 'locale'));
   $('#settingsDlg').showModal();
 });
