@@ -243,14 +243,17 @@ couleur, est mémorisé par navigateur.
 - **Interface**
   - *Thème* : Système (suit la préférence de l'ordinateur ou du téléphone), Clair ou Sombre. Le
     bouton soleil/lune de l'en-tête bascule entre clair et sombre.
-  - *Affichage des logs* : taille du texte (très petite, petite, moyenne, grande) et police :
-    la police monospace du système, ou l'une des 12 polices libres conçues pour le texte dense
-    (JetBrains Mono, Fira Code, Source Code Pro, IBM Plex Mono, Cascadia Code, Roboto Mono,
-    Ubuntu Mono, Inconsolata, Red Hat Mono, Noto Sans Mono, Victor Mono, DM Mono). Elles sont
-    chargées par le navigateur depuis [Bunny Fonts](https://fonts.bunny.net), un service
-    européen de polices respectueux de la vie privée ; sans accès à internet, la police du
-    système est utilisée. Les ligatures sont désactivées pour que `->` ou `!=` s'affichent tels
-    quels.
+  - *Affichage des logs* : taille du texte (très petite, petite, moyenne, grande), densité
+    (normale, ou compacte pour afficher environ 50 % de lignes en plus à l'écran) et police :
+    la police monospace du système, [Iosevka](https://github.com/be5invis/Iosevka) (étroite,
+    donc plus de texte par ligne ; servie par LogStream lui-même, fonctionne hors ligne), ou
+    l'une des 12 polices libres conçues pour le texte dense (JetBrains Mono, Fira Code, Source
+    Code Pro, IBM Plex Mono, Cascadia Code, Roboto Mono, Ubuntu Mono, Inconsolata, Red Hat Mono,
+    Noto Sans Mono, Victor Mono, DM Mono). Ces 12 polices sont chargées par le navigateur depuis
+    [Bunny Fonts](https://fonts.bunny.net), un service européen de polices respectueux de la vie
+    privée ; sans accès à internet, la police du système est utilisée. Les ligatures sont
+    désactivées pour que `->` ou `!=` s'affichent tels quels. Le réglage le plus dense est Très
+    petite + Compacte + Iosevka.
 - **Données** : « Supprimer tous les logs » efface définitivement tous les logs stockés (il faut
   taper `PURGE` pour confirmer). Les tags et les paramètres sont conservés. VictoriaLogs doit
   être lancé avec `-delete.enable` (déjà présent dans `docker-compose.yml`) ; mettez
