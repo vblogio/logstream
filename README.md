@@ -92,15 +92,25 @@ width; the message takes the remaining space. Widths are remembered by the brows
 (**Settings > Interface > Reset column widths** restores them all). On phones the list keeps its
 two-line layout without columns.
 
+## Stream and Time range modes
+
+The first control of the filter bar switches between two display modes:
+
+- **Stream**: the latest logs over a sliding duration (5 min to 30 days, or all), with the live
+  view.
+- **Time range**: the logs between a start and an end date, typed in the time zone chosen in
+  Settings. ◀ and ▶ move to the previous or next range of the same length, the magnifier doubles
+  it around its middle. The live view pauses; the mode and the range are kept across reloads.
+
 ## Timeline
 
 The timeline above the list shows the volume of logs per interval, counted by **reception
 time** on the server clock (so it matches the times shown in the rows).
 
 - Hover an interval: its bounds, total and detail per severity.
-- Click a bar to zoom on that interval, or drag across several bars to zoom on the selection.
-  The time range then shows the zoomed period ("× Reset zoom" or any other range leaves it);
-  the list, the counters and the CSV export follow the zoom, and the live view pauses.
+- Click a bar to show that interval in Time range mode, or drag across several bars to show the
+  selection; "× Back to stream" returns to Stream mode. The list, the counters and the CSV export
+  follow the range.
 - In live mode the last interval grows as messages arrive, and the timeline reloads at each new
   interval. Nothing is refreshed while the browser tab is hidden; it catches up when shown again.
 

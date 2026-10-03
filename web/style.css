@@ -240,6 +240,19 @@ body.busy .progress::after {
   font-size: 13px; max-width: 220px;
 }
 .filters select.set { border-color: var(--accent); background-color: var(--accent-soft); }
+/* Display mode: Stream or Time range, then the start → end fields of the range */
+.view-mode { padding: 2px; gap: 2px; border-radius: 9px; }
+.view-mode button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; }
+.view-mode svg { width: 15px; height: 15px; }
+.period { display: inline-flex; align-items: center; gap: 6px; }
+.period .btn.tool { width: 32px; padding: 0; justify-content: center; }
+.period input {
+  height: 32px; padding: 0 8px;
+  border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft);
+  font-size: 13px; font-variant-numeric: tabular-nums; color-scheme: light dark;
+}
+.period input:focus { outline: 0; box-shadow: 0 0 0 3px var(--accent-soft); }
+.period input.bad { border-color: var(--sev-err); background: color-mix(in srgb, var(--sev-err) 10%, transparent); }
 .spacer { flex: 1; }
 #count { font-size: 12.5px; font-variant-numeric: tabular-nums; }
 
@@ -711,6 +724,13 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   .live .lbl { display: none; }
   .filters { padding: 10px 16px 6px; }
   .filters select { flex: 1 1 calc(50% - 8px); max-width: none; min-width: 0; }
+  .view-mode { flex: 1 1 100%; }
+  .view-mode button { flex: 1; justify-content: center; }
+  /* Phones: the two dates on one line, the ◀ ▶ − buttons below */
+  .period { flex: 1 1 100%; flex-wrap: wrap; }
+  .period > span { display: none; }
+  .period input { flex: 1 1 calc(50% - 3px); min-width: 0; }
+  .period .btn.tool { order: 1; flex: 1; }
   .spacer { display: none; }
   #count { flex: 1 1 50%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .histo { padding: 0 16px 6px; }
