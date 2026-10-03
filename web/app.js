@@ -47,13 +47,10 @@ const I18N = {
     colorAria: 'Color', keyword: 'keyword', preview: 'preview', del: 'Delete', noTags: 'No tags.',
     newTag: 'new',
     confirmDelete: (p) => `Delete tag "${p}"?`,
-    confirmReset: 'Replace all tags with the defaults (warning, error, ok)?',
+    confirmReset: 'Replace all tags with the defaults (warning, error)?',
     presetAria: 'Add a preset', presetPick: '+ Preset…',
-    preset_http_status: 'HTTP status codes', preset_http_methods: 'HTTP methods',
-    preset_http_probes: 'Probes and attacks', preset_http_bots: 'Bots and scripts',
-    preset_http_errors: 'TLS/HTTPS and proxy errors',
-    pl_probes: 'probes / attacks', pl_bots: 'bots / scripts', pl_tls: 'TLS errors', pl_proxy: 'proxy errors',
     presetAdded: (n) => (n ? `${n} tag(s) added` : 'These tags are already in the list'),
+    presetsFileErr: (f) => `Invalid presets file ${f}, built-in presets used: `,
     tagsLoadErr: 'Tags: ',
     err_pattern_required: 'The keyword is required',
     err_invalid_color: 'Invalid color (expected #rrggbb)',
@@ -201,13 +198,10 @@ const I18N = {
     colorAria: 'Couleur', keyword: 'mot-clé', preview: 'aperçu', del: 'Supprimer', noTags: 'Aucun tag.',
     newTag: 'nouveau',
     confirmDelete: (p) => `Supprimer le tag « ${p} » ?`,
-    confirmReset: 'Remplacer tous les tags par les tags par défaut (warning, error, ok) ?',
+    confirmReset: 'Remplacer tous les tags par les tags par défaut (warning, error) ?',
     presetAria: 'Ajouter un préréglage', presetPick: '+ Préréglage…',
-    preset_http_status: 'Codes HTTP', preset_http_methods: 'Méthodes HTTP',
-    preset_http_probes: 'Sondes et attaques', preset_http_bots: 'Robots et scripts',
-    preset_http_errors: 'Erreurs TLS/HTTPS et proxy',
-    pl_probes: 'sondes / attaques', pl_bots: 'robots / scripts', pl_tls: 'erreurs TLS', pl_proxy: 'erreurs proxy',
     presetAdded: (n) => (n ? `${n} tag(s) ajouté(s)` : 'Ces tags sont déjà dans la liste'),
+    presetsFileErr: (f) => `Fichier de préréglages ${f} invalide, préréglages intégrés utilisés : `,
     tagsLoadErr: 'Tags : ',
     err_pattern_required: 'Le mot-clé est obligatoire',
     err_invalid_color: 'Couleur invalide (format #rrggbb attendu)',
@@ -457,6 +451,7 @@ const state = {
   rows: [],          // displayed records, newest first
   pending: [],       // live messages received while scrolled down
   tags: [],
+  presets: [],       // preset groups from /api/presets
   matchers: [],      // compiled tags + search terms
   mode: store.get('mode', 'simple'),
   live: store.get('live', '1') === '1',
@@ -495,6 +490,7 @@ function setLang(next) {
   renderHisto();
   renderStats();
   renderTagList();
+  renderPresets();
   renderTimeSettings();
   renderPurge();
   renderInterface();
@@ -2055,27 +2051,24 @@ $('#purgeBtn').addEventListener('click', async () => {
 
 const PALETTE = ['#6366f1', '#0ea5e9', '#14b8a6', '#a855f7', '#ec4899', '#eab308', '#64748b', '#f97316'];
 
-// Ready-made tags for HTTP/HTTPS access logs. The patterns are valid in both
-// JavaScript and Go (RE2) and cover nginx/Apache (common, combined), Traefik
-// (CLF, JSON), Caddy (JSON) and HAProxy (httplog). For status codes and
-// methods only the "hl" group is colored, not the context around it.
-const HTTP_STATUS_CTX = '(?:" |"(?:status|DownstreamStatus|OriginStatus|status_code)": ?|(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/\\+?\\d+ )';
-const httpStatus = (d, color) => ({ label: `HTTP ${d}xx`, pattern: `${HTTP_STATUS_CTX}(?<hl>${d}\\d\\d)\\b`, color });
-const httpMethod = (m, color) => ({ label: m.replace(/\|/g, '/'), pattern: `"(?<hl>${m})[ "]`, color, caseSensitive: true });
-const PRESETS = {
-  http_status: () => [httpStatus(2, '#86efac'), httpStatus(3, '#93c5fd'), httpStatus(4, '#fdba74'), httpStatus(5, '#f87171')],
-  http_methods: () => [httpMethod('GET|HEAD|OPTIONS', '#cbd5e1'), httpMethod('POST|PUT|PATCH', '#c4b5fd'), httpMethod('DELETE', '#f9a8d4')],
-  http_probes: () => [{ label: t('pl_probes'), color: '#fda4af',
-    pattern: '(?:wp-login\\.php|xmlrpc\\.php|wp-admin|phpmyadmin|/\\.env|/\\.git|/\\.aws|/cgi-bin/|\\.\\./|%2e%2e|/etc/passwd|<script|union(?:\\s|%20|\\+)+select)' }],
-  http_bots: () => [{ label: t('pl_bots'), color: '#fde68a',
-    pattern: '\\b(?:[a-z]*bot|crawler|spider|curl|wget|python-requests|Go-http-client|zgrab|masscan|nmap|sqlmap|nikto)\\b' }],
-  http_errors: () => [
-    { label: t('pl_tls'), color: '#f0abfc',
-      pattern: '(?:TLS handshake error|SSL_do_handshake\\(\\) failed|SSL handshake|SSL routines|certificate (?:has )?expired|certificate verify failed|bad certificate|unknown certificate|x509:)' },
-    { label: t('pl_proxy'), color: '#fdba74',
-      pattern: '(?:upstream timed out|upstream prematurely closed|no live upstreams|connect\\(\\) failed|connection refused|bad gateway|gateway time-?out|service unavailable)' },
-  ],
-};
+// Ready-made tags, from the presets file (or the built-in presets.json):
+// see docs/presets.md. A text is a string or an object per language.
+const pickText = (x) => (typeof x === 'string' ? x : (x?.[lang] ?? x?.en ?? Object.values(x || {})[0] ?? ''));
+
+async function loadPresets() {
+  try {
+    const res = await api('/api/presets');
+    state.presets = res.groups || [];
+    if (res.error) toast(t('presetsFileErr', res.file) + res.error);
+  } catch (e) { toast(e.message); }
+  renderPresets();
+}
+
+function renderPresets() {
+  $('#presetTags').innerHTML = `<option value="">${esc(t('presetPick'))}</option>`
+    + state.presets.map((g) => `<optgroup label="${esc(pickText(g.group))}">`
+      + g.presets.map((p) => `<option value="${esc(p.id)}">${esc(pickText(p.name))}</option>`).join('') + '</optgroup>').join('');
+}
 
 async function loadTags() {
   try { state.tags = await api('/api/tags'); } catch (e) { toast(t('tagsLoadErr') + e.message); }
@@ -2167,14 +2160,15 @@ $('#addTag').addEventListener('click', async () => {
 
 // Adds a preset group, skipping tags whose pattern is already in the list.
 $('#presetTags').addEventListener('change', async (ev) => {
-  const make = PRESETS[ev.target.value];
+  const preset = state.presets.flatMap((g) => g.presets).find((p) => p.id === ev.target.value);
   ev.target.value = '';
-  if (!make) return;
+  if (!preset) return;
   let added = 0;
   try {
-    for (const p of make()) {
+    for (const p of preset.tags) {
       if (state.tags.some((x) => x.pattern === p.pattern)) continue;
-      state.tags.push(await api('/api/tags', { method: 'POST', body: { regex: true, enabled: true, ...p } }));
+      const tag = { ...p, label: pickText(p.label), regex: p.regex ?? true, enabled: true };
+      state.tags.push(await api('/api/tags', { method: 'POST', body: tag }));
       added++;
     }
   } catch (e) { toast(e.message); }
@@ -2195,6 +2189,7 @@ $('#resetTags').addEventListener('click', async () => {
 $('#settingsBtn').addEventListener('click', () => {
   renderTimeSettings();
   renderTagList();
+  loadPresets();
   renderInterface();
   loadPurgeStatus();
   loadSyslog();

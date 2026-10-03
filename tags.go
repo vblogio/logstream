@@ -30,7 +30,6 @@ func defaultTags() []Tag {
 	return []Tag{
 		{ID: "warning", Code: "01", Pattern: "warning", Color: "#fdba74", WholeWord: true, Enabled: true},
 		{ID: "error", Code: "02", Pattern: "error", Color: "#fca5a5", WholeWord: true, Enabled: true},
-		{ID: "ok", Code: "03", Pattern: "ok", Color: "#86efac", WholeWord: true, Enabled: true},
 	}
 }
 

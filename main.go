@@ -143,7 +143,8 @@ func main() {
 		log.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	api := &API{store: store, hub: hub, tags: tags, rdns: rdns, allowPurge: cfg.allowPurge, exportMax: cfg.exportMax, syslog: syslogSrv}
+	presets := getenv("PRESETS_FILE", filepath.Join(cfg.dataDir, "presets.json"))
+	api := &API{store: store, hub: hub, tags: tags, presets: presets, rdns: rdns, allowPurge: cfg.allowPurge, exportMax: cfg.exportMax, syslog: syslogSrv}
 	if cfg.dockerLogs {
 		dm, err := NewDockerManager(cfg.dockerHost, cfg.dataDir, cfg.backfill, sink)
 		if err != nil {

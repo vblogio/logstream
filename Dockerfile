@@ -4,7 +4,7 @@
 FROM golang:1.27.1-alpine3.24 AS build
 WORKDIR /src
 COPY go.mod ./
-COPY *.go ./
+COPY *.go presets.json ./
 COPY web ./web
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/logstream .
 
