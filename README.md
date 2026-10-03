@@ -237,7 +237,10 @@ remembered per browser.
     [Bunny Fonts](https://fonts.bunny.net), a privacy-friendly European font service; without
     internet access, the system font is used. Ligatures are disabled so `->` or `!=` show as
     typed. The densest setting is Tiny + Compact + Inconsolata Condensed.
-- **Data**: "Delete all logs" permanently erases every stored log (you must type
+- **Data**: database figures read from VictoriaLogs (refreshed at most every 30 s): stored
+  lines, size on disk (index included), raw size and compression ratio, period covered with
+  the retention, lines of the last 24 h and last hour, distinct hosts and apps, free disk
+  space. Sizes use KB/MB/GB (Ko/Mo/Go in French). "Delete all logs" permanently erases every stored log (you must type
   `PURGE` to confirm). Tags and settings are kept. VictoriaLogs needs `-delete.enable`
   (already set in `docker-compose.yml`). The feature is off by default: set `ALLOW_PURGE=true`
   to allow it. Any admin can then purge: turn on [authentication](#authentication) if the UI

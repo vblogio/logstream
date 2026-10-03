@@ -559,6 +559,17 @@ select.field:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 
   background: var(--panel-2); font-family: var(--mono); font-size: 12.5px;
 }
 .set-section.danger h3 { color: var(--sev-err); }
+.db-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 4px 0 6px; }
+.db-stats {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 14px;
+  margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--panel-2); font-size: 12.5px;
+}
+.db-stats dt { color: var(--muted); }
+.db-stats dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.db-stats dd b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.db-msg { grid-column: 1 / -1; color: var(--muted); }
+.db-msg.bad { color: var(--sev-err); }
+.link-btn:disabled { opacity: .5; cursor: default; text-decoration: none; }
 .purge-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
 .btn.danger { color: var(--sev-err); border-color: color-mix(in srgb, var(--sev-err) 45%, var(--border)); }
 .btn.danger:hover:not(:disabled) { background: var(--sev-err); border-color: var(--sev-err); color: #fff; }

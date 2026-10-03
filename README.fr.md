@@ -261,7 +261,11 @@ couleur, est mémorisé par navigateur.
     européen de polices respectueux de la vie privée ; sans accès à internet, la police du
     système est utilisée. Les ligatures sont désactivées pour que `->` ou `!=` s'affichent tels
     quels. Le réglage le plus dense est Très petite + Compacte + Inconsolata Condensed.
-- **Données** : « Supprimer tous les logs » efface définitivement tous les logs stockés (il faut
+- **Données** : chiffres de la base lus dans VictoriaLogs (actualisés au plus toutes les 30 s) :
+  lignes stockées, taille sur disque (index compris), taille brute et taux de compression,
+  période couverte avec la rétention, lignes des dernières 24 h et de la dernière heure, hôtes
+  et applications distincts, espace disque libre. Les tailles sont en Ko/Mo/Go (KB/MB/GB en
+  anglais). « Supprimer tous les logs » efface définitivement tous les logs stockés (il faut
   taper `PURGE` pour confirmer). Les tags et les paramètres sont conservés. VictoriaLogs doit
   être lancé avec `-delete.enable` (déjà présent dans `docker-compose.yml`). La fonction est
   désactivée par défaut : mettez `ALLOW_PURGE=true` pour l'autoriser. Tout administrateur peut
