@@ -72,7 +72,7 @@ message, host and app. Words are combined with AND.
 The live view is disabled in this mode.
 
 Each row shows, from left to right: the **reception time** (server clock), the timestamp
-found in the message itself (`msg_time`), severity, host, app and message. Click a host or an
+found in the message itself (`msg_time`), severity, host, app, codes of the tags found and message. Click a host or an
 app to filter on it.
 
 Logs are indexed, searched and sorted by **reception time**: devices with a wrong clock
@@ -214,6 +214,11 @@ remembered per browser.
   added tags can be edited like any other. In a regular expression, a group named `hl`
   (`(?<hl>…)`) colors only that part of the match: the presets use it to color the status code
   or the method, not the text around it.
+  Each tag gets a two-digit code (`01`, `02`…) assigned by the server: it stays with the tag
+  until the tag is deleted (codes are also given to tags created by earlier versions). The
+  *Filters* column of the log list shows, as grey badges, the codes of the active tags found in
+  each message; it has room for 3, beyond that it shows 2 and `+N`, and the tooltip lists them
+  all.
 - **Interface**
   - *Theme*: System (follows the computer/phone preference), Light or Dark. The sun/moon
     button in the header switches between light and dark.

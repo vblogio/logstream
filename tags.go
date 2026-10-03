@@ -16,6 +16,7 @@ import (
 // Tag highlights a keyword in displayed messages.
 type Tag struct {
 	ID            string `json:"id"`
+	Code          string `json:"code"` // two digits, shown on matching log lines
 	Pattern       string `json:"pattern"`
 	Label         string `json:"label,omitempty"` // shown instead of the pattern (presets)
 	Color         string `json:"color"`
@@ -27,10 +28,45 @@ type Tag struct {
 
 func defaultTags() []Tag {
 	return []Tag{
-		{ID: "warning", Pattern: "warning", Color: "#fdba74", WholeWord: true, Enabled: true},
-		{ID: "error", Pattern: "error", Color: "#fca5a5", WholeWord: true, Enabled: true},
-		{ID: "ok", Pattern: "ok", Color: "#86efac", WholeWord: true, Enabled: true},
+		{ID: "warning", Code: "01", Pattern: "warning", Color: "#fdba74", WholeWord: true, Enabled: true},
+		{ID: "error", Code: "02", Pattern: "error", Color: "#fca5a5", WholeWord: true, Enabled: true},
+		{ID: "ok", Code: "03", Pattern: "ok", Color: "#86efac", WholeWord: true, Enabled: true},
 	}
+}
+
+var codeRe = regexp.MustCompile(`^[0-9]{2}$`)
+
+// freeCode returns the lowest code from 01 to 99 not used by tags, or "" when
+// all are taken. A code stays with its tag until the tag is deleted.
+func freeCode(tags []Tag) string {
+	used := map[string]bool{}
+	for _, t := range tags {
+		used[t.Code] = true
+	}
+	for n := 1; n <= 99; n++ {
+		if c := fmt.Sprintf("%02d", n); !used[c] {
+			return c
+		}
+	}
+	return ""
+}
+
+// assignCodes gives a code to the tags that have none (files written before
+// codes existed) or share one with an earlier tag.
+func assignCodes(tags []Tag) bool {
+	changed := false
+	seen := map[string]bool{}
+	for i := range tags {
+		if codeRe.MatchString(tags[i].Code) && !seen[tags[i].Code] {
+			seen[tags[i].Code] = true
+			continue
+		}
+		tags[i].Code = ""
+		tags[i].Code = freeCode(tags)
+		seen[tags[i].Code] = true
+		changed = true
+	}
+	return changed
 }
 
 // Colors of the default tags in earlier versions: still unchanged, they are
@@ -68,6 +104,7 @@ func (e *codedError) Error() string {
 
 var (
 	errTagNotFound = &codedError{code: "tag_not_found", msg: "tag not found"}
+	errTooManyTags = &codedError{code: "too_many_tags", msg: "too many tags (99 at most)"}
 	colorRe        = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
@@ -108,7 +145,7 @@ func LoadTagStore(path string) (*TagStore, error) {
 	if err := json.Unmarshal(b, &s.tags); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	if migrateDefaultColors(s.tags) {
+	if c1, c2 := migrateDefaultColors(s.tags), assignCodes(s.tags); c1 || c2 {
 		if err := s.save(); err != nil {
 			return nil, err
 		}
@@ -145,6 +182,9 @@ func (s *TagStore) Create(t Tag) (Tag, error) {
 	t.ID = newID()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if t.Code = freeCode(s.tags); t.Code == "" {
+		return t, errTooManyTags
+	}
 	s.tags = append(s.tags, t)
 	return t, s.save()
 }
@@ -158,6 +198,7 @@ func (s *TagStore) Update(id string, t Tag) (Tag, error) {
 	defer s.mu.Unlock()
 	for i := range s.tags {
 		if s.tags[i].ID == id {
+			t.Code = s.tags[i].Code // assigned by the server, never changed
 			s.tags[i] = t
 			return t, s.save()
 		}

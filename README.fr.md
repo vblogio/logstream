@@ -78,8 +78,8 @@ par exemple `error AND host:web-01`, `app:~"ssh|nginx"` ou `* | stats by (host) 
 Le direct est désactivé dans ce mode.
 
 Chaque ligne affiche, de gauche à droite : l'**heure de réception** (horloge du serveur),
-l'horodatage trouvé dans le message lui-même (`msg_time`), la sévérité, l'hôte, l'application
-et le message. Un clic sur un hôte ou une application filtre dessus.
+l'horodatage trouvé dans le message lui-même (`msg_time`), la sévérité, l'hôte, l'application,
+les codes des tags trouvés et le message. Un clic sur un hôte ou une application filtre dessus.
 
 Les logs sont indexés, recherchés et triés par **heure de réception** : les équipements dont
 l'horloge est fausse (par exemple des points d'accès dont le NTP échoue) apparaissent quand même
@@ -235,6 +235,11 @@ couleur, est mémorisé par navigateur.
   ajoutés en double, et les tags ajoutés se modifient comme les autres. Dans une expression
   régulière, un groupe nommé `hl` (`(?<hl>…)`) ne colore que cette partie de la correspondance :
   les préréglages s'en servent pour colorer le code de statut ou la méthode, pas le texte autour.
+  Chaque tag reçoit un code à deux chiffres (`01`, `02`…) attribué par le serveur : il reste
+  attaché au tag jusqu'à sa suppression (les tags créés par les versions précédentes en reçoivent
+  un aussi). La colonne *Filtres* de la liste affiche, en badges gris, les codes des tags actifs
+  trouvés dans chaque message ; elle a la place pour 3, au-delà elle en affiche 2 et `+N`, et
+  l'infobulle les liste tous.
 - **Interface**
   - *Thème* : Système (suit la préférence de l'ordinateur ou du téléphone), Clair ou Sombre. Le
     bouton soleil/lune de l'en-tête bascule entre clair et sombre.

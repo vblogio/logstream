@@ -37,7 +37,8 @@
   --tag-warning: #fdba74;
   --tag-warning-text: #111827;
 
-  --log-size: 12.5px;   /* Settings > Interface > Font size */
+  --log-size: 12.5px;
+  --codes-w: 4.9rem;    /* tag codes column: room for 3 badges */   /* Settings > Interface > Font size */
   /* --log-font is set by Settings > Interface > Font (defaults to --mono) */
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -296,13 +297,13 @@ body.busy .progress::after {
 .list { margin: 6px 20px 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .list:empty { display: none; }
 
-/* Columns: received, message time, severity, host, app, message. Widths come from
+/* Columns: received, message time, severity, host, app, tag codes, message. Widths come from
    --col-* (set on #table when a column has been resized, see app.js), shared by
    the header and every row through subgrid so that the columns line up. */
 .table {
   display: grid;
   grid-template-columns: var(--col-rcv, max-content) var(--col-mt, max-content) var(--col-sev, 4.6rem)
-    var(--col-host, minmax(5rem, 9rem)) var(--col-app, minmax(4rem, 8rem)) minmax(0, 1fr);
+    var(--col-host, minmax(5rem, 9rem)) var(--col-app, minmax(4rem, 8rem)) var(--codes-w) minmax(0, 1fr);
   column-gap: 12px;
   margin: 6px 20px 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
   overflow: clip; /* rounded corners without breaking the sticky header (hidden would) */
@@ -331,7 +332,7 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 
 .row {
   display: grid;
-  grid-template-columns: max-content max-content 4.6rem minmax(5rem, 9rem) minmax(4rem, 8rem) 1fr;
+  grid-template-columns: max-content max-content 4.6rem minmax(5rem, 9rem) minmax(4rem, 8rem) var(--codes-w) 1fr;
   gap: 0 12px; align-items: baseline;
   padding: 5px 14px 5px 11px;
   border-left: 3px solid transparent;
@@ -372,6 +373,15 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .row.sev-crit, .row.sev-err, .row.sev-warning { border-left-color: var(--sev); }
 .row.sev-crit, .row.sev-err { background: color-mix(in srgb, var(--sev) 7%, transparent); }
 .row .host[data-act], .row .app[data-act] { cursor: pointer; }
+/* Codes of the tags found in the message: grey badges, fixed size */
+.row .codes { white-space: nowrap; overflow: hidden; }
+.row .codes > span { display: inline-flex; gap: 3px; vertical-align: 1px; }
+.row .codes b, .tag-code {
+  min-width: 2.2ch; padding: 1px 4px; border-radius: 4px; text-align: center;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 700; line-height: 1.35; font-variant-numeric: tabular-nums;
+  background: #b4bac3; color: #111827;
+}
+.row .codes b.more { background: none; box-shadow: inset 0 0 0 1px #b4bac3; color: var(--muted); }
 .row .host[data-act]:hover, .row .app[data-act]:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
 mark.tag {
@@ -475,6 +485,7 @@ dialog.settings .dlg > header { padding: 14px 16px 14px 22px; border-bottom: 1px
 .preview-list .row .host { grid-area: host; }
 .preview-list .row .app { grid-area: app; display: block; }
 .preview-list .row .msg { grid-area: msg; }
+.preview-list .row .codes { display: none; }
 
 dialog {
   width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
@@ -592,11 +603,12 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .tag-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .tag-row {
   display: grid; align-items: center; gap: 8px 10px;
-  grid-template-columns: 38px minmax(8rem, 1fr) 7.5rem auto 36px;
+  grid-template-columns: auto 38px minmax(8rem, 1fr) 7.5rem auto 36px;
   padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
   background: var(--panel-2);
 }
 .tag-row.off { opacity: .55; }
+.tag-row .tag-code { font-size: 12px; padding: 3px 6px; cursor: default; }
 .tag-row input[type="color"] {
   width: 38px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 8px;
   background: none; cursor: pointer;
@@ -639,8 +651,8 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   .table .list { display: block; margin: 0; }
   .list-head { display: none; }
   .row, .table .row {
-    grid-template-columns: auto auto 1fr;
-    grid-template-areas: "rcv sev host" "msg msg msg";
+    grid-template-columns: auto auto 1fr auto;
+    grid-template-areas: "rcv sev host codes" "msg msg msg msg";
     gap: 3px 8px; padding: 8px 12px 8px 10px;
   }
   .row time.rcv { grid-area: rcv; }
@@ -648,6 +660,7 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   .row .sev { grid-area: sev; }
   .row .host { grid-area: host; justify-self: end; max-width: 100%; }
   .row .app { display: none; }
+  .row .codes { grid-area: codes; }
   .row .msg { grid-area: msg; }
   .details { grid-column: 1 / -1; }
   .details dl { grid-template-columns: 1fr; }
@@ -669,10 +682,10 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   #sizeSwitch button { flex: 1; padding: 0 4px; white-space: nowrap; font-size: 12px; }
   .field-grid select { margin-bottom: 6px; }
   .status { padding: 6px 16px; }
-  .tag-row { grid-template-columns: 38px 1fr 36px; }
+  .tag-row { grid-template-columns: auto 38px 1fr 36px; }
   .tag-row .preview { display: none; }
   .tag-row .opts { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
-  .tag-row [data-del] { grid-column: 3; grid-row: 1; }
+  .tag-row [data-del] { grid-column: 4; grid-row: 1; }
 }
 
 /* ---------- Login page (AUTH_MODE=local) ---------- */
