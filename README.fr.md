@@ -164,6 +164,32 @@ donc par [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)
 passer que la liste des conteneurs, la lecture des logs, les événements et les informations du
 moteur (`GET` uniquement).
 
+## Logs système de l'hôte
+
+Logstream peut aussi collecter les logs système de la machine qui héberge la stack, sans rien
+configurer sur l'hôte. La source est **désactivée par défaut** : activez-la dans
+**Paramètres > Sources > Logs système de l'hôte** (enregistré dans `/data/hostlogs.json`).
+
+- `docker-compose.yml` monte `/var/log` et `/run/log/journal` en lecture seule sous `/host`.
+- Si l'hôte utilise systemd, Logstream lit directement les fichiers du **journal systemd**
+  (pas besoin de `journalctl` dans l'image) : **host** est le nom de la machine, **app** le
+  programme (`SYSLOG_IDENTIFIER`), la sévérité et la facility viennent du journal, et l'unité
+  systemd est conservée dans `unit`. Sinon, il suit les fichiers texte de `/var/log` (`syslog`,
+  `messages`, `*.log`), analysés comme des lignes syslog, avec le nom du fichier dans `log_file`.
+- Ces logs ont la source `host` : le filtre **Source** permet de les afficher seuls.
+- À l'activation, la dernière heure est lue d'abord (`HOST_LOGS_BACKFILL`) ; la position
+  atteinte est enregistrée dans `/data/hostlogs-state.json`, un redémarrage ne perd donc ni ne
+  duplique d'entrées.
+- **Droits** : le conteneur tourne avec un utilisateur sans privilège et reçoit le groupe `adm`
+  (gid 4), qui peut lire le journal et `/var/log` sur Debian et Ubuntu. Sur d'autres systèmes,
+  réglez `HOST_LOGS_GID` dans `.env` sur le gid de `systemd-journal`
+  (`getent group systemd-journal | cut -d: -f3`). Paramètres > Sources affiche un message clair
+  si l'accès est refusé.
+- Limites : les champs du journal compressés par journald (messages de plus de 512 octets,
+  compressés en zstd/lz4/xz) ne peuvent pas être décodés sans bibliothèque supplémentaire ; ils
+  sont comptés dans les Paramètres et affichés comme « (compressed journal entry) ». Les fichiers
+  texte tournés ou compressés (`*.1`, `*.gz`) ne sont pas lus.
+
 ## Export CSV
 
 Le bouton **Exporter** (à côté du nombre de logs) télécharge tous les logs stockés qui
@@ -247,6 +273,9 @@ résolutions.
 | `DOCKER_LOGS` | `on` dans compose | collecter les logs des conteneurs Docker locaux |
 | `DOCKER_HOST` | `tcp://docker-proxy:2375` dans compose | adresse de l'API Docker (`unix:///var/run/docker.sock` hors compose) |
 | `DOCKER_BACKFILL` | `1h` | historique lu pour un conteneur vu pour la première fois |
+| `HOST_LOGS_GID` | `4` (adm) dans compose | groupe donné au conteneur pour lire les logs de l'hôte |
+| `HOST_LOGS_BACKFILL` | `1h` | historique lu à l'activation de la source « logs système de l'hôte » |
+| `HOST_LOGS_ROOT` | `/host` | emplacement de montage des répertoires de l'hôte |
 | `TZ` | `Europe/Paris` | fuseau horaire des horodatages RFC 3164 (qui n'en portent pas) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | réglage de l'ingestion |
 
@@ -303,6 +332,7 @@ Pour mettre à jour l'une d'elles :
 | `export.go` | export CSV en flux |
 | `docker.go` | logs des conteneurs Docker (API, lecteurs, positions, détection du niveau) |
 | `syslogserver.go` | écoutes syslog ouvertes et fermées depuis Paramètres > Sources |
+| `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
 | `tags.go` | stockage des tags de couleur |
 | `api.go` | routes HTTP `/api/*` |
 | `web/` | interface (HTML, CSS, JavaScript simple, sans étape de build), embarquée dans le binaire ; les traductions sont dans `web/app.js` (`I18N`) |

@@ -23,8 +23,14 @@ services:
       DOCKER_LOGS: ${DOCKER_LOGS:-on}             # collecte des logs des conteneurs Docker
       DOCKER_HOST: tcp://docker-proxy:2375        # lecture seul de l'API Docker
       DOCKER_BACKFILL: ${DOCKER_BACKFILL:-1h}
+      HOST_LOGS_BACKFILL: ${HOST_LOGS_BACKFILL:-1h}   # historique lu a l'activation des logs systeme de l'hote
+    group_add:
+      - "${HOST_LOGS_GID:-4}"        # groupe autorise a lire les logs de l'hote (4 = adm sur Debian/Ubuntu)
     volumes:
       - logstream-data:/data         # tags.json, docker.json (les choix des conteneurs)
+      # logs systeme de l'hote, en lecture seule (source a activer dans Reglages > Sources)
+      - /var/log:/host/var/log:ro                     # journal systemd persistant et fichiers texte
+      - /run/log/journal:/host/run/log/journal:ro     # journal systemd volatile
     labels:
       logstream.exclude: "true"      # pas de collect des logs logstream
 

@@ -21,6 +21,7 @@ type API struct {
 	exportMax  int
 	docker     *DockerManager // nil when DOCKER_LOGS is off
 	syslog     *SyslogServer
+	host       *HostLogs
 }
 
 func (a *API) Routes(mux *http.ServeMux) {
@@ -42,6 +43,28 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/syslog", a.syslogConfigure)
 	mux.HandleFunc("GET /api/docker", a.dockerStatus)
 	mux.HandleFunc("PUT /api/docker", a.dockerConfigure)
+	mux.HandleFunc("GET /api/hostlogs", a.hostLogsStatus)
+	mux.HandleFunc("PUT /api/hostlogs", a.hostLogsConfigure)
+}
+
+// GET /api/hostlogs: state of the host system logs source (Settings > Sources).
+func (a *API) hostLogsStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.host.Status())
+}
+
+// PUT /api/hostlogs {"enabled": bool}
+func (a *API) hostLogsConfigure(w http.ResponseWriter, r *http.Request) {
+	var cfg hostLogsConfig
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&cfg); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := a.host.Configure(cfg); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Printf("host system logs changed from %s: %+v", r.RemoteAddr, cfg)
+	writeJSON(w, http.StatusOK, a.host.Status())
 }
 
 // GET /api/syslog: syslog reception state (Settings > Sources).
