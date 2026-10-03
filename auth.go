@@ -252,7 +252,7 @@ func (o *OIDC) handleCallback(w http.ResponseWriter, r *http.Request) {
 	var ls loginState
 	c, err := r.Cookie(loginCookie + state)
 	if state == "" || err != nil || !verifyCookie(o.key, c.Value, &ls) || time.Now().Unix() > ls.Exp {
-		http.Error(w, "login expired or started in another browser: open logstream again", http.StatusBadRequest)
+		http.Error(w, "login expired or started in another browser: open LogStream again", http.StatusBadRequest)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: loginCookie + state, Path: "/", MaxAge: -1, HttpOnly: true, Secure: o.secure})
@@ -260,7 +260,7 @@ func (o *OIDC) handleCallback(w http.ResponseWriter, r *http.Request) {
 	user, err := o.exchange(r, q.Get("code"), ls)
 	if err != nil {
 		log.Printf("oidc: login failed: %v", err)
-		http.Error(w, "login failed, see the logstream logs", http.StatusForbidden)
+		http.Error(w, "login failed, see the LogStream logs", http.StatusForbidden)
 		return
 	}
 	log.Printf("oidc: %s logged in", user)
