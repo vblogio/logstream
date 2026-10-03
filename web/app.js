@@ -120,8 +120,9 @@ const I18N = {
     themeHelp: 'System follows the light/dark preference of your computer or phone.',
     logDisplay: 'Log display', fontSize: 'Font size',
     sizeTiny: 'Tiny', sizeSmall: 'Small', sizeMedium: 'Medium', sizeLarge: 'Large',
-    fontLabel: 'Font', fontSystem: 'System monospace (no download)',
-    fontHelp: 'Free fonts (SIL Open Font License) loaded by your browser from Bunny Fonts, a privacy-friendly European font service. Without internet access, the system font is used.',
+    density: 'Density', densityNormal: 'Normal', densityCompact: 'Compact',
+    fontLabel: 'Font', fontSystem: 'System monospace (no download)', fontBuiltin: 'built in, narrow',
+    fontHelp: 'Free fonts. The built-in ones (Inconsolata Condensed, the narrowest, Iosevka and Ubuntu Mono) are served by LogStream itself and work offline; they are narrow, so more text fits on each line. The others are loaded by your browser from Bunny Fonts, a privacy-friendly European font service; without internet access, the system font is used.',
     previewMsgs: ['error: link down on eth1, carrier lost', 'warning: disk /dev/sda temperature 58°C', 'backup finished: ok (12.4 GB in 00:14:32)'],
     dangerZone: 'Danger zone',
     purgeHelp: 'Permanently delete every stored log to start from scratch. Color tags and settings are kept.',
@@ -273,8 +274,9 @@ const I18N = {
     themeHelp: 'Système suit la préférence clair/sombre de votre ordinateur ou de votre téléphone.',
     logDisplay: 'Affichage des logs', fontSize: 'Taille du texte',
     sizeTiny: 'Très petite', sizeSmall: 'Petite', sizeMedium: 'Moyenne', sizeLarge: 'Grande',
-    fontLabel: 'Police', fontSystem: 'Monospace du système (aucun téléchargement)',
-    fontHelp: 'Polices libres (licence SIL Open Font) chargées par votre navigateur depuis Bunny Fonts, un service européen respectueux de la vie privée. Sans accès à internet, la police du système est utilisée.',
+    density: 'Densité', densityNormal: 'Normale', densityCompact: 'Compacte',
+    fontLabel: 'Police', fontSystem: 'Monospace du système (aucun téléchargement)', fontBuiltin: 'intégrée, étroite',
+    fontHelp: 'Polices libres. Les polices intégrées (Inconsolata Condensed, la plus étroite, Iosevka et Ubuntu Mono) sont servies par LogStream lui-même et fonctionnent hors ligne ; elles sont étroites, donc chaque ligne affiche plus de texte. Les autres sont chargées par votre navigateur depuis Bunny Fonts, un service européen respectueux de la vie privée ; sans accès à internet, la police du système est utilisée.',
     previewMsgs: ['error: link down on eth1, carrier lost', 'warning: disk /dev/sda temperature 58°C', 'backup finished: ok (12.4 GB in 00:14:32)'],
     dangerZone: 'Zone de danger',
     purgeHelp: 'Supprime définitivement tous les logs stockés pour repartir de zéro. Les tags de couleur et les réglages sont conservés.',
@@ -537,16 +539,19 @@ $('#themeSwitch').addEventListener('click', (ev) => {
 
 /* ================= Log font and size ================= */
 
-// Free monospace fonts, served by Bunny Fonts (https://fonts.bunny.net).
+// Free monospace fonts, served by Bunny Fonts (https://fonts.bunny.net), except the
+// built-in ones (web/fonts, declared in style.css), which also work offline.
 const LOG_FONTS = [
   { id: 'system' },
+  { id: 'inconsolata-condensed', family: 'Inconsolata Condensed', builtin: true },
+  { id: 'iosevka', family: 'Iosevka', builtin: true },
+  { id: 'ubuntu-mono', family: 'Ubuntu Mono', builtin: true },
   { id: 'jetbrains-mono', family: 'JetBrains Mono' },
   { id: 'fira-code', family: 'Fira Code' },
   { id: 'source-code-pro', family: 'Source Code Pro' },
   { id: 'ibm-plex-mono', family: 'IBM Plex Mono' },
   { id: 'cascadia-code', family: 'Cascadia Code' },
   { id: 'roboto-mono', family: 'Roboto Mono' },
-  { id: 'ubuntu-mono', family: 'Ubuntu Mono' },
   { id: 'inconsolata', family: 'Inconsolata' },
   { id: 'red-hat-mono', family: 'Red Hat Mono' },
   { id: 'noto-sans-mono', family: 'Noto Sans Mono' },
@@ -554,7 +559,8 @@ const LOG_FONTS = [
   { id: 'dm-mono', family: 'DM Mono', weights: '400,500' },
 ];
 const LOG_SIZES = { tiny: '10.5px', small: '11.5px', medium: '12.5px', large: '14px' };
-const ui = { font: 'system', size: 'medium' };
+const LOG_DENSITIES = ['normal', 'compact'];
+const ui = { font: 'system', size: 'medium', density: 'normal' };
 
 function applyLogFont(id) {
   const f = LOG_FONTS.find((x) => x.id === id) || LOG_FONTS[0];
@@ -562,6 +568,10 @@ function applyLogFont(id) {
   const root = document.documentElement.style;
   if (!f.family) {
     root.removeProperty('--log-font');
+    return;
+  }
+  if (f.builtin) {
+    root.setProperty('--log-font', `'${f.family}', var(--mono)`);
     return;
   }
   const href = `https://fonts.bunny.net/css?family=${f.id}:${f.weights || '400,700'}&display=swap`;
@@ -579,13 +589,22 @@ function applyLogSize(id) {
   document.documentElement.style.setProperty('--log-size', LOG_SIZES[ui.size]);
 }
 
+function applyLogDensity(id) {
+  ui.density = LOG_DENSITIES.includes(id) ? id : 'normal';
+  document.documentElement.dataset.density = ui.density;
+}
+
 function renderInterface() {
   renderThemeSwitch();
   for (const b of document.querySelectorAll('#sizeSwitch [data-size]')) {
     b.setAttribute('aria-checked', String(b.dataset.size === ui.size));
   }
+  for (const b of document.querySelectorAll('#densitySwitch [data-density]')) {
+    b.setAttribute('aria-checked', String(b.dataset.density === ui.density));
+  }
   const sel = $('#fontSelect');
-  sel.innerHTML = LOG_FONTS.map((f) => `<option value="${f.id}">${esc(f.family || t('fontSystem'))}</option>`).join('');
+  const fontName = (f) => (!f.family ? t('fontSystem') : f.builtin ? `${f.family} (${t('fontBuiltin')})` : f.family);
+  sel.innerHTML = LOG_FONTS.map((f) => `<option value="${f.id}">${esc(fontName(f))}</option>`).join('');
   sel.value = ui.font;
   renderFontPreview();
   renderHistoSettings();
@@ -607,6 +626,13 @@ $('#sizeSwitch').addEventListener('click', (ev) => {
   if (!b) return;
   applyLogSize(b.dataset.size);
   store.set('logSize', ui.size);
+  renderInterface();
+});
+$('#densitySwitch').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-density]');
+  if (!b) return;
+  applyLogDensity(b.dataset.density);
+  store.set('logDensity', ui.density);
   renderInterface();
 });
 $('#fontSelect').addEventListener('change', (ev) => {
@@ -2190,6 +2216,7 @@ $('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.curre
 }
 applyLogFont(store.get('logFont', 'system'));
 applyLogSize(store.get('logSize', 'medium'));
+applyLogDensity(store.get('logDensity', 'normal'));
 applyLang();
 $('#range').value = store.get('range', '1h');
 if (!$('#range').value) $('#range').value = '1h';
