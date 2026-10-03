@@ -243,7 +243,44 @@ couleur, est mémorisé par navigateur.
   taper `PURGE` pour confirmer). Les tags et les paramètres sont conservés. VictoriaLogs doit
   être lancé avec `-delete.enable` (déjà présent dans `docker-compose.yml`) ; mettez
   `ALLOW_PURGE=false` pour désactiver la fonction. Toute personne qui peut ouvrir l'interface
-  peut purger : définissez `AUTH_USER` / `AUTH_PASS` si l'interface est accessible à d'autres.
+  peut purger : activez l'[authentification](#authentification) si l'interface est accessible
+  à d'autres.
+
+## Authentification
+
+`AUTH_MODE` choisit comment l'interface et l'API sont protégées (`/healthz` reste toujours ouvert) :
+
+- **`local`** (par défaut) : authentification HTTP Basic avec `AUTH_USER` / `AUTH_PASS` ; laissez-les
+  vides pour n'avoir aucune authentification (par exemple derrière un reverse proxy qui contrôle déjà).
+- **`oidc`** : connexion par un fournisseur OpenID Connect (Keycloak, Authentik, Authelia, Zitadel…),
+  flux « authorization code » avec PKCE.
+
+Pour utiliser OIDC :
+
+1. Dans le fournisseur, créez un client **confidentiel** (avec secret) pour logstream et déclarez
+   l'URL de retour `https://logs.example.org/auth/callback` (votre adresse).
+2. Dans `.env` :
+   ```bash
+   AUTH_MODE=oidc
+   OIDC_ISSUER=https://sso.example.org/realms/maison    # exactement l'« issuer » du fournisseur
+   OIDC_CLIENT_ID=logstream
+   OIDC_CLIENT_SECRET=...
+   OIDC_REDIRECT_URL=https://logs.example.org/auth/callback
+   ```
+3. `docker compose up -d`. Les logs affichent `oidc authentication enabled`, ou la raison pour
+   laquelle le fournisseur n'a pas pu être lu (issuer incorrect, injoignable…).
+
+Ouvrir l'interface renvoie vers la page de connexion du fournisseur, puis revient sur logstream.
+La session dure `OIDC_SESSION_TTL` (12 h par défaut) et survit aux redémarrages (sa clé de
+signature est dans `/data/session.key`) ; à son expiration, la page repasse par la connexion. Le
+bouton de déconnexion (en haut à droite) termine la session logstream, puis ouvre la page de
+déconnexion du fournisseur s'il en a une.
+
+Tout utilisateur accepté par le fournisseur pour ce client peut se connecter : restreignez l'accès
+dans le fournisseur (Keycloak : rôles du client ou realm dédié ; Authentik : liaisons de
+l'application). Les connexions sont écrites dans les logs de logstream (`oidc: alice logged in`).
+Avec une URL de retour en `https`, les cookies ne sont envoyés qu'en HTTPS : logstream doit être
+joint à travers un reverse proxy TLS.
 
 ## Noms d'hôtes (DNS inverse)
 
@@ -265,7 +302,13 @@ résolutions.
 | `SYSLOG_PORT` | `514` | port syslog publié sur l'hôte |
 | `HTTP_PORT` | `8080` | port de l'interface web |
 | `RETENTION` | `30d` | durée de conservation des logs dans VictoriaLogs |
-| `AUTH_USER` / `AUTH_PASS` | vide | authentification HTTP Basic pour l'interface |
+| `AUTH_MODE` | `local` | `local` (HTTP Basic) ou `oidc`, voir [Authentification](#authentification) |
+| `AUTH_USER` / `AUTH_PASS` | vide | authentification HTTP Basic pour l'interface (mode `local`) |
+| `OIDC_ISSUER` | vide | URL de l'issuer du fournisseur OpenID Connect (mode `oidc`) |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | vide | client déclaré dans le fournisseur |
+| `OIDC_REDIRECT_URL` | vide | URL de retour de logstream, ex. `https://logs.example.org/auth/callback` |
+| `OIDC_SCOPES` | `openid profile email` | scopes demandés |
+| `OIDC_SESSION_TTL` | `12h` | durée de la session |
 | `RDNS` | `on` | résoudre les hôtes donnés par leur IP en noms DNS |
 | `DNS_SERVER` | vide | serveur DNS pour les résolutions inverses (`ip` ou `ip:port`) |
 | `ALLOW_PURGE` | `true` | autoriser « Supprimer tous les logs » dans les Paramètres |
@@ -322,7 +365,8 @@ Pour mettre à jour l'une d'elles :
 
 | Fichier | Contenu |
 |---|---|
-| `main.go` | configuration, démarrage, authentification |
+| `main.go` | configuration, démarrage |
+| `auth.go` | authentification : HTTP Basic ou OpenID Connect (découverte, PKCE, contrôle de l'ID token, cookie de session) |
 | `syslog.go` | écoute UDP/TCP et analyse RFC 3164 / 5424 |
 | `store.go` | insertions par lots dans VictoriaLogs et requêtes LogsQL |
 | `query.go` | traduit les filtres de l'interface en LogsQL ; filtre du direct |

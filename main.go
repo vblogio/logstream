@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"crypto/subtle"
 	"embed"
 	"errors"
 	"io/fs"
@@ -29,8 +28,7 @@ type config struct {
 	httpAddr   string
 	vlogsURL   string
 	dataDir    string
-	authUser   string
-	authPass   string
+	auth       authConfig
 	rdns       bool
 	dnsServer  string
 	allowPurge bool
@@ -82,8 +80,17 @@ func main() {
 		httpAddr:   getenv("HTTP_ADDR", ":8080"),
 		vlogsURL:   getenv("VLOGS_URL", "http://victorialogs:9428"),
 		dataDir:    getenv("DATA_DIR", "/data"),
-		authUser:   os.Getenv("AUTH_USER"),
-		authPass:   os.Getenv("AUTH_PASS"),
+		auth: authConfig{
+			mode:         getenv("AUTH_MODE", "local"),
+			user:         os.Getenv("AUTH_USER"),
+			pass:         os.Getenv("AUTH_PASS"),
+			issuer:       os.Getenv("OIDC_ISSUER"),
+			clientID:     os.Getenv("OIDC_CLIENT_ID"),
+			clientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
+			redirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
+			scopes:       os.Getenv("OIDC_SCOPES"),
+			sessionTTL:   getenvDuration("OIDC_SESSION_TTL", 12*time.Hour),
+		},
 		rdns:       getenvBool("RDNS", true),
 		dnsServer:  os.Getenv("DNS_SERVER"),
 		allowPurge: getenvBool("ALLOW_PURGE", true),
@@ -97,6 +104,8 @@ func main() {
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
 	}
+
+	cfg.auth.dataDir = cfg.dataDir
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -149,9 +158,16 @@ func main() {
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))
 
+	handler, err := newAuth(cfg.auth, mux)
+	if err != nil {
+		log.Fatalf("auth: %v", err)
+	}
+	if o, ok := handler.(*OIDC); ok {
+		go o.checkProvider()
+	}
 	srv := &http.Server{
 		Addr:              cfg.httpAddr,
-		Handler:           basicAuth(cfg.authUser, cfg.authPass, mux),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		// Requests inherit the global context so SSE streams end on shutdown.
 		BaseContext: func(net.Listener) context.Context { return ctx },
@@ -169,26 +185,4 @@ func main() {
 	}
 	<-storeDone
 	log.Println("shutdown complete")
-}
-
-// basicAuth protects the UI when AUTH_USER is set (except /healthz).
-func basicAuth(user, pass string, next http.Handler) http.Handler {
-	if user == "" {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		u, p, ok := r.BasicAuth()
-		if !ok ||
-			subtle.ConstantTimeCompare([]byte(u), []byte(user)) != 1 ||
-			subtle.ConstantTimeCompare([]byte(p), []byte(pass)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="logstream"`)
-			http.Error(w, "authentication required", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
