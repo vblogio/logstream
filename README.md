@@ -205,8 +205,9 @@ remembered per browser.
   switches to black or white to stay readable) and options: whole word, match case,
   regular expression, active. Tags are stored on the server in `/data/tags.json`
   (`logstream-data` volume), so they are shared by every browser. Default tags (pastel):
-  `warning` (orange), `error` (red), `ok` (green). Default tags still using the colors of
-  earlier versions are switched to the pastel ones automatically.
+  `warning` (orange) and `error` (red); `ok` (green) is in the *Log levels* preset. Default
+  tags still using the colors of earlier versions are switched to the pastel ones
+  automatically.
   The *+ Preset…* menu adds ready-made tags: HTTP/HTTPS access logs (status codes, methods,
   probes, bots, TLS and proxy errors), system logs (SSH, sudo, kernel, systemd, firewall),
   applications (Docker, databases) and general patterns (log levels, IPv4 addresses). Tags

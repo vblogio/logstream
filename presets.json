@@ -218,6 +218,13 @@
             "label": "debug / trace",
             "color": "#e5e7eb",
             "pattern": "\\b(?:debug|trace)\\b"
+          },
+          {
+            "label": "ok",
+            "color": "#86efac",
+            "regex": false,
+            "wholeWord": true,
+            "pattern": "ok"
           }
         ]
       },

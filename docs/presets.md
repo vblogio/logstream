@@ -45,7 +45,7 @@ These presets read access logs from nginx and Apache (common and combined format
 
 | Preset | Tags | What gets colored |
 | --- | --- | --- |
-| Log levels | `fatal / critical` red, `info / notice` blue, `debug / trace` grey | these words as whole words, any case (the default `warning` and `error` tags cover the rest) |
+| Log levels | `fatal / critical` red, `info / notice` blue, `debug / trace` grey, `ok` green | these words as whole words, any case (the default `warning` and `error` tags cover the rest) |
 | IPv4 addresses | `IPv4 addresses` | `192.168.1.20`, `203.0.113.9`… Four-part version numbers such as `1.2.3.4` are colored too. |
 
 When tags overlap, the one highest in the tag list wins, so presets added after the default

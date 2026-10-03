@@ -225,7 +225,8 @@ couleur, est mémorisé par navigateur.
   automatiquement en noir ou en blanc pour rester lisible) et des options : mot entier, respect
   de la casse, expression régulière, actif. Les tags sont stockés sur le serveur dans
   `/data/tags.json` (volume `logstream-data`) : ils sont donc partagés par tous les navigateurs.
-  Tags par défaut (pastel) : `warning` (orange), `error` (rouge), `ok` (vert). Les tags par
+  Tags par défaut (pastel) : `warning` (orange) et `error` (rouge) ; `ok` (vert) est dans le
+  préréglage *Niveaux de log*. Les tags par
   défaut qui utilisent encore les couleurs des versions précédentes passent automatiquement aux
   couleurs pastel.
   Le menu *+ Préréglage…* ajoute des tags tout faits : logs d'accès HTTP/HTTPS (codes de statut,

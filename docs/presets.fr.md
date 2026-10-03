@@ -46,7 +46,7 @@ Ces préréglages lisent les logs d'accès de nginx et Apache (formats common et
 
 | Préréglage | Tags | Ce qui est coloré |
 | --- | --- | --- |
-| Niveaux de log | `fatal / critique` rouge, `info / notice` bleu, `debug / trace` gris | ces mots en mots entiers, quelle que soit la casse (les tags par défaut `warning` et `error` couvrent le reste) |
+| Niveaux de log | `fatal / critique` rouge, `info / notice` bleu, `debug / trace` gris, `ok` vert | ces mots en mots entiers, quelle que soit la casse (les tags par défaut `warning` et `error` couvrent le reste) |
 | Adresses IPv4 | `adresses IPv4` | `192.168.1.20`, `203.0.113.9`… Les numéros de version à quatre parties comme `1.2.3.4` sont aussi colorés. |
 
 Quand des tags se chevauchent, celui placé le plus haut dans la liste l'emporte : les
