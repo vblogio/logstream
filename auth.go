@@ -42,6 +42,10 @@ const (
 type authConfig struct {
 	mode         string
 	user, pass   string // local mode
+	viewerUser   string // local mode: optional read-only account
+	viewerPass   string
+	adminGroup   string // oidc: only members of this group are admins (empty: everyone)
+	groupsClaim  string // oidc: ID token claim listing the groups
 	issuer       string
 	clientID     string
 	clientSecret string
@@ -124,6 +128,9 @@ func newOIDC(c authConfig) (*OIDC, error) {
 	if !strings.Contains(" "+c.scopes+" ", " openid ") {
 		c.scopes = "openid " + c.scopes
 	}
+	if c.groupsClaim == "" {
+		c.groupsClaim = "groups"
+	}
 	return &OIDC{
 		cfg:      c,
 		callback: ru.Path,
@@ -157,8 +164,9 @@ func sessionKey(dir string) []byte {
 }
 
 type session struct {
-	User string `json:"u"`
-	Exp  int64  `json:"e"`
+	User   string `json:"u"`
+	Exp    int64  `json:"e"`
+	Viewer bool   `json:"v,omitempty"` // read-only user
 }
 
 // writeAuthRequired answers API calls without a session; the UI turns it into a reload
@@ -191,8 +199,11 @@ func (o *OIDC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var s session
 	if c, err := r.Cookie(sessionCookie); err == nil && verifyCookie(o.key, c.Value, &s) && time.Now().Unix() < s.Exp {
 		if r.URL.Path == "/auth/me" {
-			writeJSON(w, http.StatusOK, map[string]string{"mode": "oidc", "user": s.User})
+			writeJSON(w, http.StatusOK, map[string]string{"mode": "oidc", "user": s.User, "role": roleName(s.Viewer)})
 			return
+		}
+		if s.Viewer {
+			r = asViewer(r)
 		}
 		o.next.ServeHTTP(w, r)
 		return
@@ -257,16 +268,16 @@ func (o *OIDC) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: loginCookie + state, Path: "/", MaxAge: -1, HttpOnly: true, Secure: o.secure})
 
-	user, err := o.exchange(r, q.Get("code"), ls)
+	user, viewer, err := o.exchange(r, q.Get("code"), ls)
 	if err != nil {
 		log.Printf("oidc: login failed: %v", err)
 		http.Error(w, "login failed, see the LogStream logs", http.StatusForbidden)
 		return
 	}
-	log.Printf("oidc: %s logged in", user)
+	log.Printf("oidc: %s logged in (%s)", user, roleName(viewer))
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
-		Value:    signCookie(o.key, session{User: user, Exp: time.Now().Add(o.cfg.sessionTTL).Unix()}),
+		Value:    signCookie(o.key, session{User: user, Exp: time.Now().Add(o.cfg.sessionTTL).Unix(), Viewer: viewer}),
 		Path:     "/",
 		MaxAge:   int(o.cfg.sessionTTL.Seconds()),
 		HttpOnly: true,
@@ -286,14 +297,15 @@ func (o *OIDC) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-// exchange trades the code for tokens and returns the user name from the verified ID token.
-func (o *OIDC) exchange(r *http.Request, code string, ls loginState) (string, error) {
+// exchange trades the code for tokens and returns the user name from the verified ID
+// token, and whether the user is read-only (not in OIDC_ADMIN_GROUP).
+func (o *OIDC) exchange(r *http.Request, code string, ls loginState) (string, bool, error) {
 	if code == "" {
-		return "", errors.New("no code in the callback")
+		return "", false, errors.New("no code in the callback")
 	}
 	meta, err := o.discover()
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -309,7 +321,7 @@ func (o *OIDC) exchange(r *http.Request, code string, ls loginState) (string, er
 	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, meta.TokenEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
@@ -318,29 +330,53 @@ func (o *OIDC) exchange(r *http.Request, code string, ls loginState) (string, er
 	}
 	res, err := o.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("token endpoint: %w", err)
+		return "", false, fmt.Errorf("token endpoint: %w", err)
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token endpoint: %s: %s", res.Status, bytes.TrimSpace(body))
+		return "", false, fmt.Errorf("token endpoint: %s: %s", res.Status, bytes.TrimSpace(body))
 	}
 	var tok struct {
 		IDToken string `json:"id_token"`
 	}
 	if err := json.Unmarshal(body, &tok); err != nil || tok.IDToken == "" {
-		return "", errors.New("token endpoint: no id_token in the response")
+		return "", false, errors.New("token endpoint: no id_token in the response")
 	}
 	claims, err := o.verifyIDToken(tok.IDToken, ls.Nonce)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
+	viewer := o.cfg.adminGroup != "" && !hasGroup(claims[o.cfg.groupsClaim], o.cfg.adminGroup)
 	for _, k := range []string{"preferred_username", "email", "name", "sub"} {
 		if v, _ := claims[k].(string); v != "" {
-			return v, nil
+			return v, viewer, nil
 		}
 	}
-	return "", errors.New("id_token: no sub")
+	return "", false, errors.New("id_token: no sub")
+}
+
+// hasGroup tells whether the groups claim (a list, or a single string) holds
+// group; a leading "/" (Keycloak group paths) is ignored.
+func hasGroup(claim any, group string) bool {
+	group = strings.TrimPrefix(group, "/")
+	var groups []string
+	switch v := claim.(type) {
+	case string:
+		groups = strings.Fields(strings.ReplaceAll(v, ",", " "))
+	case []any:
+		for _, g := range v {
+			if s, ok := g.(string); ok {
+				groups = append(groups, s)
+			}
+		}
+	}
+	for _, g := range groups {
+		if strings.TrimPrefix(g, "/") == group {
+			return true
+		}
+	}
+	return false
 }
 
 // verifyIDToken checks the signature (keys from jwks_uri) and the claims of an ID token.

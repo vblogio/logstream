@@ -263,9 +263,9 @@ couleur, est mémorisé par navigateur.
     quels. Le réglage le plus dense est Très petite + Compacte + Inconsolata Condensed.
 - **Données** : « Supprimer tous les logs » efface définitivement tous les logs stockés (il faut
   taper `PURGE` pour confirmer). Les tags et les paramètres sont conservés. VictoriaLogs doit
-  être lancé avec `-delete.enable` (déjà présent dans `docker-compose.yml`) ; mettez
-  `ALLOW_PURGE=false` pour désactiver la fonction. Toute personne qui peut ouvrir l'interface
-  peut purger : activez l'[authentification](#authentification) si l'interface est accessible
+  être lancé avec `-delete.enable` (déjà présent dans `docker-compose.yml`). La fonction est
+  désactivée par défaut : mettez `ALLOW_PURGE=true` pour l'autoriser. Tout administrateur peut
+  alors purger : activez l'[authentification](#authentification) si l'interface est accessible
   à d'autres.
 
 ## Authentification
@@ -274,6 +274,7 @@ couleur, est mémorisé par navigateur.
 
 - **`local`** (par défaut) : une page de connexion avec le compte `AUTH_USER` / `AUTH_PASS` ; laissez-les
   vides pour n'avoir aucune authentification (par exemple derrière un reverse proxy qui contrôle déjà).
+  L'interface affiche alors un bandeau d'avertissement, que l'on peut fermer.
 - **`oidc`** : connexion par un fournisseur OpenID Connect (Keycloak, Authentik, Authelia, Zitadel…),
   flux « authorization code » avec PKCE.
 
@@ -283,6 +284,10 @@ En mode `local`, la page de connexion suit le thème et la langue de l'interface
 déconnexion (en haut à droite) y met fin. Les échecs de connexion sont écrits dans les logs avec
 l'adresse du client (`auth: failed login for "bob" from 192.0.2.7`). Les scripts peuvent toujours
 appeler l'API avec des identifiants HTTP Basic (`curl -u utilisateur:motdepasse`).
+
+Un **compte en lecture seule** optionnel, `AUTH_VIEWER_USER` / `AUTH_VIEWER_PASS`, peut chercher,
+suivre le direct et exporter, mais pas modifier les tags, les sources ni purger : ces réglages
+sont grisés dans son interface et l'API répond `403`.
 
 Pour afficher votre logo sur la page de connexion, montez un PNG dans le conteneur et indiquez
 son chemin dans `LOGIN_LOGO` :
@@ -324,6 +329,16 @@ l'application). Les connexions sont écrites dans les logs de logstream (`oidc: 
 Avec une URL de retour en `https`, les cookies ne sont envoyés qu'en HTTPS : logstream doit être
 joint à travers un reverse proxy TLS.
 
+Pour donner un accès en lecture seule à certains utilisateurs, définissez `OIDC_ADMIN_GROUP` (par
+exemple `logstream-admins`) : seuls ses membres sont administrateurs, les autres sont en lecture
+seule. Les groupes sont lus dans la revendication `groups` du jeton d'identité
+(`OIDC_GROUPS_CLAIM` pour en utiliser une autre) ; dans Keycloak, ajoutez au client un mapper
+« Group Membership » (le `/` initial est ignoré).
+
+Quel que soit le mode, chaque réponse porte des en-têtes de sécurité (Content-Security-Policy,
+X-Frame-Options…), et l'API refuse les modifications envoyées depuis un autre site (requêtes
+intersites).
+
 ## Noms d'hôtes (DNS inverse)
 
 Quand un équipement envoie son adresse IP comme nom d'hôte (ou pas de nom d'hôte du tout),
@@ -346,15 +361,20 @@ résolutions.
 | `RETENTION` | `30d` | durée de conservation des logs dans VictoriaLogs |
 | `AUTH_MODE` | `local` | `local` (page de connexion) ou `oidc`, voir [Authentification](#authentification) |
 | `AUTH_USER` / `AUTH_PASS` | vide | compte de la page de connexion (mode `local`) ; vide = pas d'authentification |
+| `AUTH_VIEWER_USER` / `AUTH_VIEWER_PASS` | vide | compte optionnel en lecture seule (mode `local`) |
 | `LOGIN_LOGO` | vide | PNG affiché sur la page de connexion, chemin dans le conteneur (mode `local`) |
 | `SESSION_TTL` | `12h` | durée de la session (les deux modes ; `OIDC_SESSION_TTL` fonctionne toujours) |
 | `OIDC_ISSUER` | vide | URL de l'issuer du fournisseur OpenID Connect (mode `oidc`) |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | vide | client déclaré dans le fournisseur |
 | `OIDC_REDIRECT_URL` | vide | URL de retour de logstream, ex. `https://logs.example.org/auth/callback` |
 | `OIDC_SCOPES` | `openid profile email` | scopes demandés |
+| `OIDC_ADMIN_GROUP` | vide | seuls les membres de ce groupe sont administrateurs, les autres en lecture seule (vide = tout le monde est administrateur) |
+| `OIDC_GROUPS_CLAIM` | `groups` | revendication du jeton d'identité qui liste les groupes |
 | `RDNS` | `on` | résoudre les hôtes donnés par leur IP en noms DNS |
 | `DNS_SERVER` | vide | serveur DNS pour les résolutions inverses (`ip` ou `ip:port`) |
-| `ALLOW_PURGE` | `true` | autoriser « Supprimer tous les logs » dans les Paramètres |
+| `ALLOW_PURGE` | `false` | autoriser « Supprimer tous les logs » dans les Paramètres |
+| `SYSLOG_TCP_MAX_CONNS` | `512` | connexions syslog TCP ouvertes en même temps ; au-delà, elles sont refusées |
+| `SYSLOG_TCP_IDLE` | `30m` | une connexion syslog TCP silencieuse pendant cette durée est fermée (les émetteurs se reconnectent) |
 | `EXPORT_MAX` | `100000` | nombre maximal de lignes dans un export CSV |
 | `PRESETS_FILE` | `/data/presets.json` | fichier des préréglages de tags ; liste intégrée s'il est absent (voir [docs/presets.fr.md](docs/presets.fr.md)) |
 | `DOCKER_LOGS` | `on` dans compose | collecter les logs des conteneurs Docker locaux |

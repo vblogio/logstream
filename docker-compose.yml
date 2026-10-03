@@ -17,6 +17,8 @@ services:
       AUTH_MODE: ${AUTH_MODE:-local}   # local (page de connexion, compte ci-dessous) ou oidc
       AUTH_USER: ${AUTH_USER:-}   # vide = pas d'authentification, on delegue ca au reverse proxy traefik
       AUTH_PASS: ${AUTH_PASS:-}
+      AUTH_VIEWER_USER: ${AUTH_VIEWER_USER:-}   # compte en lecture seule (optionnel)
+      AUTH_VIEWER_PASS: ${AUTH_VIEWER_PASS:-}
       LOGIN_LOGO: ${LOGIN_LOGO:-}     # PNG affiche sur la page de connexion (chemin dans le conteneur, voir volumes)
       PRESETS_FILE: ${PRESETS_FILE:-} # prereglages de tags (defaut /data/presets.json, voir docs/presets.fr.md)
       OIDC_ISSUER: ${OIDC_ISSUER:-}
@@ -24,10 +26,12 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
       OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email}
+      OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-}     # vide = tout le monde est admin, sinon les autres sont en lecture seule
+      OIDC_GROUPS_CLAIM: ${OIDC_GROUPS_CLAIM:-groups}
       SESSION_TTL: ${SESSION_TTL:-${OIDC_SESSION_TTL:-12h}}   # duree de la session (local et oidc)
       RDNS: ${RDNS:-on}               # resol dns
       DNS_SERVER: ${DNS_SERVER:-}     # si resolv directe
-      ALLOW_PURGE: ${ALLOW_PURGE:-true}
+      ALLOW_PURGE: ${ALLOW_PURGE:-false}   # true pour autoriser « Supprimer tous les logs »
       EXPORT_MAX: ${EXPORT_MAX:-100000}
       DOCKER_LOGS: ${DOCKER_LOGS:-on}             # collecte des logs des conteneurs Docker
       DOCKER_HOST: tcp://docker-proxy:2375        # lecture seul de l'API Docker

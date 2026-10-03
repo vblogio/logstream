@@ -23,6 +23,8 @@ var loginFailDelay = time.Second // slows down password guessing
 
 type Local struct {
 	user, pass string
+	viewerUser string // optional read-only account
+	viewerPass string
 	ttl        time.Duration
 	logo       string // LOGIN_LOGO, served at /auth/logo
 	key        []byte
@@ -32,14 +34,17 @@ type Local struct {
 func newLocal(c authConfig) *Local {
 	// The key depends on the credentials: changing AUTH_USER or AUTH_PASS ends every session.
 	m := hmac.New(sha256.New, sessionKey(c.dataDir))
-	m.Write([]byte("local\x00" + c.user + "\x00" + c.pass))
+	m.Write([]byte("local\x00" + c.user + "\x00" + c.pass + "\x00" + c.viewerUser + "\x00" + c.viewerPass))
 	if c.loginLogo != "" {
 		if _, err := os.Stat(c.loginLogo); err != nil {
 			log.Printf("auth: LOGIN_LOGO: %v", err)
 		}
 	}
 	log.Printf("local authentication enabled (user %s)", c.user)
-	return &Local{user: c.user, pass: c.pass, ttl: c.sessionTTL, logo: c.loginLogo, key: m.Sum(nil)}
+	if c.viewerUser != "" {
+		log.Printf("local read-only account enabled (user %s)", c.viewerUser)
+	}
+	return &Local{user: c.user, pass: c.pass, viewerUser: c.viewerUser, viewerPass: c.viewerPass, ttl: c.sessionTTL, logo: c.loginLogo, key: m.Sum(nil)}
 }
 
 func (l *Local) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -58,11 +63,16 @@ func (l *Local) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, loginPage, http.StatusFound)
 		return
 	}
-	user, ok := l.sessionUser(r)
+	s, ok := l.sessionUser(r)
 	if !ok {
-		if u, p, basic := r.BasicAuth(); basic && l.check(u, p) {
-			user, ok = u, true
+		if u, p, basic := r.BasicAuth(); basic {
+			if viewer, valid := l.check(u, p); valid {
+				s, ok = session{User: u, Viewer: viewer}, true
+			}
 		}
+	}
+	if ok && s.Viewer {
+		r = asViewer(r)
 	}
 	switch {
 	case r.URL.Path == loginPage:
@@ -73,7 +83,7 @@ func (l *Local) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		l.next.ServeHTTP(w, r)
 	case ok && r.URL.Path == "/auth/me":
-		writeJSON(w, http.StatusOK, map[string]string{"mode": "local", "user": user})
+		writeJSON(w, http.StatusOK, map[string]string{"mode": "local", "user": s.User, "role": roleName(s.Viewer)})
 	case ok:
 		l.next.ServeHTTP(w, r)
 	case r.Method == http.MethodGet && !strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/auth/me":
@@ -94,7 +104,8 @@ func (l *Local) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	user, pass := r.PostFormValue("user"), r.PostFormValue("pass")
 	ret := safeReturn(r.PostFormValue("r"))
-	if !l.check(user, pass) {
+	viewer, valid := l.check(user, pass)
+	if !valid {
 		log.Printf("auth: failed login for %q from %s", user, clientIP(r))
 		time.Sleep(loginFailDelay)
 		q := url.Values{"e": {"1"}}
@@ -104,10 +115,10 @@ func (l *Local) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, loginPage+"?"+q.Encode(), http.StatusSeeOther)
 		return
 	}
-	log.Printf("auth: %s logged in from %s", user, clientIP(r))
+	log.Printf("auth: %s logged in from %s (%s)", user, clientIP(r), roleName(viewer))
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
-		Value:    signCookie(l.key, session{User: user, Exp: time.Now().Add(l.ttl).Unix()}),
+		Value:    signCookie(l.key, session{User: user, Exp: time.Now().Add(l.ttl).Unix(), Viewer: viewer}),
 		Path:     "/",
 		MaxAge:   int(l.ttl.Seconds()),
 		HttpOnly: true,
@@ -117,19 +128,30 @@ func (l *Local) handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, ret, http.StatusSeeOther)
 }
 
-func (l *Local) sessionUser(r *http.Request) (string, bool) {
+func (l *Local) sessionUser(r *http.Request) (session, bool) {
 	var s session
 	c, err := r.Cookie(sessionCookie)
 	if err != nil || !verifyCookie(l.key, c.Value, &s) || time.Now().Unix() >= s.Exp {
-		return "", false
+		return session{}, false
 	}
-	return s.User, true
+	return s, true
 }
 
-func (l *Local) check(user, pass string) bool {
-	u := subtle.ConstantTimeCompare([]byte(user), []byte(l.user))
-	p := subtle.ConstantTimeCompare([]byte(pass), []byte(l.pass))
-	return u&p == 1
+// check validates a user and password: the admin account, or the read-only one
+// (viewer=true) when AUTH_VIEWER_USER is set.
+func (l *Local) check(user, pass string) (viewer, ok bool) {
+	if same(user, l.user) && same(pass, l.pass) {
+		return false, true
+	}
+	if l.viewerUser != "" && same(user, l.viewerUser) && same(pass, l.viewerPass) {
+		return true, true
+	}
+	return false, false
+}
+
+// same compares in constant time, so the answer time says nothing of the secret.
+func same(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 // serveLogo sends LOGIN_LOGO; without it the login page hides the image.
