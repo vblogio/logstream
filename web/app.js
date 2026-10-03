@@ -33,6 +33,7 @@ const I18N = {
     skipped: (n) => `${n} messages not shown (rate too high)`,
     stats: (s) => `received ${s.received} · stored ${s.ingested} · dropped ${s.dropped} · queue ${s.queue}`,
     storageErr: 'storage: ',
+    spooled: (n) => `${n} waiting on disk`,
     unreachable: 'server unreachable',
     fTime: 'timestamp', fMsg: 'message', fPid: 'pid', fSd: 'structured data',
     filterHost: 'Filter on this host', filterApp: 'Filter on this app',
@@ -184,6 +185,7 @@ const I18N = {
     skipped: (n) => `${n} messages non affichés (débit trop élevé)`,
     stats: (s) => `reçus ${s.received} · stockés ${s.ingested} · perdus ${s.dropped} · file ${s.queue}`,
     storageErr: 'stockage : ',
+    spooled: (n) => `${n} en attente sur disque`,
     unreachable: 'serveur injoignable',
     fTime: 'horodatage', fMsg: 'message', fPid: 'pid', fSd: 'données structurées',
     filterHost: 'Filtrer sur cet hôte', filterApp: 'Filtrer sur cette appli',
@@ -1664,6 +1666,7 @@ function renderStats() {
   const n = { received: fmtNum(s.received), ingested: fmtNum(s.ingested), dropped: '%DROPPED%', queue: fmtNum(s.queue) };
   const dropped = s.dropped ? `<span class="bad">${fmtNum(s.dropped)}</span>` : fmtNum(0);
   let html = esc(t('stats', n)).replace('%DROPPED%', dropped);
+  if (s.spooled) html += ` · <span class="warn">${esc(t('spooled', fmtNum(s.spooled)))}</span>`;
   if (s.lastError) html += ` · <span class="bad">${esc(t('storageErr') + s.lastError)}</span>`;
   el.innerHTML = html;
 }

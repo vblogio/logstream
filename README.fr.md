@@ -18,8 +18,10 @@ devices ──514 udp/tcp──▶ logstream (Go) ──HTTP batches──▶ Vi
 ![Schéma logique de Logstream](docs/architecture.png)
 
 - **Ingestion** : les messages syslog (UDP/TCP) et les logs des conteneurs Docker passent tous
-  par `sink()` (résolution DNS inverse des hôtes donnés par leur IP), puis par la file du
-  `Store`, qui les envoie par lots à VictoriaLogs.
+  par `sink()` (résolution DNS inverse des hôtes donnés par leur IP, sans bloquer la
+  réception), puis par la file du `Store`, qui les envoie par lots à VictoriaLogs. Quand
+  VictoriaLogs est injoignable, les lots sont gardés sur disque (`/data/spool`, jusqu'à
+  `SPOOL_MAX_MB`) et renvoyés, les plus anciens d'abord, dès son retour.
 - **Direct** : `sink()` publie aussi chaque message dans le `Hub`, qui le diffuse aux
   navigateurs en SSE.
 - **Recherche** : l'API HTTP traduit les filtres de l'interface en requêtes LogsQL envoyées à
@@ -153,8 +155,10 @@ colorés et exportés comme les messages syslog :
   quand les conteneurs sont nombreux. Les nouveaux conteneurs sont suivis automatiquement, sauf
   si cette option est désactivée. Les choix sont enregistrés par service compose (ou nom de
   conteneur) dans `/data/docker.json` : ils survivent aux recréations.
-- Logstream mémorise la position lue dans chaque conteneur (`/data/docker-state.json`) : après
-  un redémarrage, il reprend sans perdre ni dupliquer de lignes. Un conteneur vu pour la
+- Logstream mémorise la position de la dernière ligne stockée pour chaque conteneur
+  (`/data/docker-state.json`) : après un redémarrage, il reprend sans perdre de lignes. La
+  position n'avance qu'une fois la ligne dans VictoriaLogs ou dans le tampon disque, et une file
+  pleine ralentit la lecture au lieu de perdre des lignes. Un conteneur vu pour la
   première fois est lu à partir de `DOCKER_BACKFILL` en arrière (1 heure par défaut).
 - Logstream lui-même et le proxy ci-dessous ne sont jamais collectés ; ajoutez l'étiquette
   `logstream.exclude=true` à tout autre conteneur pour l'exclure définitivement.
@@ -361,13 +365,14 @@ résolutions.
 | `HOST_LOGS_ROOT` | `/host` | emplacement de montage des répertoires de l'hôte |
 | `TZ` | `Europe/Paris` | fuseau horaire des horodatages RFC 3164 (qui n'en portent pas) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | réglage de l'ingestion |
+| `SPOOL_MAX_MB` | `1024` | taille du tampon disque des lots refusés par VictoriaLogs (`0` = pas de tampon : 15 s de tentatives, puis perte) |
 
 ## Débogage
 
 - `docker compose logs -f logstream` : erreurs de réception et erreurs d'envoi vers
   VictoriaLogs.
-- La barre du bas affiche les compteurs reçus / stockés / perdus et la dernière erreur de
-  stockage.
+- La barre du bas affiche les compteurs reçus / stockés / perdus, les messages en attente dans
+  le tampon disque et la dernière erreur de stockage.
 - <http://localhost:9428/select/vmui> : l'interface de VictoriaLogs, pour essayer des requêtes
   LogsQL.
 - API :

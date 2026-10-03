@@ -41,6 +41,7 @@ type config struct {
 	batchSize  int
 	queueSize  int
 	flushEvery time.Duration
+	spoolMax   int64
 }
 
 func getenv(key, def string) string {
@@ -52,6 +53,14 @@ func getenv(key, def string) string {
 
 func getenvInt(key string, def int) int {
 	if v, err := strconv.Atoi(os.Getenv(key)); err == nil && v > 0 {
+		return v
+	}
+	return def
+}
+
+// getenvIntZero is getenvInt that also accepts 0 (to turn a feature off).
+func getenvIntZero(key string, def int) int {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil && v >= 0 {
 		return v
 	}
 	return def
@@ -105,6 +114,7 @@ func main() {
 		batchSize:  getenvInt("BATCH_SIZE", 1000),
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
+		spoolMax:   int64(getenvIntZero("SPOOL_MAX_MB", 1024)) << 20,
 	}
 
 	cfg.auth.dataDir = cfg.dataDir
@@ -117,7 +127,14 @@ func main() {
 		log.Fatalf("tags: %v", err)
 	}
 
-	store := NewStore(cfg.vlogsURL, cfg.batchSize, cfg.queueSize, cfg.flushEvery)
+	var spool *Spool
+	if cfg.spoolMax > 0 {
+		if spool, err = OpenSpool(filepath.Join(cfg.dataDir, "spool"), cfg.spoolMax); err != nil {
+			log.Printf("disk buffer disabled: %v", err)
+			spool = nil
+		}
+	}
+	store := NewStore(cfg.vlogsURL, cfg.batchSize, cfg.queueSize, cfg.flushEvery, spool)
 	storeDone := make(chan struct{})
 	go func() {
 		store.Run(ctx)
@@ -128,12 +145,15 @@ func main() {
 	rdns := NewReverseDNS(cfg.rdns, cfg.dnsServer)
 	sink := func(e *Entry) {
 		// Host sent as an IP (or no host in the header): replace it with its DNS name.
-		// A new IP waits at most 300 ms; slower lookups finish in the background.
-		if name := rdns.Lookup(e.Host, 300*time.Millisecond); name != "" {
-			e.HostIP, e.Host = e.Host, name
-		}
-		store.Enqueue(e)
-		hub.Publish(e)
+		// A new IP waits at most 300 ms, without holding up the listener; slower
+		// lookups finish in the background.
+		rdns.Resolve(e.Host, 300*time.Millisecond, func(name string) {
+			if name != "" {
+				e.HostIP, e.Host = e.Host, name
+			}
+			store.Enqueue(e)
+			hub.Publish(e)
+		})
 	}
 	// Listening errors (port already used…) are shown in Settings > Sources.
 	syslogSrv := NewSyslogServer(ctx, cfg.syslogAddr, getenv("SYSLOG_PUBLIC_PORT", ""), cfg.dataDir, sink)

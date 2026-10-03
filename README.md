@@ -17,7 +17,9 @@ devices ──514 udp/tcp──▶ logstream (Go) ──HTTP batches──▶ Vi
 ![Schéma logique de Logstream](docs/architecture.png)
 
 - **Ingestion**: syslog (UDP/TCP) and Docker container logs both go through `sink()` (reverse DNS
-  on IP hosts), then the `Store` queue, which sends them in batches to VictoriaLogs.
+  on IP hosts, without holding up the listeners), then the `Store` queue, which sends them in
+  batches to VictoriaLogs. When VictoriaLogs is unreachable, batches are kept on disk
+  (`/data/spool`, up to `SPOOL_MAX_MB`) and sent again, oldest first, once it is back.
 - **Live view**: `sink()` also publishes each message to the `Hub`, which streams it to the
   browsers over SSE.
 - **Search**: the HTTP API turns the UI filters into LogsQL queries sent to VictoriaLogs.
@@ -137,8 +139,10 @@ colored and exported like syslog messages:
   to the labels shown) help with many containers. New containers are followed automatically
   unless that option is turned off. Choices are saved per compose service (or container name)
   in `/data/docker.json`, so they survive re-creations.
-- Logstream remembers the position read in each container (`/data/docker-state.json`): after a
-  restart it resumes without losing or duplicating lines. A container seen for the first time
+- Logstream remembers the position of the last line stored for each container
+  (`/data/docker-state.json`): after a restart it resumes without losing lines. The position
+  only moves once a line is in VictoriaLogs or in the disk buffer, and a full queue slows the
+  reading down instead of dropping lines. A container seen for the first time
   is read from `DOCKER_BACKFILL` ago (1 hour by default).
 - Logstream itself and the proxy below are never collected; add the label
   `logstream.exclude=true` to any other container to exclude it for good.
@@ -330,11 +334,13 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `HOST_LOGS_ROOT` | `/host` | where the host directories are mounted |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
+| `SPOOL_MAX_MB` | `1024` | disk buffer size for batches VictoriaLogs could not take (`0` = no buffer: retried for 15 s, then dropped) |
 
 ## Debugging
 
 - `docker compose logs -f logstream`: receive errors and errors sending to VictoriaLogs.
-- The bottom bar shows received / stored / dropped counters and the last storage error.
+- The bottom bar shows received / stored / dropped counters, the messages waiting in the disk
+  buffer, and the last storage error.
 - <http://localhost:9428/select/vmui>: VictoriaLogs' own UI to try LogsQL queries.
 - API:
   ```bash

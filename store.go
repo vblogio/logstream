@@ -17,13 +17,18 @@ import (
 )
 
 // Store sends messages to VictoriaLogs in batches and queries it with LogsQL.
+// Batches VictoriaLogs cannot take go to the disk spool (when enabled) and
+// are sent again, oldest first, once it answers.
 type Store struct {
 	base         string
 	client       *http.Client
 	streamClient *http.Client
-	in         chan *Entry
-	batchSize  int
-	flushEvery time.Duration
+	in           chan *Entry
+	quit         chan struct{} // closed on shutdown: unblocks waiting producers
+	batchSize    int
+	flushEvery   time.Duration
+	spool        *Spool        // nil: no disk buffer
+	spooled      chan struct{} // wakes the replay loop up after a write to the spool
 
 	received atomic.Int64
 	ingested atomic.Int64
@@ -31,29 +36,42 @@ type Store struct {
 	lastErr  atomic.Value // string
 }
 
-func NewStore(base string, batchSize, queueSize int, flushEvery time.Duration) *Store {
+func NewStore(base string, batchSize, queueSize int, flushEvery time.Duration, spool *Spool) *Store {
 	s := &Store{
-		base:       strings.TrimRight(base, "/"),
-		client:     &http.Client{Timeout: 60 * time.Second},
+		base:   strings.TrimRight(base, "/"),
+		client: &http.Client{Timeout: 60 * time.Second},
 		// No global timeout: a large export can take longer than a minute. The
 		// request context still cancels it when the browser goes away.
 		streamClient: &http.Client{},
-		in:         make(chan *Entry, queueSize),
-		batchSize:  batchSize,
-		flushEvery: flushEvery,
+		in:           make(chan *Entry, queueSize),
+		quit:         make(chan struct{}),
+		batchSize:    batchSize,
+		flushEvery:   flushEvery,
+		spool:        spool,
+		spooled:      make(chan struct{}, 1),
 	}
 	s.lastErr.Store("")
 	return s
 }
 
-// Enqueue never blocks: when the queue is full, the message is counted as dropped.
+// Enqueue adds a message to the queue. When the queue is full, a message
+// whose producer can wait (Entry.Wait: Docker, host logs) blocks until there
+// is room; any other one (syslog) is counted as dropped.
 func (s *Store) Enqueue(e *Entry) {
 	s.received.Add(1)
 	select {
 	case s.in <- e:
+		return
 	default:
-		s.dropped.Add(1)
 	}
+	if e.Wait {
+		select {
+		case s.in <- e:
+			return
+		case <-s.quit:
+		}
+	}
+	s.dropped.Add(1)
 }
 
 // Run drains the queue into VictoriaLogs until the context is cancelled,
@@ -62,20 +80,16 @@ func (s *Store) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.flushEvery)
 	defer ticker.Stop()
 	batch := make([]*Entry, 0, s.batchSize)
+	if s.spool != nil {
+		go s.replay(ctx)
+	}
 
-	flush := func() {
-		if len(batch) == 0 {
-			return
+	flush := func(ctx context.Context) {
+		if len(batch) > 0 {
+			s.store(ctx, batch)
+			clear(batch)
+			batch = batch[:0]
 		}
-		if err := s.insert(batch); err != nil {
-			s.dropped.Add(int64(len(batch)))
-			s.lastErr.Store(err.Error())
-			log.Printf("victorialogs: %d messages dropped: %v", len(batch), err)
-		} else {
-			s.ingested.Add(int64(len(batch)))
-			s.lastErr.Store("")
-		}
-		batch = batch[:0]
 	}
 
 	for {
@@ -83,20 +97,24 @@ func (s *Store) Run(ctx context.Context) {
 		case e := <-s.in:
 			batch = append(batch, e)
 			if len(batch) >= s.batchSize {
-				flush()
+				flush(ctx)
 			}
 		case <-ticker.C:
-			flush()
+			flush(ctx)
 		case <-ctx.Done():
+			close(s.quit)
+			// The last batches get one short attempt, then go to the spool.
+			end, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 			for {
 				select {
 				case e := <-s.in:
 					batch = append(batch, e)
 					if len(batch) >= s.batchSize {
-						flush()
+						flush(end)
 					}
 				default:
-					flush()
+					flush(end)
 					return
 				}
 			}
@@ -104,38 +122,158 @@ func (s *Store) Run(ctx context.Context) {
 	}
 }
 
-func (s *Store) insert(batch []*Entry) error {
+// store sends one batch to VictoriaLogs, or to the spool when VictoriaLogs
+// fails or older batches are still waiting there (to keep their order).
+// Entry.Done is called once the batch is stored or spooled.
+func (s *Store) store(ctx context.Context, batch []*Entry) {
+	body, err := encodeBatch(batch)
+	if err == nil {
+		err = s.save(ctx, body, len(batch))
+	}
+	if err != nil {
+		s.dropped.Add(int64(len(batch)))
+		s.lastErr.Store(err.Error())
+		log.Printf("victorialogs: %d messages dropped: %v", len(batch), err)
+		return
+	}
+	for _, e := range batch {
+		if e.Done != nil {
+			e.Done()
+		}
+	}
+}
+
+func (s *Store) save(ctx context.Context, body []byte, lines int) error {
+	if s.spool == nil {
+		// No disk buffer: retry a few times, then give up.
+		var err error
+		for attempt := 0; attempt < 5; attempt++ {
+			if attempt > 0 && !sleepCtx(ctx, time.Duration(1<<attempt)*500*time.Millisecond) { // 1s, 2s, 4s, 8s
+				break
+			}
+			if err = s.post(ctx, body); err == nil {
+				s.ingested.Add(int64(lines))
+				s.lastErr.Store("")
+				return nil
+			}
+		}
+		return err
+	}
+
+	var postErr error
+	if waiting, _ := s.spool.Pending(); waiting == 0 {
+		if postErr = s.post(ctx, body); postErr == nil {
+			s.ingested.Add(int64(lines))
+			s.lastErr.Store("")
+			return nil
+		}
+		s.lastErr.Store(postErr.Error())
+	}
+	err := s.spool.Write(body, lines)
+	if err == nil {
+		select {
+		case s.spooled <- struct{}{}:
+		default:
+		}
+		return nil
+	}
+	if postErr != nil {
+		return fmt.Errorf("%v; %v", postErr, err)
+	}
+	// Spool full while older batches wait: one direct attempt before dropping.
+	if postErr = s.post(ctx, body); postErr == nil {
+		s.ingested.Add(int64(lines))
+		return nil
+	}
+	return fmt.Errorf("%v; %v", err, postErr)
+}
+
+// replay sends the spooled batches back to VictoriaLogs, oldest first, with
+// an increasing pause (up to 30 s) while it keeps failing.
+func (s *Store) replay(ctx context.Context) {
+	if n, size := s.spool.Pending(); n > 0 {
+		log.Printf("spool: %d messages (%d bytes) waiting from a previous run", n, size)
+	}
+	backoff := time.Second
+	for {
+		f, body, ok, err := s.spool.Oldest()
+		if err != nil {
+			log.Printf("spool: %v", err)
+		}
+		if !ok {
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.spooled:
+			case <-time.After(time.Minute):
+			}
+			continue
+		}
+		err = s.post(ctx, body)
+		switch {
+		case err == nil:
+			s.spool.Remove(f)
+			s.ingested.Add(f.lines)
+			s.lastErr.Store("")
+			backoff = time.Second
+			continue
+		case isRejected(err):
+			// VictoriaLogs refuses the data itself: sending it again would not help.
+			s.spool.Remove(f)
+			s.dropped.Add(f.lines)
+			log.Printf("spool: %d messages refused by victorialogs: %v", f.lines, err)
+			continue
+		}
+		s.lastErr.Store(err.Error())
+		if !sleepCtx(ctx, backoff) {
+			return
+		}
+		backoff = min(2*backoff, 30*time.Second)
+	}
+}
+
+func encodeBatch(batch []*Entry) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	for _, e := range batch {
 		if err := enc.Encode(e.Record()); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	u := s.base + "/insert/jsonline?_stream_fields=host,app&_msg_field=_msg&_time_field=_time"
-
-	var err error
-	for attempt := 0; attempt < 5; attempt++ {
-		if attempt > 0 {
-			time.Sleep(time.Duration(1<<attempt) * 500 * time.Millisecond) // 1s, 2s, 4s, 8s
-		}
-		if err = s.post(u, buf.Bytes()); err == nil {
-			return nil
-		}
-	}
-	return err
+	return buf.Bytes(), nil
 }
 
-func (s *Store) post(u string, body []byte) error {
-	resp, err := s.client.Post(u, "application/stream+json", bytes.NewReader(body))
+// insertError is an error status of VictoriaLogs to an insert.
+type insertError struct {
+	status int
+	msg    string
+}
+
+func (e *insertError) Error() string { return fmt.Sprintf("HTTP %d: %s", e.status, e.msg) }
+
+// isRejected tells whether VictoriaLogs refused the data itself (4xx other
+// than 429), as opposed to being unreachable or overloaded.
+func isRejected(err error) bool {
+	var ie *insertError
+	return errors.As(err, &ie) && ie.status >= 400 && ie.status < 500 && ie.status != http.StatusTooManyRequests
+}
+
+func (s *Store) post(ctx context.Context, body []byte) error {
+	u := s.base + "/insert/jsonline?_stream_fields=host,app&_msg_field=_msg&_time_field=_time"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/stream+json")
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))
+		return &insertError{status: resp.StatusCode, msg: strings.TrimSpace(string(msg))}
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
@@ -265,11 +403,15 @@ func queryStatus(err error) int {
 }
 
 func (s *Store) Stats() map[string]any {
-	return map[string]any{
+	st := map[string]any{
 		"received":  s.received.Load(),
 		"ingested":  s.ingested.Load(),
 		"dropped":   s.dropped.Load(),
 		"queue":     len(s.in),
 		"lastError": s.lastErr.Load(),
 	}
+	if s.spool != nil {
+		st["spooled"], st["spoolBytes"] = s.spool.Pending()
+	}
+	return st
 }

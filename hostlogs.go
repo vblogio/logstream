@@ -327,6 +327,7 @@ func (h *HostLogs) readFile(path, name string, off int64) (int64, error) {
 		}
 		e.SourceType = "host"
 		e.Extra = map[string]string{"log_file": "/var/log/" + name}
+		e.Wait = true
 		h.sink(e)
 		h.count(1, 0)
 	}
@@ -400,6 +401,7 @@ func (h *HostLogs) emitJournal(je *journalEntry) {
 		Proto:      "journal",
 		SourceType: "host",
 		Extra:      map[string]string{"unit": f["_SYSTEMD_UNIT"]},
+		Wait:       true,
 	})
 }
 
