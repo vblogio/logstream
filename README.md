@@ -226,10 +226,28 @@ remembered per browser.
 
 `AUTH_MODE` picks how the UI and the API are protected (`/healthz` always stays open):
 
-- **`local`** (default): HTTP Basic authentication with `AUTH_USER` / `AUTH_PASS`; leave them
+- **`local`** (default): a login page with the account `AUTH_USER` / `AUTH_PASS`; leave them
   empty to have no authentication (for instance behind a reverse proxy that already checks).
 - **`oidc`**: login through an OpenID Connect provider (Keycloak, Authentik, Authelia, Zitadel…),
   authorization code flow with PKCE.
+
+In `local` mode the login page follows the theme and language of the UI. The session lasts
+`SESSION_TTL` (12 h by default), survives restarts (its signing key is in `/data/session.key`) and
+ends when `AUTH_USER` or `AUTH_PASS` changes; the log out button (top right) ends it. Failed logins
+are written in the logs with the client address (`auth: failed login for "bob" from 192.0.2.7`).
+Scripts can still call the API with HTTP Basic credentials (`curl -u user:pass`).
+
+To show your logo on the login page, mount a PNG in the container and point `LOGIN_LOGO` to it:
+
+```yaml
+# docker-compose.yml, logstream service
+    volumes:
+      - ./logo.png:/config/logo.png:ro
+```
+```bash
+# .env
+LOGIN_LOGO=/config/logo.png
+```
 
 To use OIDC:
 
@@ -247,7 +265,7 @@ To use OIDC:
    provider could not be read (wrong issuer, unreachable…).
 
 Opening the UI sends you to the provider's login page, then back to logstream. The session
-lasts `OIDC_SESSION_TTL` (12 h by default) and survives restarts (its signing key is in
+lasts `SESSION_TTL` (12 h by default) and survives restarts (its signing key is in
 `/data/session.key`); when it ends, the page goes through the login again. The log out button
 (top right) ends the logstream session, then opens the provider's log out page if it has one.
 
@@ -274,13 +292,14 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `SYSLOG_PORT` | `514` | syslog port published on the host |
 | `HTTP_PORT` | `8080` | web UI port |
 | `RETENTION` | `30d` | how long VictoriaLogs keeps logs |
-| `AUTH_MODE` | `local` | `local` (HTTP Basic) or `oidc`, see [Authentication](#authentication) |
-| `AUTH_USER` / `AUTH_PASS` | empty | HTTP Basic authentication for the UI (`local` mode) |
+| `AUTH_MODE` | `local` | `local` (login page) or `oidc`, see [Authentication](#authentication) |
+| `AUTH_USER` / `AUTH_PASS` | empty | account of the login page (`local` mode); empty = no authentication |
+| `LOGIN_LOGO` | empty | PNG shown on the login page, path inside the container (`local` mode) |
+| `SESSION_TTL` | `12h` | session lifetime (both modes; `OIDC_SESSION_TTL` still works) |
 | `OIDC_ISSUER` | empty | issuer URL of the OpenID Connect provider (`oidc` mode) |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | empty | client registered in the provider |
 | `OIDC_REDIRECT_URL` | empty | callback URL of logstream, e.g. `https://logs.example.org/auth/callback` |
 | `OIDC_SCOPES` | `openid profile email` | requested scopes |
-| `OIDC_SESSION_TTL` | `12h` | session lifetime |
 | `RDNS` | `on` | resolve IP hosts to DNS names |
 | `DNS_SERVER` | empty | DNS server for reverse lookups (`ip` or `ip:port`) |
 | `ALLOW_PURGE` | `true` | allow "Delete all logs" in Settings |
@@ -335,7 +354,8 @@ To update one of them:
 | File | Contents |
 |---|---|
 | `main.go` | configuration, startup |
-| `auth.go` | authentication: HTTP Basic or OpenID Connect (discovery, PKCE, ID token checks, session cookie) |
+| `auth.go` | authentication: OpenID Connect (discovery, PKCE, ID token checks) and the signed session cookie |
+| `auth_local.go` | `local` mode: login page (`web/login.html`), session cookie, `LOGIN_LOGO` |
 | `syslog.go` | UDP/TCP listeners and RFC 3164 / 5424 parsing |
 | `store.go` | batched inserts into VictoriaLogs and LogsQL queries |
 | `query.go` | turns UI filters into LogsQL; live-view filter |
@@ -348,7 +368,7 @@ To update one of them:
 | `hostlogs.go`, `journal.go` | host system logs: systemd journal reader (no `journalctl`) and `/var/log` follower |
 | `tags.go` | color tag storage |
 | `api.go` | `/api/*` HTTP routes |
-| `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`) |
+| `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`), and in `web/login.html` for the login page |
 
 ## Note
 

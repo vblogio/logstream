@@ -2103,7 +2103,7 @@ $('#range').value = store.get('range', '1h');
 if (!$('#range').value) $('#range').value = '1h';
 $('#severity').value = store.get('severity', '');
 
-// With OIDC login, show who is logged in and the log out button.
+// With a login (local or OIDC), show who is logged in and the log out button.
 fetch('/auth/me').then((res) => (res.ok ? res.json() : null)).then((me) => {
   if (!me || !me.user) return;
   const btn = $('#logoutBtn');
