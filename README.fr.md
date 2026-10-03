@@ -231,7 +231,10 @@ couleur, est mémorisé par navigateur.
   Le menu *+ Préréglage…* ajoute des tags tout faits pour les logs d'accès HTTP/HTTPS (nginx et
   Apache common/combined, Traefik CLF et JSON, Caddy JSON, HAProxy httplog) : codes de statut
   (2xx vert, 3xx bleu, 4xx orange, 5xx rouge), méthodes, sondes et attaques (`wp-login.php`,
-  `/.env`, `../`…), robots et scripts, erreurs TLS et proxy. Les tags déjà présents ne sont pas
+  `/.env`, `../`…), robots et scripts, erreurs TLS et proxy. D'autres préréglages couvrent les
+  logs système (échecs et succès de connexion SSH, commandes sudo, OOM et erreurs du noyau,
+  services systemd, UFW/iptables et fail2ban), les applications (conteneurs Docker, erreurs
+  PostgreSQL et MySQL/MariaDB) et des motifs généraux (niveaux de log, adresses IPv4). Les tags déjà présents ne sont pas
   ajoutés en double, et les tags ajoutés se modifient comme les autres. Dans une expression
   régulière, un groupe nommé `hl` (`(?<hl>…)`) ne colore que cette partie de la correspondance :
   les préréglages s'en servent pour colorer le code de statut ou la méthode, pas le texte autour.

@@ -210,7 +210,10 @@ remembered per browser.
   The *+ Preset…* menu adds ready-made tags for HTTP/HTTPS access logs (nginx and Apache
   common/combined, Traefik CLF and JSON, Caddy JSON, HAProxy httplog): status codes (2xx green,
   3xx blue, 4xx orange, 5xx red), methods, probes and attacks (`wp-login.php`, `/.env`,
-  `../`…), bots and scripts, TLS and proxy errors. Tags already in the list are skipped, and the
+  `../`…), bots and scripts, TLS and proxy errors. Other presets cover system logs (SSH and
+  login failures/successes, sudo commands, kernel OOM and errors, systemd services, UFW/iptables
+  and fail2ban), applications (Docker containers, PostgreSQL and MySQL/MariaDB errors) and
+  general patterns (log levels, IPv4 addresses). Tags already in the list are skipped, and the
   added tags can be edited like any other. In a regular expression, a group named `hl`
   (`(?<hl>…)`) colors only that part of the match: the presets use it to color the status code
   or the method, not the text around it.
