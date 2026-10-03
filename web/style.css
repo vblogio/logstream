@@ -350,6 +350,7 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 /* Settings > Interface > Density: compact fits about 50% more lines on screen */
 :root[data-density="compact"] .row { padding-top: 1px; padding-bottom: 1px; line-height: 1.25; }
 :root[data-density="compact"] .row .sev { padding-top: 0; padding-bottom: 0; line-height: 1.3; }
+:root[data-density="compact"] .row .codes b { padding-top: 0; padding-bottom: 0; line-height: 1.2; }
 .row:hover { background: var(--row-hover); }
 .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .row.new { animation: flash 1.2s ease-out; }
