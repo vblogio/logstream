@@ -207,6 +207,13 @@ remembered per browser.
   (`logstream-data` volume), so they are shared by every browser. Default tags (pastel):
   `warning` (orange), `error` (red), `ok` (green). Default tags still using the colors of
   earlier versions are switched to the pastel ones automatically.
+  The *+ Preset…* menu adds ready-made tags for HTTP/HTTPS access logs (nginx and Apache
+  common/combined, Traefik CLF and JSON, Caddy JSON, HAProxy httplog): status codes (2xx green,
+  3xx blue, 4xx orange, 5xx red), methods, probes and attacks (`wp-login.php`, `/.env`,
+  `../`…), bots and scripts, TLS and proxy errors. Tags already in the list are skipped, and the
+  added tags can be edited like any other. In a regular expression, a group named `hl`
+  (`(?<hl>…)`) colors only that part of the match: the presets use it to color the status code
+  or the method, not the text around it.
 - **Interface**
   - *Theme*: System (follows the computer/phone preference), Light or Dark. The sun/moon
     button in the header switches between light and dark.

@@ -228,6 +228,13 @@ couleur, est mémorisé par navigateur.
   Tags par défaut (pastel) : `warning` (orange), `error` (rouge), `ok` (vert). Les tags par
   défaut qui utilisent encore les couleurs des versions précédentes passent automatiquement aux
   couleurs pastel.
+  Le menu *+ Préréglage…* ajoute des tags tout faits pour les logs d'accès HTTP/HTTPS (nginx et
+  Apache common/combined, Traefik CLF et JSON, Caddy JSON, HAProxy httplog) : codes de statut
+  (2xx vert, 3xx bleu, 4xx orange, 5xx rouge), méthodes, sondes et attaques (`wp-login.php`,
+  `/.env`, `../`…), robots et scripts, erreurs TLS et proxy. Les tags déjà présents ne sont pas
+  ajoutés en double, et les tags ajoutés se modifient comme les autres. Dans une expression
+  régulière, un groupe nommé `hl` (`(?<hl>…)`) ne colore que cette partie de la correspondance :
+  les préréglages s'en servent pour colorer le code de statut ou la méthode, pas le texte autour.
 - **Interface**
   - *Thème* : Système (suit la préférence de l'ordinateur ou du téléphone), Clair ou Sombre. Le
     bouton soleil/lune de l'en-tête bascule entre clair et sombre.

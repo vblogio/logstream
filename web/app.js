@@ -48,6 +48,12 @@ const I18N = {
     newTag: 'new',
     confirmDelete: (p) => `Delete tag "${p}"?`,
     confirmReset: 'Replace all tags with the defaults (warning, error, ok)?',
+    presetAria: 'Add a preset', presetPick: '+ Preset…',
+    preset_http_status: 'HTTP status codes', preset_http_methods: 'HTTP methods',
+    preset_http_probes: 'Probes and attacks', preset_http_bots: 'Bots and scripts',
+    preset_http_errors: 'TLS/HTTPS and proxy errors',
+    pl_probes: 'probes / attacks', pl_bots: 'bots / scripts', pl_tls: 'TLS errors', pl_proxy: 'proxy errors',
+    presetAdded: (n) => (n ? `${n} tag(s) added` : 'These tags are already in the list'),
     tagsLoadErr: 'Tags: ',
     err_pattern_required: 'The keyword is required',
     err_invalid_color: 'Invalid color (expected #rrggbb)',
@@ -192,6 +198,12 @@ const I18N = {
     newTag: 'nouveau',
     confirmDelete: (p) => `Supprimer le tag « ${p} » ?`,
     confirmReset: 'Remplacer tous les tags par les tags par défaut (warning, error, ok) ?',
+    presetAria: 'Ajouter un préréglage', presetPick: '+ Préréglage…',
+    preset_http_status: 'Codes HTTP', preset_http_methods: 'Méthodes HTTP',
+    preset_http_probes: 'Sondes et attaques', preset_http_bots: 'Robots et scripts',
+    preset_http_errors: 'Erreurs TLS/HTTPS et proxy',
+    pl_probes: 'sondes / attaques', pl_bots: 'robots / scripts', pl_tls: 'erreurs TLS', pl_proxy: 'erreurs proxy',
+    presetAdded: (n) => (n ? `${n} tag(s) ajouté(s)` : 'Ces tags sont déjà dans la liste'),
     tagsLoadErr: 'Tags : ',
     err_pattern_required: 'Le mot-clé est obligatoire',
     err_invalid_color: 'Couleur invalide (format #rrggbb attendu)',
@@ -681,7 +693,10 @@ function compileMatchers() {
     let src = tag.regex ? tag.pattern : escapeRe(tag.pattern);
     if (tag.wholeWord) src = `(?<![\\p{L}\\p{N}_])(?:${src})(?![\\p{L}\\p{N}_])`;
     try {
-      out.push({ re: new RegExp(src, 'gu' + (tag.caseSensitive ? '' : 'i')), html: `<mark class="tag" style="${tagStyle(tag.color)}">` });
+      // A regex may name a group "hl" to color only that part of the match.
+      const hl = tag.regex && /\(\?P?<hl>/.test(tag.pattern);
+      if (hl) src = src.replace(/\(\?P<hl>/g, '(?<hl>');
+      out.push({ re: new RegExp(src, 'gu' + (hl ? 'd' : '') + (tag.caseSensitive ? '' : 'i')), html: `<mark class="tag" style="${tagStyle(tag.color)}">` });
     } catch (e) {
       console.warn('Tag skipped (invalid pattern):', tag.pattern, e.message);
     }
@@ -706,6 +721,8 @@ function highlight(text) {
     let x;
     while ((x = m.re.exec(text)) !== null) {
       if (x[0] === '') { m.re.lastIndex++; continue; }
+      const g = x.indices?.groups?.hl;
+      if (g) { if (g[1] > g[0]) spans.push({ s: g[0], e: g[1], prio, html: m.html }); continue; }
       spans.push({ s: x.index, e: x.index + x[0].length, prio, html: m.html });
     }
   });
@@ -1978,6 +1995,28 @@ $('#purgeBtn').addEventListener('click', async () => {
 
 const PALETTE = ['#6366f1', '#0ea5e9', '#14b8a6', '#a855f7', '#ec4899', '#eab308', '#64748b', '#f97316'];
 
+// Ready-made tags for HTTP/HTTPS access logs. The patterns are valid in both
+// JavaScript and Go (RE2) and cover nginx/Apache (common, combined), Traefik
+// (CLF, JSON), Caddy (JSON) and HAProxy (httplog). For status codes and
+// methods only the "hl" group is colored, not the context around it.
+const HTTP_STATUS_CTX = '(?:" |"(?:status|DownstreamStatus|OriginStatus|status_code)": ?|(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/\\+?\\d+ )';
+const httpStatus = (d, color) => ({ label: `HTTP ${d}xx`, pattern: `${HTTP_STATUS_CTX}(?<hl>${d}\\d\\d)\\b`, color });
+const httpMethod = (m, color) => ({ label: m.replace(/\|/g, '/'), pattern: `"(?<hl>${m})[ "]`, color, caseSensitive: true });
+const PRESETS = {
+  http_status: () => [httpStatus(2, '#86efac'), httpStatus(3, '#93c5fd'), httpStatus(4, '#fdba74'), httpStatus(5, '#f87171')],
+  http_methods: () => [httpMethod('GET|HEAD|OPTIONS', '#cbd5e1'), httpMethod('POST|PUT|PATCH', '#c4b5fd'), httpMethod('DELETE', '#f9a8d4')],
+  http_probes: () => [{ label: t('pl_probes'), color: '#fda4af',
+    pattern: '(?:wp-login\\.php|xmlrpc\\.php|wp-admin|phpmyadmin|/\\.env|/\\.git|/\\.aws|/cgi-bin/|\\.\\./|%2e%2e|/etc/passwd|<script|union(?:\\s|%20|\\+)+select)' }],
+  http_bots: () => [{ label: t('pl_bots'), color: '#fde68a',
+    pattern: '\\b(?:[a-z]*bot|crawler|spider|curl|wget|python-requests|Go-http-client|zgrab|masscan|nmap|sqlmap|nikto)\\b' }],
+  http_errors: () => [
+    { label: t('pl_tls'), color: '#f0abfc',
+      pattern: '(?:TLS handshake error|SSL_do_handshake\\(\\) failed|SSL handshake|SSL routines|certificate (?:has )?expired|certificate verify failed|bad certificate|unknown certificate|x509:)' },
+    { label: t('pl_proxy'), color: '#fdba74',
+      pattern: '(?:upstream timed out|upstream prematurely closed|no live upstreams|connect\\(\\) failed|connection refused|bad gateway|gateway time-?out|service unavailable)' },
+  ],
+};
+
 async function loadTags() {
   try { state.tags = await api('/api/tags'); } catch (e) { toast(t('tagsLoadErr') + e.message); }
   compileMatchers();
@@ -1989,7 +2028,7 @@ function tagRowHTML(tag) {
   return `<div class="tag-row${tag.enabled ? '' : ' off'}" data-id="${esc(tag.id)}">
     <input type="color" value="${esc(tag.color)}" data-f="color" aria-label="${esc(t('colorAria'))}">
     <input type="text" value="${esc(tag.pattern)}" data-f="pattern" placeholder="${esc(t('keyword'))}" spellcheck="false" aria-label="${esc(t('keyword'))}">
-    <span class="preview"><mark class="tag" style="${tagStyle(tag.color)}">${esc(tag.pattern || t('preview'))}</mark></span>
+    <span class="preview" title="${esc(tag.pattern)}"><mark class="tag" style="${tagStyle(tag.color)}">${esc(tag.label || tag.pattern || t('preview'))}</mark></span>
     <div class="opts">
       ${opt('wholeWord', t('optWhole'), t('optWholeTitle'))}
       ${opt('caseSensitive', 'Aa', t('optCaseTitle'))}
@@ -2032,7 +2071,7 @@ $('#tagList').addEventListener('input', (ev) => {
   tag[field] = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
   rowEl.classList.toggle('off', !tag.enabled);
   const mark = rowEl.querySelector('.preview mark');
-  mark.textContent = tag.pattern || t('preview');
+  mark.textContent = tag.label || tag.pattern || t('preview');
   mark.setAttribute('style', tagStyle(tag.color));
   scheduleSave(tag, rowEl);
   applyTags();
@@ -2063,6 +2102,24 @@ $('#addTag').addEventListener('click', async () => {
     input.focus();
     input.select();
   } catch (e) { toast(e.message); }
+});
+
+// Adds a preset group, skipping tags whose pattern is already in the list.
+$('#presetTags').addEventListener('change', async (ev) => {
+  const make = PRESETS[ev.target.value];
+  ev.target.value = '';
+  if (!make) return;
+  let added = 0;
+  try {
+    for (const p of make()) {
+      if (state.tags.some((x) => x.pattern === p.pattern)) continue;
+      state.tags.push(await api('/api/tags', { method: 'POST', body: { regex: true, enabled: true, ...p } }));
+      added++;
+    }
+  } catch (e) { toast(e.message); }
+  renderTagList();
+  applyTags();
+  toast(t('presetAdded', added));
 });
 
 $('#resetTags').addEventListener('click', async () => {

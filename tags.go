@@ -17,6 +17,7 @@ import (
 type Tag struct {
 	ID            string `json:"id"`
 	Pattern       string `json:"pattern"`
+	Label         string `json:"label,omitempty"` // shown instead of the pattern (presets)
 	Color         string `json:"color"`
 	WholeWord     bool   `json:"wholeWord"`
 	CaseSensitive bool   `json:"caseSensitive"`
@@ -72,6 +73,7 @@ var (
 
 func (t *Tag) validate() error {
 	t.Pattern = strings.TrimSpace(t.Pattern)
+	t.Label = strings.TrimSpace(t.Label)
 	if t.Pattern == "" {
 		return &codedError{code: "pattern_required", msg: "the keyword is required"}
 	}
