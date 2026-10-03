@@ -219,8 +219,42 @@ remembered per browser.
 - **Data**: "Delete all logs" permanently erases every stored log (you must type
   `PURGE` to confirm). Tags and settings are kept. VictoriaLogs needs `-delete.enable`
   (already set in `docker-compose.yml`); set `ALLOW_PURGE=false` to disable the feature.
-  Anyone who can open the UI can purge: set `AUTH_USER` / `AUTH_PASS` if the UI is reachable
-  by others.
+  Anyone who can open the UI can purge: turn on [authentication](#authentication) if the UI
+  is reachable by others.
+
+## Authentication
+
+`AUTH_MODE` picks how the UI and the API are protected (`/healthz` always stays open):
+
+- **`local`** (default): HTTP Basic authentication with `AUTH_USER` / `AUTH_PASS`; leave them
+  empty to have no authentication (for instance behind a reverse proxy that already checks).
+- **`oidc`**: login through an OpenID Connect provider (Keycloak, Authentik, Authelia, Zitadel…),
+  authorization code flow with PKCE.
+
+To use OIDC:
+
+1. In the provider, create a **confidential** client (with a secret) for logstream and register
+   the redirect URL `https://logs.example.org/auth/callback` (your address).
+2. In `.env`:
+   ```bash
+   AUTH_MODE=oidc
+   OIDC_ISSUER=https://sso.example.org/realms/home      # exactly the "issuer" of the provider
+   OIDC_CLIENT_ID=logstream
+   OIDC_CLIENT_SECRET=...
+   OIDC_REDIRECT_URL=https://logs.example.org/auth/callback
+   ```
+3. `docker compose up -d`. The logs show `oidc authentication enabled`, or the reason the
+   provider could not be read (wrong issuer, unreachable…).
+
+Opening the UI sends you to the provider's login page, then back to logstream. The session
+lasts `OIDC_SESSION_TTL` (12 h by default) and survives restarts (its signing key is in
+`/data/session.key`); when it ends, the page goes through the login again. The log out button
+(top right) ends the logstream session, then opens the provider's log out page if it has one.
+
+Every user the provider accepts for this client can log in: restrict access in the provider
+(Keycloak: client roles or a dedicated realm; Authentik: application bindings). Logins are written
+in the logstream logs (`oidc: alice logged in`). With an `https` redirect URL, the cookies are
+only sent over HTTPS: logstream must be reached through a TLS reverse proxy.
 
 ## Host names (reverse DNS)
 
@@ -240,7 +274,13 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `SYSLOG_PORT` | `514` | syslog port published on the host |
 | `HTTP_PORT` | `8080` | web UI port |
 | `RETENTION` | `30d` | how long VictoriaLogs keeps logs |
-| `AUTH_USER` / `AUTH_PASS` | empty | HTTP Basic authentication for the UI |
+| `AUTH_MODE` | `local` | `local` (HTTP Basic) or `oidc`, see [Authentication](#authentication) |
+| `AUTH_USER` / `AUTH_PASS` | empty | HTTP Basic authentication for the UI (`local` mode) |
+| `OIDC_ISSUER` | empty | issuer URL of the OpenID Connect provider (`oidc` mode) |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | empty | client registered in the provider |
+| `OIDC_REDIRECT_URL` | empty | callback URL of logstream, e.g. `https://logs.example.org/auth/callback` |
+| `OIDC_SCOPES` | `openid profile email` | requested scopes |
+| `OIDC_SESSION_TTL` | `12h` | session lifetime |
 | `RDNS` | `on` | resolve IP hosts to DNS names |
 | `DNS_SERVER` | empty | DNS server for reverse lookups (`ip` or `ip:port`) |
 | `ALLOW_PURGE` | `true` | allow "Delete all logs" in Settings |
@@ -294,7 +334,8 @@ To update one of them:
 
 | File | Contents |
 |---|---|
-| `main.go` | configuration, startup, authentication |
+| `main.go` | configuration, startup |
+| `auth.go` | authentication: HTTP Basic or OpenID Connect (discovery, PKCE, ID token checks, session cookie) |
 | `syslog.go` | UDP/TCP listeners and RFC 3164 / 5424 parsing |
 | `store.go` | batched inserts into VictoriaLogs and LogsQL queries |
 | `query.go` | turns UI filters into LogsQL; live-view filter |

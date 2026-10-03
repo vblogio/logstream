@@ -14,6 +14,7 @@ const I18N = {
     liveUnavailable: 'Live view is not available in LogsQL mode',
     settings: 'Settings',
     theme: 'Light / dark theme',
+    logout: 'Log out',
     close: 'Close',
     rangeAria: 'Time range', severityAria: 'Severity', hostAria: 'Host', appAria: 'Application',
     histoAria: 'Log volume over time',
@@ -157,6 +158,7 @@ const I18N = {
     liveUnavailable: 'Le direct n\'est pas disponible en mode LogsQL',
     settings: 'Paramètres',
     theme: 'Thème clair / sombre',
+    logout: 'Se déconnecter',
     close: 'Fermer',
     rangeAria: 'Période', severityAria: 'Sévérité', hostAria: 'Hôte', appAria: 'Application',
     histoAria: 'Volume de logs dans le temps',
@@ -409,6 +411,8 @@ async function api(url, opts = {}) {
 
 // Known error codes are translated; otherwise the server message is shown.
 function apiError(res, text, data) {
+  // OIDC session expired: reloading the page goes through the login again.
+  if (res.status === 401 && data && data.code === 'auth') location.reload();
   let msg = (data && data.error) || text || res.statusText;
   if (data && data.code && I18N[lang]['err_' + data.code]) {
     msg = t('err_' + data.code) + (data.detail ? (lang === 'fr' ? ' : ' : ': ') + data.detail : '');
@@ -452,7 +456,7 @@ const list = $('#list');
 function applyLang() {
   document.documentElement.lang = lang;
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
-  for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle);
+  for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle) + (el.dataset.user ? ` (${el.dataset.user})` : '');
   for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
   for (const el of document.querySelectorAll('[data-i18n-ph]')) el.placeholder = t(el.dataset.i18nPh);
   for (const b of document.querySelectorAll('#langSwitch [data-lang]')) b.setAttribute('aria-checked', String(b.dataset.lang === lang));
@@ -2098,6 +2102,15 @@ applyLang();
 $('#range').value = store.get('range', '1h');
 if (!$('#range').value) $('#range').value = '1h';
 $('#severity').value = store.get('severity', '');
+
+// With OIDC login, show who is logged in and the log out button.
+fetch('/auth/me').then((res) => (res.ok ? res.json() : null)).then((me) => {
+  if (!me || !me.user) return;
+  const btn = $('#logoutBtn');
+  btn.hidden = false;
+  btn.dataset.user = me.user;
+  btn.title = `${t('logout')} (${me.user})`;
+}).catch(() => {});
 
 (async () => {
   await loadTags();
