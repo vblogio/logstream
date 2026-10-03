@@ -1,7 +1,12 @@
-/* Iosevka (SIL OFL, web/fonts/OFL-Iosevka.txt): a narrow monospace font served by LogStream
-   itself, so it also works offline. Latin subset only; other scripts fall back to --mono. */
+/* Narrow monospace fonts served by LogStream itself, so they also work offline (licences in
+   web/fonts). Latin subset only; other scripts fall back to --mono. Inconsolata Condensed is
+   Inconsolata's variable font pinned at width 75 (0.4em per character, others 0.5em). */
 @font-face { font-family: "Iosevka"; src: url("fonts/iosevka-400.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
 @font-face { font-family: "Iosevka"; src: url("fonts/iosevka-700.woff2") format("woff2"); font-weight: 600 800; font-display: swap; }
+@font-face { font-family: "Ubuntu Mono"; src: url("fonts/ubuntu-mono-400.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: "Ubuntu Mono"; src: url("fonts/ubuntu-mono-700.woff2") format("woff2"); font-weight: 600 800; font-display: swap; }
+@font-face { font-family: "Inconsolata Condensed"; src: url("fonts/inconsolata-condensed-400.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: "Inconsolata Condensed"; src: url("fonts/inconsolata-condensed-700.woff2") format("woff2"); font-weight: 600 800; font-display: swap; }
 
 /* ---------- Theme: everything goes through these variables ---------- */
 :root {

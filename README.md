@@ -223,14 +223,14 @@ remembered per browser.
   - *Theme*: System (follows the computer/phone preference), Light or Dark. The sun/moon
     button in the header switches between light and dark.
   - *Log display*: font size (tiny, small, medium, large), density (normal, or compact to
-    fit about 50% more lines on screen) and font: the system monospace font,
-    [Iosevka](https://github.com/be5invis/Iosevka) (narrow, so more text fits on each line;
-    served by LogStream itself, works offline), or one of 12 free fonts made for dense text
-    (JetBrains Mono, Fira Code, Source Code Pro, IBM Plex Mono, Cascadia Code, Roboto Mono,
-    Ubuntu Mono, Inconsolata, Red Hat Mono, Noto Sans Mono, Victor Mono, DM Mono). These 12 are
-    loaded by the browser from [Bunny Fonts](https://fonts.bunny.net), a privacy-friendly
-    European font service; without internet access, the system font is used. Ligatures are
-    disabled so `->` or `!=` show as typed. The densest setting is Tiny + Compact + Iosevka.
+    fit about 50% more lines on screen) and font: the system monospace font, one of 3 narrow
+    built-in fonts served by LogStream itself, which work offline (Inconsolata Condensed, the
+    narrowest, Iosevka and Ubuntu Mono), or one of 11 free fonts made for dense text (JetBrains
+    Mono, Fira Code, Source Code Pro, IBM Plex Mono, Cascadia Code, Roboto Mono, Inconsolata,
+    Red Hat Mono, Noto Sans Mono, Victor Mono, DM Mono). These 11 are loaded by the browser from
+    [Bunny Fonts](https://fonts.bunny.net), a privacy-friendly European font service; without
+    internet access, the system font is used. Ligatures are disabled so `->` or `!=` show as
+    typed. The densest setting is Tiny + Compact + Inconsolata Condensed.
 - **Data**: "Delete all logs" permanently erases every stored log (you must type
   `PURGE` to confirm). Tags and settings are kept. VictoriaLogs needs `-delete.enable`
   (already set in `docker-compose.yml`); set `ALLOW_PURGE=false` to disable the feature.
