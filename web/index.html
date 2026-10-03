@@ -50,6 +50,33 @@
   </header>
 
   <section class="filters">
+    <div id="viewMode" class="seg view-mode" role="radiogroup" data-i18n-aria="viewAria">
+      <button type="button" role="radio" data-view="stream" data-i18n-title="viewStreamTitle">
+        <!-- Lucide "radio" (ISC license) -->
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+        <span data-i18n="viewStream">Stream</span>
+      </button>
+      <button type="button" role="radio" data-view="period" data-i18n-title="viewPeriodTitle">
+        <!-- Lucide "calendar-range" (ISC license) -->
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M3 10h18M8 2v4M17 14h-6M13 18H7M7 14h.01M17 18h.01"/></svg>
+        <span data-i18n="viewPeriod">Time range</span>
+      </button>
+    </div>
+    <div id="period" class="period" hidden>
+      <button id="perPrev" class="btn tool" type="button" data-i18n-title="perPrev" data-i18n-aria="perPrev">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <input id="perFrom" type="datetime-local" data-i18n-title="perFrom" data-i18n-aria="perFrom">
+      <span class="muted" aria-hidden="true">→</span>
+      <input id="perTo" type="datetime-local" data-i18n-title="perTo" data-i18n-aria="perTo">
+      <button id="perNext" class="btn tool" type="button" data-i18n-title="perNext" data-i18n-aria="perNext">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      <button id="perOut" class="btn tool" type="button" data-i18n-title="perOut" data-i18n-aria="perOut">
+        <!-- Lucide "zoom-out" (ISC license) -->
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M8 11h6"/></svg>
+      </button>
+    </div>
     <select id="range" data-i18n-aria="rangeAria">
       <option value="5m" data-i18n="r5m">5 min</option>
       <option value="15m" data-i18n="r15m">15 min</option>

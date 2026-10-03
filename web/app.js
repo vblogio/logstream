@@ -150,20 +150,25 @@ const I18N = {
     authOff: 'No authentication: anyone who can reach this page can read the logs and change the settings. Set AUTH_USER / AUTH_PASS or AUTH_MODE=oidc.',
     readOnlyNote: 'Read-only account: these settings can only be changed by an administrator.',
     err_purge_confirm: 'Type PURGE to confirm',
-    liveZoomed: 'Live view is not available on a zoomed range',
-    connZoom: 'live paused (zoom)',
+    liveZoomed: 'Live view is only available in Stream mode',
+    connZoom: 'live paused (time range)',
+    viewAria: 'Display mode', viewStream: 'Stream', viewPeriod: 'Time range',
+    viewStreamTitle: 'Stream: the latest logs over a sliding duration, updated live',
+    viewPeriodTitle: 'Time range: the logs between a start and an end date',
+    perFrom: 'Start', perTo: 'End', perPrev: 'Previous time range', perNext: 'Next time range',
+    perOut: 'Zoom out (twice as long)',
     histoTitle: 'Timeline',
     hScale: 'Scale', hLinear: 'Linear', hHeight: 'Height', hColor: 'Color',
     hColSeverity: 'Severity', hColIntensity: 'Intensity', hColNone: 'None',
     hRender: 'Display', hBars: 'Bars', hArea: 'Area',
     hStep: 'Division', hAuto: 'Automatic', hRefresh: 'Refresh', hOff: 'Off', hRefreshAuto: 'At each new interval',
-    histoHelp: 'Click a bar to zoom on its interval, or drag across several. The √ scale keeps small volumes visible next to bursts. Intensity compares each interval with the median of the window: calm, burst (more than 3×), anomaly (more than 10×). In live mode, the last interval is updated as messages arrive.',
+    histoHelp: 'Click a bar to show its interval in Time range mode, or drag across several. The √ scale keeps small volumes visible next to bursts. Intensity compares each interval with the median of the window: calm, burst (more than 3×), anomaly (more than 10×). In live mode, the last interval is updated as messages arrive.',
     hLeg_err: 'error and above', hLeg_warn: 'warning', hLeg_other: 'notice, info, debug',
     hLeg_calm: 'calm', hLeg_burst: 'burst > 3×', hLeg_anom: 'anomaly > 10×',
     hTotal: 'Total', hRatio: (x) => `${x}× the median`, hUnshown: 'not detailed (high rate)',
     hDivision: (s) => `interval ${s}`, hCapped: 'enlarged',
     hCappedTitle: 'The chosen division would exceed 300 intervals over this range: it has been enlarged.',
-    hUnzoom: '× Reset zoom', unitDay: 'd',
+    hUnzoom: '× Back to stream', unitDay: 'd',
     toTop: 'Back to top',
     colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colCodes: 'Filters', colMsg: 'Message',
     codesTitle: 'Codes of the color tags found in the message',
@@ -319,20 +324,25 @@ const I18N = {
     authOff: 'Aucune authentification : toute personne qui atteint cette page peut lire les logs et changer les réglages. Définissez AUTH_USER / AUTH_PASS ou AUTH_MODE=oidc.',
     readOnlyNote: 'Compte en lecture seule : seul un administrateur peut modifier ces réglages.',
     err_purge_confirm: 'Tapez PURGE pour confirmer',
-    liveZoomed: 'Le direct n\'est pas disponible sur une plage zoomée',
-    connZoom: 'direct en pause (zoom)',
+    liveZoomed: 'Le direct n\'est disponible qu\'en mode Flux',
+    connZoom: 'direct en pause (période)',
+    viewAria: 'Mode d\'affichage', viewStream: 'Flux', viewPeriod: 'Période',
+    viewStreamTitle: 'Flux : les derniers logs sur une durée glissante, mis à jour en direct',
+    viewPeriodTitle: 'Période : les logs entre une date de début et une date de fin',
+    perFrom: 'Début', perTo: 'Fin', perPrev: 'Période précédente', perNext: 'Période suivante',
+    perOut: 'Élargir (deux fois plus long)',
     histoTitle: 'Frise',
     hScale: 'Échelle', hLinear: 'Linéaire', hHeight: 'Hauteur', hColor: 'Couleur',
     hColSeverity: 'Sévérité', hColIntensity: 'Intensité', hColNone: 'Aucune',
     hRender: 'Rendu', hBars: 'Barres', hArea: 'Aire',
     hStep: 'Division', hAuto: 'Automatique', hRefresh: 'Rafraîchissement', hOff: 'Désactivé', hRefreshAuto: 'À chaque nouvel intervalle',
-    histoHelp: 'Cliquez sur une barre pour zoomer sur son intervalle, ou glissez sur plusieurs. L\'échelle √ garde visibles les petits volumes à côté des rafales. L\'intensité compare chaque intervalle à la médiane de la fenêtre : calme, rafale (plus de 3×), anomalie (plus de 10×). En direct, le dernier intervalle se met à jour à l\'arrivée des messages.',
+    histoHelp: 'Cliquez sur une barre pour afficher son intervalle en mode Période, ou glissez sur plusieurs. L\'échelle √ garde visibles les petits volumes à côté des rafales. L\'intensité compare chaque intervalle à la médiane de la fenêtre : calme, rafale (plus de 3×), anomalie (plus de 10×). En direct, le dernier intervalle se met à jour à l\'arrivée des messages.',
     hLeg_err: 'error et plus', hLeg_warn: 'warning', hLeg_other: 'notice, info, debug',
     hLeg_calm: 'calme', hLeg_burst: 'rafale > 3×', hLeg_anom: 'anomalie > 10×',
     hTotal: 'Total', hRatio: (x) => `${x}× la médiane`, hUnshown: 'sans détail (débit élevé)',
     hDivision: (s) => `intervalle ${s}`, hCapped: 'élargi',
     hCappedTitle: 'La division choisie dépasserait 300 intervalles sur cette plage : elle a été élargie.',
-    hUnzoom: '× Annuler le zoom', unitDay: 'j',
+    hUnzoom: '× Revenir au flux', unitDay: 'j',
     toTop: 'Revenir en haut',
     colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colCodes: 'Filtres', colMsg: 'Message',
     codesTitle: 'Codes des tags de couleur trouvés dans le message',
@@ -493,7 +503,7 @@ const state = {
   live: store.get('live', '1') === '1',
   es: null,
   reqId: 0,
-  zoom: null,        // {from, to} in ms when the timeline is zoomed (range "custom")
+  zoom: null,        // {from, to} in ms in Time range mode (range "custom"), null in Stream mode
   tookMs: null,
   conn: ['', 'connPaused'],
   stats: null,
@@ -522,7 +532,7 @@ function setLang(next) {
   setConn(...state.conn);
   renderList();
   updateCount(state.tookMs);
-  setZoomOption();
+  renderPeriod();
   renderHisto();
   renderStats();
   renderTagList();
@@ -1435,32 +1445,114 @@ function showHistoSel() {
   sel.style.width = ((b - a + 1) / d.count) * 100 + '%';
 }
 
-function setZoomOption() {
-  const sel = $('#range');
-  let opt = sel.querySelector('option[value="custom"]');
-  if (!state.zoom) {
-    if (opt) opt.remove();
-    return;
+/* ---- Display mode: Stream or Time range ---- */
+
+// datetime-local fields hold a wall time in the chosen time zone.
+function toWall(ms, sec) {
+  const p = zoneParts(new Date(ms));
+  return `${p.Y}-${p.M}-${p.D}T${p.h}:${p.m}${sec ? ':' + p.s : ''}`;
+}
+
+function zoneOffsetMs(ms) {
+  const m = /^([+-])(\d\d):(\d\d)$/.exec(zoneParts(new Date(ms)).off);
+  return m ? (m[1] === '-' ? -1 : 1) * (m[2] * 36e5 + m[3] * 6e4) : 0;
+}
+
+function fromWall(v) {
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)(?::(\d\d))?/.exec(v || '');
+  if (!m) return NaN;
+  const wall = Date.UTC(m[1], m[2] - 1, m[3], m[4], m[5], m[6] || 0);
+  const guess = wall - zoneOffsetMs(wall);
+  return wall - zoneOffsetMs(guess); // second pass: right offset around DST changes
+}
+
+const serverNow = () => Date.now() + (histo.data ? histo.data.offset : 0);
+
+function renderPeriod() {
+  const on = !!state.zoom;
+  for (const b of $('#viewMode').querySelectorAll('[data-view]')) {
+    b.setAttribute('aria-checked', String((b.dataset.view === 'period') === on));
   }
-  if (!opt) { opt = new Option('', 'custom'); sel.add(opt); }
-  opt.textContent = fmtSpan(state.zoom.from, state.zoom.to, state.zoom.to - state.zoom.from < 3e5);
-  sel.value = 'custom';
+  $('#range').hidden = on;
+  $('#period').hidden = !on;
+  if (!on) return;
+  const { from, to } = state.zoom;
+  const sec = from % 6e4 !== 0 || to % 6e4 !== 0;
+  for (const [el, v] of [[$('#perFrom'), from], [$('#perTo'), to]]) {
+    el.step = sec ? 1 : 60;
+    el.classList.remove('bad');
+    if (document.activeElement !== el) el.value = toWall(v, sec);
+  }
+  $('#perNext').disabled = to >= serverNow();
 }
 
 function zoomTo(from, to) {
   state.zoom = { from: Math.round(from), to: Math.round(to) };
-  setZoomOption();
+  store.set('period', JSON.stringify(state.zoom));
+  renderPeriod();
   hideHistoTip();
   refresh();
 }
 
 function unzoom() {
   state.zoom = null;
-  setZoomOption();
+  store.set('period', '');
+  renderPeriod();
   $('#range').value = store.get('range', '1h');
   if (!$('#range').value) $('#range').value = '1h';
   refresh();
 }
+
+// Entering Time range mode starts from what the stream was showing.
+function enterPeriod() {
+  if (state.zoom) return;
+  const d = histo.data;
+  if (d) return zoomTo(d.start, d.start + d.count * d.step);
+  const to = Math.ceil(serverNow() / 6e4) * 6e4;
+  zoomTo(to - (RANGE_MS[$('#range').value] || 36e5), to);
+}
+
+$('#viewMode').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-view]');
+  if (!b) return;
+  if (b.dataset.view === 'period') enterPeriod();
+  else if (state.zoom) unzoom();
+});
+
+const onPeriodInput = debounce(() => {
+  if (!state.zoom) return;
+  const from = fromWall($('#perFrom').value);
+  const to = fromWall($('#perTo').value);
+  const ok = !isNaN(from) && !isNaN(to) && to > from;
+  $('#perFrom').classList.toggle('bad', isNaN(from) || (!isNaN(to) && !ok));
+  $('#perTo').classList.toggle('bad', isNaN(to) || (!isNaN(from) && !ok));
+  if (ok && (from !== state.zoom.from || to !== state.zoom.to)) zoomTo(from, to);
+}, 500);
+for (const id of ['perFrom', 'perTo']) {
+  $('#' + id).addEventListener('input', onPeriodInput);
+  $('#' + id).addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.target.blur(); });
+  $('#' + id).addEventListener('blur', () => { if (!$('#' + id).classList.contains('bad')) renderPeriod(); });
+}
+
+// ◀ ▶ move by the width of the range, − doubles it around its middle.
+function shiftPeriod(dir) {
+  const { from, to } = state.zoom;
+  const w = to - from;
+  zoomTo(from + dir * w, to + dir * w);
+}
+$('#perPrev').addEventListener('click', () => shiftPeriod(-1));
+$('#perNext').addEventListener('click', () => shiftPeriod(1));
+$('#perOut').addEventListener('click', () => {
+  const { from, to } = state.zoom;
+  const w = to - from;
+  let a = from - w / 2;
+  let b = to + w / 2;
+  const now = serverNow();
+  const end = Math.max(to, now); // widen into the past rather than the future
+  if (b > end) { a -= b - end; b = end; }
+  const r = w >= 12e4 ? 6e4 : 1e3; // whole minutes, or seconds for short ranges
+  zoomTo(Math.round(a / r) * r, Math.round(b / r) * r);
+});
 
 {
   const el = $('#histo');
@@ -1583,10 +1675,6 @@ async function refresh() {
 }
 
 const onFilterChange = (ev) => {
-  if (ev && ev.target.id === 'range' && state.zoom && ev.target.value !== 'custom') {
-    state.zoom = null; // another range chosen: leave the zoom
-    setZoomOption();
-  }
   if (!state.zoom) store.set('range', $('#range').value);
   store.set('severity', $('#severity').value);
   refresh();
@@ -1750,7 +1838,7 @@ function onTimePrefsChange() {
   store.set('timefmt', timePrefs.fmt);
   updateTimePreview();
   renderList();
-  setZoomOption();
+  renderPeriod();
   refreshHisto(); // intervals are aligned on the local time
 }
 $('#tzSelect').addEventListener('change', onTimePrefsChange);
@@ -2350,6 +2438,11 @@ applyLang();
 $('#range').value = store.get('range', '1h');
 if (!$('#range').value) $('#range').value = '1h';
 $('#severity').value = store.get('severity', '');
+try { // Time range mode is kept across reloads
+  const z = JSON.parse(store.get('period', '') || 'null');
+  if (z && z.to > z.from) state.zoom = { from: z.from, to: z.to };
+} catch { /* stream mode */ }
+renderPeriod();
 
 // Without a login, warn that the UI is open to everyone. With a login (local or OIDC),
 // show who is logged in and the log out button, and lock the admin settings of a

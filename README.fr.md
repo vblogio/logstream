@@ -102,6 +102,16 @@ restant. Les largeurs sont mémorisées par le navigateur (**Paramètres > Inter
 Réinitialiser les colonnes** les rétablit toutes). Sur téléphone, la liste garde sa
 présentation sur deux lignes, sans colonnes.
 
+## Modes Flux et Période
+
+Le premier contrôle de la barre de filtres bascule entre deux modes d'affichage :
+
+- **Flux** : les derniers logs sur une durée glissante (5 min à 30 jours, ou tout), avec le direct.
+- **Période** : les logs entre une date de début et une date de fin, saisies dans le fuseau choisi
+  dans les Paramètres. ◀ et ▶ passent à la période précédente ou suivante de même durée, la loupe
+  la double autour de son milieu. Le direct se met en pause ; le mode et la période sont conservés
+  au rechargement.
+
 ## Frise
 
 La frise au-dessus de la liste montre le volume de logs par intervalle, compté selon l'**heure
@@ -109,10 +119,9 @@ de réception** sur l'horloge du serveur (elle correspond donc aux heures affich
 lignes).
 
 - Au survol d'un intervalle : ses bornes, son total et le détail par sévérité.
-- Un clic sur une barre zoome sur cet intervalle ; un glisser sur plusieurs barres zoome sur la
-  sélection. La plage de temps affiche alors la période zoomée (« × Annuler le zoom » ou le
-  choix d'une autre plage en sort) ; la liste, les compteurs et l'export CSV suivent le zoom,
-  et le direct se met en pause.
+- Un clic sur une barre affiche cet intervalle en mode Période ; un glisser sur plusieurs barres
+  affiche la sélection. « × Revenir au flux » repasse en mode Flux. La liste, les compteurs et
+  l'export CSV suivent la période.
 - En direct, le dernier intervalle grandit à l'arrivée des messages, et la frise se recharge à
   chaque nouvel intervalle. Rien n'est rafraîchi tant que l'onglet du navigateur est masqué ;
   la frise se met à jour dès qu'il redevient visible.
