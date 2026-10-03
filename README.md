@@ -235,8 +235,8 @@ remembered per browser.
     typed. The densest setting is Tiny + Compact + Inconsolata Condensed.
 - **Data**: "Delete all logs" permanently erases every stored log (you must type
   `PURGE` to confirm). Tags and settings are kept. VictoriaLogs needs `-delete.enable`
-  (already set in `docker-compose.yml`); set `ALLOW_PURGE=false` to disable the feature.
-  Anyone who can open the UI can purge: turn on [authentication](#authentication) if the UI
+  (already set in `docker-compose.yml`). The feature is off by default: set `ALLOW_PURGE=true`
+  to allow it. Any admin can then purge: turn on [authentication](#authentication) if the UI
   is reachable by others.
 
 ## Authentication
@@ -244,7 +244,8 @@ remembered per browser.
 `AUTH_MODE` picks how the UI and the API are protected (`/healthz` always stays open):
 
 - **`local`** (default): a login page with the account `AUTH_USER` / `AUTH_PASS`; leave them
-  empty to have no authentication (for instance behind a reverse proxy that already checks).
+  empty to have no authentication (for instance behind a reverse proxy that already checks). The
+  UI then shows a warning banner, which can be closed.
 - **`oidc`**: login through an OpenID Connect provider (Keycloak, Authentik, Authelia, Zitadel…),
   authorization code flow with PKCE.
 
@@ -253,6 +254,10 @@ In `local` mode the login page follows the theme and language of the UI. The ses
 ends when `AUTH_USER` or `AUTH_PASS` changes; the log out button (top right) ends it. Failed logins
 are written in the logs with the client address (`auth: failed login for "bob" from 192.0.2.7`).
 Scripts can still call the API with HTTP Basic credentials (`curl -u user:pass`).
+
+An optional **read-only account**, `AUTH_VIEWER_USER` / `AUTH_VIEWER_PASS`, can search, follow
+the live view and export, but cannot change tags, sources or purge: those settings are greyed
+out in its UI and the API answers `403`.
 
 To show your logo on the login page, mount a PNG in the container and point `LOGIN_LOGO` to it:
 
@@ -291,6 +296,14 @@ Every user the provider accepts for this client can log in: restrict access in t
 in the logstream logs (`oidc: alice logged in`). With an `https` redirect URL, the cookies are
 only sent over HTTPS: logstream must be reached through a TLS reverse proxy.
 
+To give read-only access to some users, set `OIDC_ADMIN_GROUP` (for instance
+`logstream-admins`): only its members are admins, the others are read-only. The groups are read
+from the `groups` claim of the ID token (`OIDC_GROUPS_CLAIM` to use another one); in Keycloak,
+add a "Group Membership" mapper to the client (a leading `/` is ignored).
+
+Whatever the mode, every answer carries security headers (Content-Security-Policy,
+X-Frame-Options…), and the API refuses changes sent from another site (cross-site requests).
+
 ## Host names (reverse DNS)
 
 When a device sends its IP address as host name (or no host name at all), Logstream looks up
@@ -311,15 +324,20 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `RETENTION` | `30d` | how long VictoriaLogs keeps logs |
 | `AUTH_MODE` | `local` | `local` (login page) or `oidc`, see [Authentication](#authentication) |
 | `AUTH_USER` / `AUTH_PASS` | empty | account of the login page (`local` mode); empty = no authentication |
+| `AUTH_VIEWER_USER` / `AUTH_VIEWER_PASS` | empty | optional read-only account (`local` mode) |
 | `LOGIN_LOGO` | empty | PNG shown on the login page, path inside the container (`local` mode) |
 | `SESSION_TTL` | `12h` | session lifetime (both modes; `OIDC_SESSION_TTL` still works) |
 | `OIDC_ISSUER` | empty | issuer URL of the OpenID Connect provider (`oidc` mode) |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | empty | client registered in the provider |
 | `OIDC_REDIRECT_URL` | empty | callback URL of logstream, e.g. `https://logs.example.org/auth/callback` |
 | `OIDC_SCOPES` | `openid profile email` | requested scopes |
+| `OIDC_ADMIN_GROUP` | empty | only members of this group are admins, the others read-only (empty = everyone is admin) |
+| `OIDC_GROUPS_CLAIM` | `groups` | ID token claim that lists the groups |
 | `RDNS` | `on` | resolve IP hosts to DNS names |
 | `DNS_SERVER` | empty | DNS server for reverse lookups (`ip` or `ip:port`) |
-| `ALLOW_PURGE` | `true` | allow "Delete all logs" in Settings |
+| `ALLOW_PURGE` | `false` | allow "Delete all logs" in Settings |
+| `SYSLOG_TCP_MAX_CONNS` | `512` | syslog TCP connections open at once; more are refused |
+| `SYSLOG_TCP_IDLE` | `30m` | a syslog TCP connection silent this long is closed (senders reconnect) |
 | `EXPORT_MAX` | `100000` | maximum number of rows in a CSV export |
 | `PRESETS_FILE` | `/data/presets.json` | color tag presets file; the built-in list when missing (see [docs/presets.md](docs/presets.md)) |
 | `DOCKER_LOGS` | `on` in compose | collect the logs of the local Docker containers |

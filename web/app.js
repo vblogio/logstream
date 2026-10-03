@@ -131,6 +131,10 @@ const I18N = {
     purgeForbidden: 'Purging is disabled on this server (ALLOW_PURGE=false).',
     err_purge_unavailable: 'VictoriaLogs refuses deletions: start it with -delete.enable (see docker-compose.yml)',
     err_purge_forbidden: 'Purging is disabled on this server (ALLOW_PURGE=false)',
+    err_read_only: 'Read-only account: changes are reserved to administrators',
+    err_cross_site: 'Request refused: it comes from another site',
+    authOff: 'No authentication: anyone who can reach this page can read the logs and change the settings. Set AUTH_USER / AUTH_PASS or AUTH_MODE=oidc.',
+    readOnlyNote: 'Read-only account: these settings can only be changed by an administrator.',
     err_purge_confirm: 'Type PURGE to confirm',
     liveZoomed: 'Live view is not available on a zoomed range',
     connZoom: 'live paused (zoom)',
@@ -282,6 +286,10 @@ const I18N = {
     purgeForbidden: 'La purge est désactivée sur ce serveur (ALLOW_PURGE=false).',
     err_purge_unavailable: 'VictoriaLogs refuse les suppressions : lancez-le avec -delete.enable (voir docker-compose.yml)',
     err_purge_forbidden: 'La purge est désactivée sur ce serveur (ALLOW_PURGE=false)',
+    err_read_only: 'Compte en lecture seule : les modifications sont réservées aux administrateurs',
+    err_cross_site: 'Requête refusée : elle vient d\'un autre site',
+    authOff: 'Aucune authentification : toute personne qui atteint cette page peut lire les logs et changer les réglages. Définissez AUTH_USER / AUTH_PASS ou AUTH_MODE=oidc.',
+    readOnlyNote: 'Compte en lecture seule : seul un administrateur peut modifier ces réglages.',
     err_purge_confirm: 'Tapez PURGE pour confirmer',
     liveZoomed: 'Le direct n\'est pas disponible sur une plage zoomée',
     connZoom: 'direct en pause (zoom)',
@@ -2212,14 +2220,34 @@ $('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.curre
 applyLogFont(store.get('logFont', 'system'));
 applyLogSize(store.get('logSize', 'medium'));
 applyLogDensity(store.get('logDensity', 'normal'));
+$('#authWarnClose').addEventListener('click', () => {
+  $('#authWarn').hidden = true;
+  store.set('authWarnHidden', '1');
+});
+
 applyLang();
 $('#range').value = store.get('range', '1h');
 if (!$('#range').value) $('#range').value = '1h';
 $('#severity').value = store.get('severity', '');
 
-// With a login (local or OIDC), show who is logged in and the log out button.
+// Without a login, warn that the UI is open to everyone. With a login (local or OIDC),
+// show who is logged in and the log out button, and lock the admin settings of a
+// read-only account.
 fetch('/auth/me').then((res) => (res.ok ? res.json() : null)).then((me) => {
-  if (!me || !me.user) return;
+  if (!me) return;
+  if (me.mode === 'none' && store.get('authWarnHidden') !== '1') $('#authWarn').hidden = false;
+  if (me.role === 'viewer') {
+    document.body.classList.add('read-only');
+    for (const p of document.querySelectorAll('[data-panel="filters"], [data-panel="sources"], [data-panel="data"]')) {
+      for (const s of p.querySelectorAll('.set-section')) s.inert = true;
+      const note = document.createElement('p');
+      note.className = 'ro-note';
+      note.dataset.i18n = 'readOnlyNote';
+      note.textContent = t('readOnlyNote');
+      p.prepend(note);
+    }
+  }
+  if (!me.user) return;
   const btn = $('#logoutBtn');
   btn.hidden = false;
   btn.dataset.user = me.user;

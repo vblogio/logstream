@@ -241,7 +241,15 @@ func serveUDP(ctx context.Context, pc net.PacketConn, sink func(*Entry)) {
 	}
 }
 
+// TCP limits: connections open at once, and how long a connection may stay
+// silent before it is closed (senders reconnect on their own).
+var (
+	tcpMaxConns = 512
+	tcpIdle     = 30 * time.Minute
+)
+
 func serveTCP(ctx context.Context, ln net.Listener, sink func(*Entry)) {
+	slots := make(chan struct{}, tcpMaxConns)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -252,8 +260,30 @@ func serveTCP(ctx context.Context, ln net.Listener, sink func(*Entry)) {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		go handleTCP(ctx, conn, sink)
+		select {
+		case slots <- struct{}{}:
+		default:
+			log.Printf("syslog tcp: %d connections already open, refusing %s", tcpMaxConns, conn.RemoteAddr())
+			conn.Close()
+			continue
+		}
+		go func() {
+			defer func() { <-slots }()
+			handleTCP(ctx, conn, sink)
+		}()
 	}
+}
+
+// idleConn pushes the read deadline back before each read, so only a
+// connection that stays silent for tcpIdle is closed.
+type idleConn struct {
+	net.Conn
+	idle time.Duration
+}
+
+func (c idleConn) Read(p []byte) (int, error) {
+	_ = c.Conn.SetReadDeadline(time.Now().Add(c.idle))
+	return c.Conn.Read(p)
 }
 
 const maxFrame = 1 << 20
@@ -266,7 +296,7 @@ func handleTCP(ctx context.Context, conn net.Conn, sink func(*Entry)) {
 	defer stop()
 
 	src := hostOf(conn.RemoteAddr())
-	r := bufio.NewReaderSize(conn, 64*1024)
+	r := bufio.NewReaderSize(idleConn{conn, tcpIdle}, 64*1024)
 	for {
 		c, err := r.ReadByte()
 		if err != nil {

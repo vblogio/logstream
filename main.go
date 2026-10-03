@@ -84,6 +84,10 @@ func main() {
 			mode:         getenv("AUTH_MODE", "local"),
 			user:         os.Getenv("AUTH_USER"),
 			pass:         os.Getenv("AUTH_PASS"),
+			viewerUser:   os.Getenv("AUTH_VIEWER_USER"),
+			viewerPass:   os.Getenv("AUTH_VIEWER_PASS"),
+			adminGroup:   os.Getenv("OIDC_ADMIN_GROUP"),
+			groupsClaim:  os.Getenv("OIDC_GROUPS_CLAIM"),
 			issuer:       os.Getenv("OIDC_ISSUER"),
 			clientID:     os.Getenv("OIDC_CLIENT_ID"),
 			clientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
@@ -95,7 +99,7 @@ func main() {
 		},
 		rdns:       getenvBool("RDNS", true),
 		dnsServer:  os.Getenv("DNS_SERVER"),
-		allowPurge: getenvBool("ALLOW_PURGE", true),
+		allowPurge: getenvBool("ALLOW_PURGE", false),
 		exportMax:  getenvInt("EXPORT_MAX", 100000),
 		dockerLogs: getenvBool("DOCKER_LOGS", false),
 		dockerHost: getenv("DOCKER_HOST", "unix:///var/run/docker.sock"),
@@ -135,6 +139,10 @@ func main() {
 		store.Enqueue(e)
 		hub.Publish(e)
 	}
+	tcpMaxConns = getenvInt("SYSLOG_TCP_MAX_CONNS", tcpMaxConns)
+	if d := getenvDuration("SYSLOG_TCP_IDLE", tcpIdle); d > 0 {
+		tcpIdle = d
+	}
 	// Listening errors (port already used…) are shown in Settings > Sources.
 	syslogSrv := NewSyslogServer(ctx, cfg.syslogAddr, getenv("SYSLOG_PUBLIC_PORT", ""), cfg.dataDir, sink)
 
@@ -161,17 +169,25 @@ func main() {
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))
 
-	handler, err := newAuth(cfg.auth, mux)
+	handler, err := newAuth(cfg.auth, readOnly(mux))
 	if err != nil {
 		log.Fatalf("auth: %v", err)
 	}
 	if o, ok := handler.(*OIDC); ok {
 		go o.checkProvider()
 	}
+	_, local := handler.(*Local)
+	_, oidc := handler.(*OIDC)
+	authOn := local || oidc
+	if !authOn {
+		log.Printf("warning: no authentication (AUTH_USER is empty): anyone who can reach %s can read the logs and change the settings", cfg.httpAddr)
+	}
+	handler = secure(handler, contentSecurityPolicy(static), authOn)
 	srv := &http.Server{
 		Addr:              cfg.httpAddr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 		// Requests inherit the global context so SSE streams end on shutdown.
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
