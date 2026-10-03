@@ -14,15 +14,16 @@ services:
       VLOGS_URL: http://victorialogs:9428
       SYSLOG_PUBLIC_PORT: ${SYSLOG_PORT:-514}     # le port d'ecoute syslog par defaut (attention aux ports <1024)
       TZ: ${TZ:-Europe/Paris}
-      AUTH_MODE: ${AUTH_MODE:-local}   # local (Basic Auth ci-dessous) ou oidc
+      AUTH_MODE: ${AUTH_MODE:-local}   # local (page de connexion, compte ci-dessous) ou oidc
       AUTH_USER: ${AUTH_USER:-}   # vide = pas d'authentification, on delegue ca au reverse proxy traefik
       AUTH_PASS: ${AUTH_PASS:-}
+      LOGIN_LOGO: ${LOGIN_LOGO:-}     # PNG affiche sur la page de connexion (chemin dans le conteneur, voir volumes)
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
       OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email}
-      OIDC_SESSION_TTL: ${OIDC_SESSION_TTL:-12h}
+      SESSION_TTL: ${SESSION_TTL:-${OIDC_SESSION_TTL:-12h}}   # duree de la session (local et oidc)
       RDNS: ${RDNS:-on}               # resol dns
       DNS_SERVER: ${DNS_SERVER:-}     # si resolv directe
       ALLOW_PURGE: ${ALLOW_PURGE:-true}
@@ -38,6 +39,8 @@ services:
       # logs systeme de l'hote, en lecture seule (source a activer dans Reglages > Sources)
       - /var/log:/host/var/log:ro                     # journal systemd persistant et fichiers texte
       - /run/log/journal:/host/run/log/journal:ro     # journal systemd volatile
+      # logo de la page de connexion, avec LOGIN_LOGO=/config/logo.png dans .env
+      # - ./logo.png:/config/logo.png:ro
     labels:
       logstream.exclude: "true"      # pas de collect des logs logstream
 

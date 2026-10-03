@@ -89,7 +89,9 @@ func main() {
 			clientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
 			redirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
 			scopes:       os.Getenv("OIDC_SCOPES"),
-			sessionTTL:   getenvDuration("OIDC_SESSION_TTL", 12*time.Hour),
+			// SESSION_TTL applies to both modes; OIDC_SESSION_TTL is its former name.
+			sessionTTL: getenvDuration("SESSION_TTL", getenvDuration("OIDC_SESSION_TTL", 12*time.Hour)),
+			loginLogo:  os.Getenv("LOGIN_LOGO"),
 		},
 		rdns:       getenvBool("RDNS", true),
 		dnsServer:  os.Getenv("DNS_SERVER"),

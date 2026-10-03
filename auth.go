@@ -27,8 +27,8 @@ import (
 	"time"
 )
 
-// Web UI authentication. AUTH_MODE=local (default) keeps the optional HTTP Basic
-// authentication (AUTH_USER / AUTH_PASS); AUTH_MODE=oidc delegates the login to an
+// Web UI authentication. AUTH_MODE=local (default) shows a login page when AUTH_USER /
+// AUTH_PASS are set (auth_local.go); AUTH_MODE=oidc delegates the login to an
 // OpenID Connect provider (Keycloak, Authentik, Authelia…) with the authorization code
 // flow and PKCE. Only the standard library is used.
 
@@ -49,13 +49,23 @@ type authConfig struct {
 	scopes       string
 	sessionTTL   time.Duration
 	dataDir      string
+	loginLogo    string // local mode: PNG shown on the login page
+
 }
 
 // newAuth returns the middleware that protects the UI and the API (except /healthz).
 func newAuth(c authConfig, next http.Handler) (http.Handler, error) {
+	if c.sessionTTL <= 0 {
+		c.sessionTTL = 12 * time.Hour
+	}
 	switch strings.ToLower(c.mode) {
 	case "", "local":
-		return basicAuth(c.user, c.pass, next), nil
+		if c.user == "" {
+			return next, nil
+		}
+		l := newLocal(c)
+		l.next = next
+		return l, nil
 	case "oidc":
 		o, err := newOIDC(c)
 		if err != nil {
@@ -66,28 +76,6 @@ func newAuth(c authConfig, next http.Handler) (http.Handler, error) {
 		return o, nil
 	}
 	return nil, fmt.Errorf("AUTH_MODE=%q: expected local or oidc", c.mode)
-}
-
-// basicAuth protects the UI when AUTH_USER is set (except /healthz).
-func basicAuth(user, pass string, next http.Handler) http.Handler {
-	if user == "" {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		u, p, ok := r.BasicAuth()
-		if !ok ||
-			subtle.ConstantTimeCompare([]byte(u), []byte(user)) != 1 ||
-			subtle.ConstantTimeCompare([]byte(p), []byte(pass)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="logstream"`)
-			http.Error(w, "authentication required", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 type oidcMeta struct {
@@ -136,9 +124,6 @@ func newOIDC(c authConfig) (*OIDC, error) {
 	if !strings.Contains(" "+c.scopes+" ", " openid ") {
 		c.scopes = "openid " + c.scopes
 	}
-	if c.sessionTTL <= 0 {
-		c.sessionTTL = 12 * time.Hour
-	}
 	return &OIDC{
 		cfg:      c,
 		callback: ru.Path,
@@ -166,7 +151,7 @@ func sessionKey(dir string) []byte {
 		log.Fatalf("session key: %v", err)
 	}
 	if err := os.WriteFile(path, k, 0o600); err != nil {
-		log.Printf("oidc: cannot save %s (%v): sessions end when logstream restarts", path, err)
+		log.Printf("auth: cannot save %s (%v): sessions end when logstream restarts", path, err)
 	}
 	return k
 }
@@ -174,6 +159,14 @@ func sessionKey(dir string) []byte {
 type session struct {
 	User string `json:"u"`
 	Exp  int64  `json:"e"`
+}
+
+// writeAuthRequired answers API calls without a session; the UI turns it into a reload
+// (and so into a new login).
+func writeAuthRequired(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_, _ = w.Write([]byte(`{"error":"authentication required","code":"auth"}` + "\n"))
 }
 
 type loginState struct {
@@ -196,7 +189,7 @@ func (o *OIDC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var s session
-	if c, err := r.Cookie(sessionCookie); err == nil && o.verifyCookie(c.Value, &s) && time.Now().Unix() < s.Exp {
+	if c, err := r.Cookie(sessionCookie); err == nil && verifyCookie(o.key, c.Value, &s) && time.Now().Unix() < s.Exp {
 		if r.URL.Path == "/auth/me" {
 			writeJSON(w, http.StatusOK, map[string]string{"mode": "oidc", "user": s.User})
 			return
@@ -210,9 +203,7 @@ func (o *OIDC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		o.startLogin(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-	_, _ = w.Write([]byte(`{"error":"authentication required","code":"auth"}` + "\n"))
+	writeAuthRequired(w)
 }
 
 func (o *OIDC) startLogin(w http.ResponseWriter, r *http.Request) {
@@ -229,7 +220,7 @@ func (o *OIDC) startLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     loginCookie + state,
-		Value:    o.signCookie(loginState{Nonce: nonce, Verifier: verifier, Return: ret, Exp: time.Now().Add(loginTTL).Unix()}),
+		Value:    signCookie(o.key, loginState{Nonce: nonce, Verifier: verifier, Return: ret, Exp: time.Now().Add(loginTTL).Unix()}),
 		Path:     "/",
 		MaxAge:   int(loginTTL.Seconds()),
 		HttpOnly: true,
@@ -260,7 +251,7 @@ func (o *OIDC) handleCallback(w http.ResponseWriter, r *http.Request) {
 	state := q.Get("state")
 	var ls loginState
 	c, err := r.Cookie(loginCookie + state)
-	if state == "" || err != nil || !o.verifyCookie(c.Value, &ls) || time.Now().Unix() > ls.Exp {
+	if state == "" || err != nil || !verifyCookie(o.key, c.Value, &ls) || time.Now().Unix() > ls.Exp {
 		http.Error(w, "login expired or started in another browser: open logstream again", http.StatusBadRequest)
 		return
 	}
@@ -275,7 +266,7 @@ func (o *OIDC) handleCallback(w http.ResponseWriter, r *http.Request) {
 	log.Printf("oidc: %s logged in", user)
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
-		Value:    o.signCookie(session{User: user, Exp: time.Now().Add(o.cfg.sessionTTL).Unix()}),
+		Value:    signCookie(o.key, session{User: user, Exp: time.Now().Add(o.cfg.sessionTTL).Unix()}),
 		Path:     "/",
 		MaxAge:   int(o.cfg.sessionTTL.Seconds()),
 		HttpOnly: true,
@@ -564,15 +555,15 @@ func (o *OIDC) getJSON(u string, v any) error {
 }
 
 // Cookies are base64url(JSON) + "." + base64url(HMAC-SHA256).
-func (o *OIDC) signCookie(v any) string {
+func signCookie(key []byte, v any) string {
 	b, _ := json.Marshal(v)
 	p := base64.RawURLEncoding.EncodeToString(b)
-	m := hmac.New(sha256.New, o.key)
+	m := hmac.New(sha256.New, key)
 	m.Write([]byte(p))
 	return p + "." + base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
-func (o *OIDC) verifyCookie(s string, v any) bool {
+func verifyCookie(key []byte, s string, v any) bool {
 	p, sig, ok := strings.Cut(s, ".")
 	if !ok {
 		return false
@@ -581,7 +572,7 @@ func (o *OIDC) verifyCookie(s string, v any) bool {
 	if err != nil {
 		return false
 	}
-	m := hmac.New(sha256.New, o.key)
+	m := hmac.New(sha256.New, key)
 	m.Write([]byte(p))
 	if !hmac.Equal(got, m.Sum(nil)) {
 		return false

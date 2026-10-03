@@ -250,10 +250,30 @@ couleur, est mémorisé par navigateur.
 
 `AUTH_MODE` choisit comment l'interface et l'API sont protégées (`/healthz` reste toujours ouvert) :
 
-- **`local`** (par défaut) : authentification HTTP Basic avec `AUTH_USER` / `AUTH_PASS` ; laissez-les
+- **`local`** (par défaut) : une page de connexion avec le compte `AUTH_USER` / `AUTH_PASS` ; laissez-les
   vides pour n'avoir aucune authentification (par exemple derrière un reverse proxy qui contrôle déjà).
 - **`oidc`** : connexion par un fournisseur OpenID Connect (Keycloak, Authentik, Authelia, Zitadel…),
   flux « authorization code » avec PKCE.
+
+En mode `local`, la page de connexion suit le thème et la langue de l'interface. La session dure
+`SESSION_TTL` (12 h par défaut), survit aux redémarrages (sa clé de signature est dans
+`/data/session.key`) et se termine quand `AUTH_USER` ou `AUTH_PASS` change ; le bouton de
+déconnexion (en haut à droite) y met fin. Les échecs de connexion sont écrits dans les logs avec
+l'adresse du client (`auth: failed login for "bob" from 192.0.2.7`). Les scripts peuvent toujours
+appeler l'API avec des identifiants HTTP Basic (`curl -u utilisateur:motdepasse`).
+
+Pour afficher votre logo sur la page de connexion, montez un PNG dans le conteneur et indiquez
+son chemin dans `LOGIN_LOGO` :
+
+```yaml
+# docker-compose.yml, service logstream
+    volumes:
+      - ./logo.png:/config/logo.png:ro
+```
+```bash
+# .env
+LOGIN_LOGO=/config/logo.png
+```
 
 Pour utiliser OIDC :
 
@@ -271,7 +291,7 @@ Pour utiliser OIDC :
    laquelle le fournisseur n'a pas pu être lu (issuer incorrect, injoignable…).
 
 Ouvrir l'interface renvoie vers la page de connexion du fournisseur, puis revient sur logstream.
-La session dure `OIDC_SESSION_TTL` (12 h par défaut) et survit aux redémarrages (sa clé de
+La session dure `SESSION_TTL` (12 h par défaut) et survit aux redémarrages (sa clé de
 signature est dans `/data/session.key`) ; à son expiration, la page repasse par la connexion. Le
 bouton de déconnexion (en haut à droite) termine la session logstream, puis ouvre la page de
 déconnexion du fournisseur s'il en a une.
@@ -302,13 +322,14 @@ résolutions.
 | `SYSLOG_PORT` | `514` | port syslog publié sur l'hôte |
 | `HTTP_PORT` | `8080` | port de l'interface web |
 | `RETENTION` | `30d` | durée de conservation des logs dans VictoriaLogs |
-| `AUTH_MODE` | `local` | `local` (HTTP Basic) ou `oidc`, voir [Authentification](#authentification) |
-| `AUTH_USER` / `AUTH_PASS` | vide | authentification HTTP Basic pour l'interface (mode `local`) |
+| `AUTH_MODE` | `local` | `local` (page de connexion) ou `oidc`, voir [Authentification](#authentification) |
+| `AUTH_USER` / `AUTH_PASS` | vide | compte de la page de connexion (mode `local`) ; vide = pas d'authentification |
+| `LOGIN_LOGO` | vide | PNG affiché sur la page de connexion, chemin dans le conteneur (mode `local`) |
+| `SESSION_TTL` | `12h` | durée de la session (les deux modes ; `OIDC_SESSION_TTL` fonctionne toujours) |
 | `OIDC_ISSUER` | vide | URL de l'issuer du fournisseur OpenID Connect (mode `oidc`) |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | vide | client déclaré dans le fournisseur |
 | `OIDC_REDIRECT_URL` | vide | URL de retour de logstream, ex. `https://logs.example.org/auth/callback` |
 | `OIDC_SCOPES` | `openid profile email` | scopes demandés |
-| `OIDC_SESSION_TTL` | `12h` | durée de la session |
 | `RDNS` | `on` | résoudre les hôtes donnés par leur IP en noms DNS |
 | `DNS_SERVER` | vide | serveur DNS pour les résolutions inverses (`ip` ou `ip:port`) |
 | `ALLOW_PURGE` | `true` | autoriser « Supprimer tous les logs » dans les Paramètres |
@@ -366,7 +387,8 @@ Pour mettre à jour l'une d'elles :
 | Fichier | Contenu |
 |---|---|
 | `main.go` | configuration, démarrage |
-| `auth.go` | authentification : HTTP Basic ou OpenID Connect (découverte, PKCE, contrôle de l'ID token, cookie de session) |
+| `auth.go` | authentification : OpenID Connect (découverte, PKCE, contrôle de l'ID token) et cookie de session signé |
+| `auth_local.go` | mode `local` : page de connexion (`web/login.html`), cookie de session, `LOGIN_LOGO` |
 | `syslog.go` | écoute UDP/TCP et analyse RFC 3164 / 5424 |
 | `store.go` | insertions par lots dans VictoriaLogs et requêtes LogsQL |
 | `query.go` | traduit les filtres de l'interface en LogsQL ; filtre du direct |
@@ -379,7 +401,7 @@ Pour mettre à jour l'une d'elles :
 | `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
 | `tags.go` | stockage des tags de couleur |
 | `api.go` | routes HTTP `/api/*` |
-| `web/` | interface (HTML, CSS, JavaScript simple, sans étape de build), embarquée dans le binaire ; les traductions sont dans `web/app.js` (`I18N`) |
+| `web/` | interface (HTML, CSS, JavaScript simple, sans étape de build), embarquée dans le binaire ; les traductions sont dans `web/app.js` (`I18N`), et dans `web/login.html` pour la page de connexion |
 
 ## Remarque
 
