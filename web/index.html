@@ -189,20 +189,22 @@
           </div>
 
           <!-- Filters -->
-          <div class="set-panel" role="tabpanel" data-panel="filters" hidden>
-            <section class="set-section">
-              <h3 data-i18n="tagsTitle">Color tags</h3>
+          <div class="set-panel wide" role="tabpanel" data-panel="filters" hidden>
+            <section class="set-section tags-section">
+              <div class="sec-head">
+                <h3 data-i18n="tagsTitle">Color tags</h3>
+                <span id="tagCount" class="muted small"></span>
+              </div>
               <p class="muted small" data-i18n="tagsHelp"></p>
-              <div id="tagList" class="tag-list"></div>
-              <footer>
-                <span class="tag-add">
-                  <button id="addTag" class="btn primary" type="button" data-i18n="addTag">+ Add tag</button>
-                  <select id="presetTags" class="field" aria-label="Presets" data-i18n-aria="presetAria">
-                    <option value="" data-i18n="presetPick">+ Preset…</option>
-                  </select>
-                </span>
+              <div class="tag-toolbar">
+                <button id="addTag" class="btn primary" type="button" data-i18n="addTag">+ Add tag</button>
+                <select id="presetTags" class="field" aria-label="Presets" data-i18n-aria="presetAria">
+                  <option value="" data-i18n="presetPick">+ Preset…</option>
+                </select>
+                <input id="tagFilter" type="search" class="dk-filter" autocomplete="off" spellcheck="false" data-i18n-ph="tagFilter" data-i18n-aria="tagFilter">
                 <button id="resetTags" class="btn ghost" type="button" data-i18n="resetTags">Restore default tags</button>
-              </footer>
+              </div>
+              <div id="tagList" class="tag-list"></div>
             </section>
           </div>
 
@@ -236,7 +238,7 @@
               <p class="muted small" data-i18n="hostHelp"></p>
             </section>
 
-            <section class="set-section">
+            <section class="set-section span">
               <h3 data-i18n="dockerTitle">Docker containers</h3>
               <p id="dockerStatus" class="docker-status"></p>
               <div id="dockerBody" hidden>
@@ -273,7 +275,7 @@
               </div>
               <p class="muted small hint" data-i18n="themeHelp"></p>
             </section>
-            <section class="set-section">
+            <section class="set-section span">
               <h3 data-i18n="logDisplay">Log display</h3>
               <div class="field-grid">
                 <span class="lbl" data-i18n="fontSize">Font size</span>
@@ -334,7 +336,7 @@
           </div>
 
           <!-- Data -->
-          <div class="set-panel" role="tabpanel" data-panel="data" hidden>
+          <div class="set-panel wide" role="tabpanel" data-panel="data" hidden>
             <section class="set-section danger">
               <h3 data-i18n="dangerZone">Danger zone</h3>
               <p class="muted small" data-i18n="purgeHelp"></p>

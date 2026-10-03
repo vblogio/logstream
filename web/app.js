@@ -50,6 +50,9 @@ const I18N = {
     confirmDelete: (p) => `Delete tag "${p}"?`,
     confirmReset: 'Replace all tags with the defaults (warning, error)?',
     presetAria: 'Add a preset', presetPick: '+ Preset…',
+    tagFilter: 'Filter tags (keyword, label or code)',
+    tagCount: (n) => (n.shown === n.total ? `${n.total} tag${n.total === 1 ? '' : 's'}` : `${n.shown} / ${n.total} tags`),
+    noTagMatch: 'No tag matches the filter.',
     presetAdded: (n) => (n ? `${n} tag(s) added` : 'These tags are already in the list'),
     presetsFileErr: (f) => `Invalid presets file ${f}, built-in presets used: `,
     tagsLoadErr: 'Tags: ',
@@ -206,6 +209,9 @@ const I18N = {
     confirmDelete: (p) => `Supprimer le tag « ${p} » ?`,
     confirmReset: 'Remplacer tous les tags par les tags par défaut (warning, error) ?',
     presetAria: 'Ajouter un préréglage', presetPick: '+ Préréglage…',
+    tagFilter: 'Filtrer les tags (mot-clé, libellé ou code)',
+    tagCount: (n) => (n.shown === n.total ? `${n.total} tag${n.total > 1 ? 's' : ''}` : `${n.shown} / ${n.total} tags`),
+    noTagMatch: 'Aucun tag ne correspond au filtre.',
     presetAdded: (n) => (n ? `${n} tag(s) ajouté(s)` : 'Ces tags sont déjà dans la liste'),
     presetsFileErr: (f) => `Fichier de préréglages ${f} invalide, préréglages intégrés utilisés : `,
     tagsLoadErr: 'Tags : ',
@@ -2109,7 +2115,31 @@ function tagRowHTML(tag) {
 
 function renderTagList() {
   $('#tagList').innerHTML = state.tags.map(tagRowHTML).join('') || `<p class="muted small">${esc(t('noTags'))}</p>`;
+  filterTagList();
 }
+
+// Settings > Filters: shows only the tags whose keyword, label or code contains the filter.
+function filterTagList() {
+  const q = $('#tagFilter').value.trim().toLowerCase();
+  let shown = 0;
+  for (const row of $('#tagList').querySelectorAll('.tag-row')) {
+    const tag = state.tags.find((x) => x.id === row.dataset.id);
+    const hit = !q || !tag || [tag.pattern, tag.label, tag.code].some((v) => String(v || '').toLowerCase().includes(q));
+    row.hidden = !hit;
+    if (hit) shown++;
+  }
+  let none = $('#tagList').querySelector('.tag-none');
+  if (q && !shown && state.tags.length) {
+    if (!none) {
+      none = document.createElement('p');
+      none.className = 'muted small tag-none';
+      $('#tagList').append(none);
+    }
+    none.textContent = t('noTagMatch');
+  } else if (none) none.remove();
+  $('#tagCount').textContent = state.tags.length ? t('tagCount', { shown, total: state.tags.length }) : '';
+}
+$('#tagFilter').addEventListener('input', filterTagList);
 
 const saveTimers = {};
 function scheduleSave(tag, rowEl) {
@@ -2161,6 +2191,7 @@ $('#addTag').addEventListener('click', async () => {
   try {
     const tag = await api('/api/tags', { method: 'POST', body: { pattern: t('newTag'), color, wholeWord: true, enabled: true } });
     state.tags.push(tag);
+    $('#tagFilter').value = '';
     renderTagList();
     applyTags();
     const input = $('#tagList').lastElementChild.querySelector('input[type="text"]');
