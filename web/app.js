@@ -49,20 +49,8 @@ const I18N = {
     confirmDelete: (p) => `Delete tag "${p}"?`,
     confirmReset: 'Replace all tags with the defaults (warning, error, ok)?',
     presetAria: 'Add a preset', presetPick: '+ Preset…',
-    preset_http_status: 'HTTP status codes', preset_http_methods: 'HTTP methods',
-    preset_http_probes: 'Probes and attacks', preset_http_bots: 'Bots and scripts',
-    preset_http_errors: 'TLS/HTTPS and proxy errors',
-    pl_probes: 'probes / attacks', pl_bots: 'bots / scripts', pl_tls: 'TLS errors', pl_proxy: 'proxy errors',
-    presetGroupSys: 'System', presetGroupApps: 'Applications', presetGroupGen: 'General',
-    preset_sys_auth: 'SSH and logins', preset_sys_sudo: 'sudo commands', preset_sys_kernel: 'Kernel: OOM, crashes, disks',
-    preset_sys_systemd: 'systemd services', preset_sys_firewall: 'Firewall and fail2ban',
-    preset_app_docker: 'Docker and containers', preset_app_db: 'Databases',
-    preset_gen_levels: 'Log levels', preset_gen_ip: 'IPv4 addresses',
-    pl_authFail: 'login failures', pl_authOk: 'logins', pl_sudo: 'sudo commands', pl_oom: 'out of memory',
-    pl_kernel: 'kernel errors', pl_unitFail: 'failed services', pl_unitOk: 'service start/stop',
-    pl_firewall: 'firewall', pl_docker: 'container problems', pl_db: 'database errors',
-    pl_fatal: 'fatal / critical', pl_info: 'info / notice', pl_debug: 'debug / trace', pl_ip: 'IPv4 addresses',
     presetAdded: (n) => (n ? `${n} tag(s) added` : 'These tags are already in the list'),
+    presetsFileErr: (f) => `Invalid presets file ${f}, built-in presets used: `,
     tagsLoadErr: 'Tags: ',
     err_pattern_required: 'The keyword is required',
     err_invalid_color: 'Invalid color (expected #rrggbb)',
@@ -212,20 +200,8 @@ const I18N = {
     confirmDelete: (p) => `Supprimer le tag « ${p} » ?`,
     confirmReset: 'Remplacer tous les tags par les tags par défaut (warning, error, ok) ?',
     presetAria: 'Ajouter un préréglage', presetPick: '+ Préréglage…',
-    preset_http_status: 'Codes HTTP', preset_http_methods: 'Méthodes HTTP',
-    preset_http_probes: 'Sondes et attaques', preset_http_bots: 'Robots et scripts',
-    preset_http_errors: 'Erreurs TLS/HTTPS et proxy',
-    pl_probes: 'sondes / attaques', pl_bots: 'robots / scripts', pl_tls: 'erreurs TLS', pl_proxy: 'erreurs proxy',
-    presetGroupSys: 'Système', presetGroupApps: 'Applications', presetGroupGen: 'Général',
-    preset_sys_auth: 'SSH et connexions', preset_sys_sudo: 'Commandes sudo', preset_sys_kernel: 'Noyau : OOM, plantages, disques',
-    preset_sys_systemd: 'Services systemd', preset_sys_firewall: 'Pare-feu et fail2ban',
-    preset_app_docker: 'Docker et conteneurs', preset_app_db: 'Bases de données',
-    preset_gen_levels: 'Niveaux de log', preset_gen_ip: 'Adresses IPv4',
-    pl_authFail: 'échecs de connexion', pl_authOk: 'connexions', pl_sudo: 'commandes sudo', pl_oom: 'mémoire épuisée',
-    pl_kernel: 'erreurs noyau', pl_unitFail: 'services en échec', pl_unitOk: 'démarrage/arrêt de service',
-    pl_firewall: 'pare-feu', pl_docker: 'problèmes de conteneur', pl_db: 'erreurs base de données',
-    pl_fatal: 'fatal / critique', pl_info: 'info / notice', pl_debug: 'debug / trace', pl_ip: 'adresses IPv4',
     presetAdded: (n) => (n ? `${n} tag(s) ajouté(s)` : 'Ces tags sont déjà dans la liste'),
+    presetsFileErr: (f) => `Fichier de préréglages ${f} invalide, préréglages intégrés utilisés : `,
     tagsLoadErr: 'Tags : ',
     err_pattern_required: 'Le mot-clé est obligatoire',
     err_invalid_color: 'Couleur invalide (format #rrggbb attendu)',
@@ -475,6 +451,7 @@ const state = {
   rows: [],          // displayed records, newest first
   pending: [],       // live messages received while scrolled down
   tags: [],
+  presets: [],       // preset groups from /api/presets
   matchers: [],      // compiled tags + search terms
   mode: store.get('mode', 'simple'),
   live: store.get('live', '1') === '1',
@@ -497,7 +474,6 @@ function applyLang() {
   for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle) + (el.dataset.user ? ` (${el.dataset.user})` : '');
   for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
   for (const el of document.querySelectorAll('[data-i18n-ph]')) el.placeholder = t(el.dataset.i18nPh);
-  for (const el of document.querySelectorAll('[data-i18n-label]')) el.label = t(el.dataset.i18nLabel);
   for (const b of document.querySelectorAll('#langSwitch [data-lang]')) b.setAttribute('aria-checked', String(b.dataset.lang === lang));
 }
 
@@ -514,6 +490,7 @@ function setLang(next) {
   renderHisto();
   renderStats();
   renderTagList();
+  renderPresets();
   renderTimeSettings();
   renderPurge();
   renderInterface();
@@ -2074,61 +2051,24 @@ $('#purgeBtn').addEventListener('click', async () => {
 
 const PALETTE = ['#6366f1', '#0ea5e9', '#14b8a6', '#a855f7', '#ec4899', '#eab308', '#64748b', '#f97316'];
 
-// Ready-made tags. The patterns are valid in both JavaScript and Go (RE2).
-// The HTTP ones cover nginx/Apache (common, combined), Traefik (CLF, JSON),
-// Caddy (JSON) and HAProxy (httplog); for status codes and methods only the
-// "hl" group is colored, not the context around it. The others target the
-// usual messages of sshd/PAM, sudo, the kernel, systemd, UFW/iptables,
-// fail2ban, Docker, PostgreSQL and MySQL/MariaDB.
-const HTTP_STATUS_CTX = '(?:" |"(?:status|DownstreamStatus|OriginStatus|status_code)": ?|(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/\\+?\\d+ )';
-const httpStatus = (d, color) => ({ label: `HTTP ${d}xx`, pattern: `${HTTP_STATUS_CTX}(?<hl>${d}\\d\\d)\\b`, color });
-const httpMethod = (m, color) => ({ label: m.replace(/\|/g, '/'), pattern: `"(?<hl>${m})[ "]`, color, caseSensitive: true });
-const PRESETS = {
-  http_status: () => [httpStatus(2, '#86efac'), httpStatus(3, '#93c5fd'), httpStatus(4, '#fdba74'), httpStatus(5, '#f87171')],
-  http_methods: () => [httpMethod('GET|HEAD|OPTIONS', '#cbd5e1'), httpMethod('POST|PUT|PATCH', '#c4b5fd'), httpMethod('DELETE', '#f9a8d4')],
-  http_probes: () => [{ label: t('pl_probes'), color: '#fda4af',
-    pattern: '(?:wp-login\\.php|xmlrpc\\.php|wp-admin|phpmyadmin|/\\.env|/\\.git|/\\.aws|/cgi-bin/|\\.\\./|%2e%2e|/etc/passwd|<script|union(?:\\s|%20|\\+)+select)' }],
-  http_bots: () => [{ label: t('pl_bots'), color: '#fde68a',
-    pattern: '\\b(?:[a-z]*bot|crawler|spider|curl|wget|python-requests|Go-http-client|zgrab|masscan|nmap|sqlmap|nikto)\\b' }],
-  http_errors: () => [
-    { label: t('pl_tls'), color: '#f0abfc',
-      pattern: '(?:TLS handshake error|SSL_do_handshake\\(\\) failed|SSL handshake|SSL routines|certificate (?:has )?expired|certificate verify failed|bad certificate|unknown certificate|x509:)' },
-    { label: t('pl_proxy'), color: '#fdba74',
-      pattern: '(?:upstream timed out|upstream prematurely closed|no live upstreams|connect\\(\\) failed|connection refused|bad gateway|gateway time-?out|service unavailable)' },
-  ],
-  sys_auth: () => [
-    { label: t('pl_authFail'), color: '#fca5a5',
-      pattern: '(?:Failed (?:password|publickey|none)|Invalid user|authentication failures?|Connection closed by (?:invalid|authenticating) user|maximum authentication attempts exceeded|FAILED (?:LOGIN|SU)|incorrect password attempts?|NOT in sudoers)' },
-    { label: t('pl_authOk'), color: '#86efac',
-      pattern: '(?:Accepted (?:password|publickey|keyboard-interactive(?:/pam)?)|session opened for user|New session \\S+ of user)' },
-  ],
-  sys_sudo: () => [{ label: t('pl_sudo'), color: '#fde68a', pattern: '\\bCOMMAND=\\S+', caseSensitive: true }],
-  sys_kernel: () => [
-    { label: t('pl_oom'), color: '#f87171',
-      pattern: '(?:Out of memory|oom-kill(?:er)?|oom_reaper|Killed process \\d+|invoked oom-killer)' },
-    { label: t('pl_kernel'), color: '#fda4af',
-      pattern: '(?:Kernel panic|\\bBUG: |\\bOops\\b|Call Trace|segfault at|general protection fault|I/O error|EXT4-fs error|Buffer I/O error|blocked for more than \\d+ seconds|Hardware Error|soft lockup|hard LOCKUP)' },
-  ],
-  sys_systemd: () => [
-    { label: t('pl_unitFail'), color: '#fca5a5',
-      pattern: '(?:Failed to start|failed with result|Main process exited, code=(?:exited|killed|dumped)|entered failed state|Start request repeated too quickly|Dependency failed)' },
-    { label: t('pl_unitOk'), color: '#bbf7d0', caseSensitive: true,
-      pattern: '\\b(?:Started|Starting|Stopped|Stopping|Reloaded|Reloading|Reached target)\\b' },
-  ],
-  sys_firewall: () => [{ label: t('pl_firewall'), color: '#fdba74', caseSensitive: true,
-    pattern: '(?:\\[UFW (?:BLOCK|ALLOW|AUDIT|LIMIT BLOCK)\\]|\\b(?:DROP|REJECT)\\b|\\b(?:Ban|Unban|Found) \\d{1,3}(?:\\.\\d{1,3}){3}\\b)' }],
-  app_docker: () => [{ label: t('pl_docker'), color: '#fcd34d',
-    pattern: '(?:\\bOOMKilled\\b|exited with code [1-9]\\d*|exit code: [1-9]\\d*|health_status: unhealthy|\\bunhealthy\\b|Back-off restarting|CrashLoopBackOff|container (?:die|kill|oom)\\b|restarting \\(\\d+\\))' }],
-  app_db: () => [{ label: t('pl_db'), color: '#c4b5fd',
-    pattern: '(?:\\bdeadlock(?: detected| found)?\\b|duplicate key|too many (?:connections|clients)|lock wait timeout|slow query|could not connect to server|server has gone away|out of shared memory|terminating connection|Access denied for user|password authentication failed)' }],
-  gen_levels: () => [
-    { label: t('pl_fatal'), color: '#ef4444', pattern: '\\b(?:fatal|crit(?:ical)?|panic|emerg(?:ency)?)\\b' },
-    { label: t('pl_info'), color: '#bfdbfe', pattern: '\\b(?:info|notice)\\b' },
-    { label: t('pl_debug'), color: '#e5e7eb', pattern: '\\b(?:debug|trace)\\b' },
-  ],
-  gen_ip: () => [{ label: t('pl_ip'), color: '#a5f3fc',
-    pattern: '\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b' }],
-};
+// Ready-made tags, from the presets file (or the built-in presets.json):
+// see docs/presets.md. A text is a string or an object per language.
+const pickText = (x) => (typeof x === 'string' ? x : (x?.[lang] ?? x?.en ?? Object.values(x || {})[0] ?? ''));
+
+async function loadPresets() {
+  try {
+    const res = await api('/api/presets');
+    state.presets = res.groups || [];
+    if (res.error) toast(t('presetsFileErr', res.file) + res.error);
+  } catch (e) { toast(e.message); }
+  renderPresets();
+}
+
+function renderPresets() {
+  $('#presetTags').innerHTML = `<option value="">${esc(t('presetPick'))}</option>`
+    + state.presets.map((g) => `<optgroup label="${esc(pickText(g.group))}">`
+      + g.presets.map((p) => `<option value="${esc(p.id)}">${esc(pickText(p.name))}</option>`).join('') + '</optgroup>').join('');
+}
 
 async function loadTags() {
   try { state.tags = await api('/api/tags'); } catch (e) { toast(t('tagsLoadErr') + e.message); }
@@ -2220,14 +2160,15 @@ $('#addTag').addEventListener('click', async () => {
 
 // Adds a preset group, skipping tags whose pattern is already in the list.
 $('#presetTags').addEventListener('change', async (ev) => {
-  const make = PRESETS[ev.target.value];
+  const preset = state.presets.flatMap((g) => g.presets).find((p) => p.id === ev.target.value);
   ev.target.value = '';
-  if (!make) return;
+  if (!preset) return;
   let added = 0;
   try {
-    for (const p of make()) {
+    for (const p of preset.tags) {
       if (state.tags.some((x) => x.pattern === p.pattern)) continue;
-      state.tags.push(await api('/api/tags', { method: 'POST', body: { regex: true, enabled: true, ...p } }));
+      const tag = { ...p, label: pickText(p.label), regex: p.regex ?? true, enabled: true };
+      state.tags.push(await api('/api/tags', { method: 'POST', body: tag }));
       added++;
     }
   } catch (e) { toast(e.message); }
@@ -2248,6 +2189,7 @@ $('#resetTags').addEventListener('click', async () => {
 $('#settingsBtn').addEventListener('click', () => {
   renderTimeSettings();
   renderTagList();
+  loadPresets();
   renderInterface();
   loadPurgeStatus();
   loadSyslog();

@@ -228,14 +228,13 @@ couleur, est mémorisé par navigateur.
   Tags par défaut (pastel) : `warning` (orange), `error` (rouge), `ok` (vert). Les tags par
   défaut qui utilisent encore les couleurs des versions précédentes passent automatiquement aux
   couleurs pastel.
-  Le menu *+ Préréglage…* ajoute des tags tout faits pour les logs d'accès HTTP/HTTPS (nginx et
-  Apache common/combined, Traefik CLF et JSON, Caddy JSON, HAProxy httplog) : codes de statut
-  (2xx vert, 3xx bleu, 4xx orange, 5xx rouge), méthodes, sondes et attaques (`wp-login.php`,
-  `/.env`, `../`…), robots et scripts, erreurs TLS et proxy. D'autres préréglages couvrent les
-  logs système (échecs et succès de connexion SSH, commandes sudo, OOM et erreurs du noyau,
-  services systemd, UFW/iptables et fail2ban), les applications (conteneurs Docker, erreurs
-  PostgreSQL et MySQL/MariaDB) et des motifs généraux (niveaux de log, adresses IPv4). Les tags déjà présents ne sont pas
-  ajoutés en double, et les tags ajoutés se modifient comme les autres. Dans une expression
+  Le menu *+ Préréglage…* ajoute des tags tout faits : logs d'accès HTTP/HTTPS (codes de statut,
+  méthodes, sondes, robots, erreurs TLS et proxy), logs système (SSH, sudo, noyau, systemd,
+  pare-feu), applications (Docker, bases de données) et motifs généraux (niveaux de log,
+  adresses IPv4). Les tags déjà présents ne sont pas ajoutés en double, et les tags ajoutés se
+  modifient comme les autres. La liste vient d'un fichier texte modifiable (`PRESETS_FILE`) :
+  voir [docs/presets.fr.md](docs/presets.fr.md) pour le détail de chaque préréglage et le
+  format du fichier. Dans une expression
   régulière, un groupe nommé `hl` (`(?<hl>…)`) ne colore que cette partie de la correspondance :
   les préréglages s'en servent pour colorer le code de statut ou la méthode, pas le texte autour.
   Chaque tag reçoit un code à deux chiffres (`01`, `02`…) attribué par le serveur : il reste
@@ -352,6 +351,7 @@ résolutions.
 | `DNS_SERVER` | vide | serveur DNS pour les résolutions inverses (`ip` ou `ip:port`) |
 | `ALLOW_PURGE` | `true` | autoriser « Supprimer tous les logs » dans les Paramètres |
 | `EXPORT_MAX` | `100000` | nombre maximal de lignes dans un export CSV |
+| `PRESETS_FILE` | `/data/presets.json` | fichier des préréglages de tags ; liste intégrée s'il est absent (voir [docs/presets.fr.md](docs/presets.fr.md)) |
 | `DOCKER_LOGS` | `on` dans compose | collecter les logs des conteneurs Docker locaux |
 | `DOCKER_HOST` | `tcp://docker-proxy:2375` dans compose | adresse de l'API Docker (`unix:///var/run/docker.sock` hors compose) |
 | `DOCKER_BACKFILL` | `1h` | historique lu pour un conteneur vu pour la première fois |
@@ -418,6 +418,7 @@ Pour mettre à jour l'une d'elles :
 | `syslogserver.go` | écoutes syslog ouvertes et fermées depuis Paramètres > Sources |
 | `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
 | `tags.go` | stockage des tags de couleur |
+| `presets.go`, `presets.json` | préréglages de tags (`/api/presets`), liste intégrée |
 | `api.go` | routes HTTP `/api/*` |
 | `web/` | interface (HTML, CSS, JavaScript simple, sans étape de build), embarquée dans le binaire ; les traductions sont dans `web/app.js` (`I18N`), et dans `web/login.html` pour la page de connexion |
 

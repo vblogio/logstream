@@ -207,14 +207,12 @@ remembered per browser.
   (`logstream-data` volume), so they are shared by every browser. Default tags (pastel):
   `warning` (orange), `error` (red), `ok` (green). Default tags still using the colors of
   earlier versions are switched to the pastel ones automatically.
-  The *+ Preset…* menu adds ready-made tags for HTTP/HTTPS access logs (nginx and Apache
-  common/combined, Traefik CLF and JSON, Caddy JSON, HAProxy httplog): status codes (2xx green,
-  3xx blue, 4xx orange, 5xx red), methods, probes and attacks (`wp-login.php`, `/.env`,
-  `../`…), bots and scripts, TLS and proxy errors. Other presets cover system logs (SSH and
-  login failures/successes, sudo commands, kernel OOM and errors, systemd services, UFW/iptables
-  and fail2ban), applications (Docker containers, PostgreSQL and MySQL/MariaDB errors) and
-  general patterns (log levels, IPv4 addresses). Tags already in the list are skipped, and the
-  added tags can be edited like any other. In a regular expression, a group named `hl`
+  The *+ Preset…* menu adds ready-made tags: HTTP/HTTPS access logs (status codes, methods,
+  probes, bots, TLS and proxy errors), system logs (SSH, sudo, kernel, systemd, firewall),
+  applications (Docker, databases) and general patterns (log levels, IPv4 addresses). Tags
+  already in the list are skipped, and the added tags can be edited like any other. The list
+  comes from a text file you can edit (`PRESETS_FILE`): see [docs/presets.md](docs/presets.md)
+  for each preset and the file format. In a regular expression, a group named `hl`
   (`(?<hl>…)`) colors only that part of the match: the presets use it to color the status code
   or the method, not the text around it.
   Each tag gets a two-digit code (`01`, `02`…) assigned by the server: it stays with the tag
@@ -322,6 +320,7 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `DNS_SERVER` | empty | DNS server for reverse lookups (`ip` or `ip:port`) |
 | `ALLOW_PURGE` | `true` | allow "Delete all logs" in Settings |
 | `EXPORT_MAX` | `100000` | maximum number of rows in a CSV export |
+| `PRESETS_FILE` | `/data/presets.json` | color tag presets file; the built-in list when missing (see [docs/presets.md](docs/presets.md)) |
 | `DOCKER_LOGS` | `on` in compose | collect the logs of the local Docker containers |
 | `DOCKER_HOST` | `tcp://docker-proxy:2375` in compose | Docker API address (`unix:///var/run/docker.sock` outside compose) |
 | `DOCKER_BACKFILL` | `1h` | history read from a container seen for the first time |
@@ -385,6 +384,7 @@ To update one of them:
 | `syslogserver.go` | syslog listeners opened and closed from Settings > Sources |
 | `hostlogs.go`, `journal.go` | host system logs: systemd journal reader (no `journalctl`) and `/var/log` follower |
 | `tags.go` | color tag storage |
+| `presets.go`, `presets.json` | color tag presets (`/api/presets`), built-in list |
 | `api.go` | `/api/*` HTTP routes |
 | `web/` | UI (HTML, CSS, plain JavaScript, no build step), embedded in the binary; translations live in `web/app.js` (`I18N`), and in `web/login.html` for the login page |
 

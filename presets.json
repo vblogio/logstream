@@ -1,0 +1,237 @@
+[
+  {
+    "group": "HTTP/HTTPS",
+    "presets": [
+      {
+        "id": "http_status",
+        "name": { "en": "HTTP status codes", "fr": "Codes HTTP" },
+        "tags": [
+          {
+            "label": "HTTP 2xx",
+            "color": "#86efac",
+            "pattern": "(?:\" |\"(?:status|DownstreamStatus|OriginStatus|status_code)\": ?|(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/\\+?\\d+ )(?<hl>2\\d\\d)\\b"
+          },
+          {
+            "label": "HTTP 3xx",
+            "color": "#93c5fd",
+            "pattern": "(?:\" |\"(?:status|DownstreamStatus|OriginStatus|status_code)\": ?|(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/\\+?\\d+ )(?<hl>3\\d\\d)\\b"
+          },
+          {
+            "label": "HTTP 4xx",
+            "color": "#fdba74",
+            "pattern": "(?:\" |\"(?:status|DownstreamStatus|OriginStatus|status_code)\": ?|(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/\\+?\\d+ )(?<hl>4\\d\\d)\\b"
+          },
+          {
+            "label": "HTTP 5xx",
+            "color": "#f87171",
+            "pattern": "(?:\" |\"(?:status|DownstreamStatus|OriginStatus|status_code)\": ?|(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/(?:-1|\\d+)/\\+?\\d+ )(?<hl>5\\d\\d)\\b"
+          }
+        ]
+      },
+      {
+        "id": "http_methods",
+        "name": { "en": "HTTP methods", "fr": "Méthodes HTTP" },
+        "tags": [
+          {
+            "label": "GET/HEAD/OPTIONS",
+            "color": "#cbd5e1",
+            "caseSensitive": true,
+            "pattern": "\"(?<hl>GET|HEAD|OPTIONS)[ \"]"
+          },
+          {
+            "label": "POST/PUT/PATCH",
+            "color": "#c4b5fd",
+            "caseSensitive": true,
+            "pattern": "\"(?<hl>POST|PUT|PATCH)[ \"]"
+          },
+          {
+            "label": "DELETE",
+            "color": "#f9a8d4",
+            "caseSensitive": true,
+            "pattern": "\"(?<hl>DELETE)[ \"]"
+          }
+        ]
+      },
+      {
+        "id": "http_probes",
+        "name": { "en": "Probes and attacks", "fr": "Sondes et attaques" },
+        "tags": [
+          {
+            "label": { "en": "probes / attacks", "fr": "sondes / attaques" },
+            "color": "#fda4af",
+            "pattern": "(?:wp-login\\.php|xmlrpc\\.php|wp-admin|phpmyadmin|/\\.env|/\\.git|/\\.aws|/cgi-bin/|\\.\\./|%2e%2e|/etc/passwd|<script|union(?:\\s|%20|\\+)+select)"
+          }
+        ]
+      },
+      {
+        "id": "http_bots",
+        "name": { "en": "Bots and scripts", "fr": "Robots et scripts" },
+        "tags": [
+          {
+            "label": { "en": "bots / scripts", "fr": "robots / scripts" },
+            "color": "#fde68a",
+            "pattern": "\\b(?:[a-z]*bot|crawler|spider|curl|wget|python-requests|Go-http-client|zgrab|masscan|nmap|sqlmap|nikto)\\b"
+          }
+        ]
+      },
+      {
+        "id": "http_errors",
+        "name": { "en": "TLS/HTTPS and proxy errors", "fr": "Erreurs TLS/HTTPS et proxy" },
+        "tags": [
+          {
+            "label": { "en": "TLS errors", "fr": "erreurs TLS" },
+            "color": "#f0abfc",
+            "pattern": "(?:TLS handshake error|SSL_do_handshake\\(\\) failed|SSL handshake|SSL routines|certificate (?:has )?expired|certificate verify failed|bad certificate|unknown certificate|x509:)"
+          },
+          {
+            "label": { "en": "proxy errors", "fr": "erreurs proxy" },
+            "color": "#fdba74",
+            "pattern": "(?:upstream timed out|upstream prematurely closed|no live upstreams|connect\\(\\) failed|connection refused|bad gateway|gateway time-?out|service unavailable)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "group": { "en": "System", "fr": "Système" },
+    "presets": [
+      {
+        "id": "sys_auth",
+        "name": { "en": "SSH and logins", "fr": "SSH et connexions" },
+        "tags": [
+          {
+            "label": { "en": "login failures", "fr": "échecs de connexion" },
+            "color": "#fca5a5",
+            "pattern": "(?:Failed (?:password|publickey|none)|Invalid user|authentication failures?|Connection closed by (?:invalid|authenticating) user|maximum authentication attempts exceeded|FAILED (?:LOGIN|SU)|incorrect password attempts?|NOT in sudoers)"
+          },
+          {
+            "label": { "en": "logins", "fr": "connexions" },
+            "color": "#86efac",
+            "pattern": "(?:Accepted (?:password|publickey|keyboard-interactive(?:/pam)?)|session opened for user|New session \\S+ of user)"
+          }
+        ]
+      },
+      {
+        "id": "sys_sudo",
+        "name": { "en": "sudo commands", "fr": "Commandes sudo" },
+        "tags": [
+          {
+            "label": { "en": "sudo commands", "fr": "commandes sudo" },
+            "color": "#fde68a",
+            "caseSensitive": true,
+            "pattern": "\\bCOMMAND=\\S+"
+          }
+        ]
+      },
+      {
+        "id": "sys_kernel",
+        "name": { "en": "Kernel: OOM, crashes, disks", "fr": "Noyau : OOM, plantages, disques" },
+        "tags": [
+          {
+            "label": { "en": "out of memory", "fr": "mémoire épuisée" },
+            "color": "#f87171",
+            "pattern": "(?:Out of memory|oom-kill(?:er)?|oom_reaper|Killed process \\d+|invoked oom-killer)"
+          },
+          {
+            "label": { "en": "kernel errors", "fr": "erreurs noyau" },
+            "color": "#fda4af",
+            "pattern": "(?:Kernel panic|\\bBUG: |\\bOops\\b|Call Trace|segfault at|general protection fault|I/O error|EXT4-fs error|Buffer I/O error|blocked for more than \\d+ seconds|Hardware Error|soft lockup|hard LOCKUP)"
+          }
+        ]
+      },
+      {
+        "id": "sys_systemd",
+        "name": { "en": "systemd services", "fr": "Services systemd" },
+        "tags": [
+          {
+            "label": { "en": "failed services", "fr": "services en échec" },
+            "color": "#fca5a5",
+            "pattern": "(?:Failed to start|failed with result|Main process exited, code=(?:exited|killed|dumped)|entered failed state|Start request repeated too quickly|Dependency failed)"
+          },
+          {
+            "label": { "en": "service start/stop", "fr": "démarrage/arrêt de service" },
+            "color": "#bbf7d0",
+            "caseSensitive": true,
+            "pattern": "\\b(?:Started|Starting|Stopped|Stopping|Reloaded|Reloading|Reached target)\\b"
+          }
+        ]
+      },
+      {
+        "id": "sys_firewall",
+        "name": { "en": "Firewall and fail2ban", "fr": "Pare-feu et fail2ban" },
+        "tags": [
+          {
+            "label": { "en": "firewall", "fr": "pare-feu" },
+            "color": "#fdba74",
+            "caseSensitive": true,
+            "pattern": "(?:\\[UFW (?:BLOCK|ALLOW|AUDIT|LIMIT BLOCK)\\]|\\b(?:DROP|REJECT)\\b|\\b(?:Ban|Unban|Found) \\d{1,3}(?:\\.\\d{1,3}){3}\\b)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "group": "Applications",
+    "presets": [
+      {
+        "id": "app_docker",
+        "name": { "en": "Docker and containers", "fr": "Docker et conteneurs" },
+        "tags": [
+          {
+            "label": { "en": "container problems", "fr": "problèmes de conteneur" },
+            "color": "#fcd34d",
+            "pattern": "(?:\\bOOMKilled\\b|exited with code [1-9]\\d*|exit code: [1-9]\\d*|health_status: unhealthy|\\bunhealthy\\b|Back-off restarting|CrashLoopBackOff|container (?:die|kill|oom)\\b|restarting \\(\\d+\\))"
+          }
+        ]
+      },
+      {
+        "id": "app_db",
+        "name": { "en": "Databases", "fr": "Bases de données" },
+        "tags": [
+          {
+            "label": { "en": "database errors", "fr": "erreurs base de données" },
+            "color": "#c4b5fd",
+            "pattern": "(?:\\bdeadlock(?: detected| found)?\\b|duplicate key|too many (?:connections|clients)|lock wait timeout|slow query|could not connect to server|server has gone away|out of shared memory|terminating connection|Access denied for user|password authentication failed)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "group": { "en": "General", "fr": "Général" },
+    "presets": [
+      {
+        "id": "gen_levels",
+        "name": { "en": "Log levels", "fr": "Niveaux de log" },
+        "tags": [
+          {
+            "label": { "en": "fatal / critical", "fr": "fatal / critique" },
+            "color": "#ef4444",
+            "pattern": "\\b(?:fatal|crit(?:ical)?|panic|emerg(?:ency)?)\\b"
+          },
+          {
+            "label": "info / notice",
+            "color": "#bfdbfe",
+            "pattern": "\\b(?:info|notice)\\b"
+          },
+          {
+            "label": "debug / trace",
+            "color": "#e5e7eb",
+            "pattern": "\\b(?:debug|trace)\\b"
+          }
+        ]
+      },
+      {
+        "id": "gen_ip",
+        "name": { "en": "IPv4 addresses", "fr": "Adresses IPv4" },
+        "tags": [
+          {
+            "label": { "en": "IPv4 addresses", "fr": "adresses IPv4" },
+            "color": "#a5f3fc",
+            "pattern": "\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b"
+          }
+        ]
+      }
+    ]
+  }
+]

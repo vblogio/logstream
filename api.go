@@ -16,6 +16,7 @@ type API struct {
 	store      *Store
 	hub        *Hub
 	tags       *TagStore
+	presets    string // presets file, built-in presets when missing
 	rdns       *ReverseDNS
 	allowPurge bool
 	exportMax  int
@@ -34,6 +35,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tags", a.listTags)
 	mux.HandleFunc("POST /api/tags", a.createTag)
 	mux.HandleFunc("POST /api/tags/reset", a.resetTags)
+	mux.HandleFunc("GET /api/presets", a.listPresets)
 	mux.HandleFunc("PUT /api/tags/{id}", a.updateTag)
 	mux.HandleFunc("DELETE /api/tags/{id}", a.deleteTag)
 	mux.HandleFunc("GET /api/purge", a.purgeStatus)
@@ -314,6 +316,10 @@ func (a *API) stats(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) listTags(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, a.tags.List())
+}
+
+func (a *API) listPresets(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, loadPresets(a.presets))
 }
 
 func decodeTag(w http.ResponseWriter, r *http.Request) (Tag, error) {
