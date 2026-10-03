@@ -59,6 +59,7 @@ const I18N = {
     err_invalid_color: 'Invalid color (expected #rrggbb)',
     err_invalid_regex: 'Invalid regular expression',
     err_tag_not_found: 'Tag not found',
+    err_too_many_tags: 'Too many tags (99 at most)',
     err_live_logsql: 'Live view is not available in LogsQL mode',
     dateTime: 'Date & time',
     tzLabel: 'Time zone',
@@ -148,7 +149,9 @@ const I18N = {
     hCappedTitle: 'The chosen division would exceed 300 intervals over this range: it has been enlarged.',
     hUnzoom: '× Reset zoom', unitDay: 'd',
     toTop: 'Back to top',
-    colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colMsg: 'Message',
+    colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colCodes: 'Filters', colMsg: 'Message',
+    codesTitle: 'Codes of the color tags found in the message',
+    tagCodeTitle: 'Code shown on the log lines this tag matches',
     colGrip: 'Drag to resize, double-click for the automatic width',
     resetCols: 'Reset column widths', colsReset: 'Column widths reset',
     colsHelp: 'Drag the edge of a column header in the log list to resize it (remembered by this browser).',
@@ -209,6 +212,7 @@ const I18N = {
     err_invalid_color: 'Couleur invalide (format #rrggbb attendu)',
     err_invalid_regex: 'Expression régulière invalide',
     err_tag_not_found: 'Tag introuvable',
+    err_too_many_tags: 'Trop de tags (99 au maximum)',
     err_live_logsql: 'Le direct n\'est pas disponible en mode LogsQL',
     dateTime: 'Date et heure',
     tzLabel: 'Fuseau horaire',
@@ -298,7 +302,9 @@ const I18N = {
     hCappedTitle: 'La division choisie dépasserait 300 intervalles sur cette plage : elle a été élargie.',
     hUnzoom: '× Annuler le zoom', unitDay: 'j',
     toTop: 'Revenir en haut',
-    colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colMsg: 'Message',
+    colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colCodes: 'Filtres', colMsg: 'Message',
+    codesTitle: 'Codes des tags de couleur trouvés dans le message',
+    tagCodeTitle: 'Code affiché sur les lignes de log où ce tag est trouvé',
     colGrip: 'Glisser pour redimensionner, double-clic pour la largeur automatique',
     resetCols: 'Réinitialiser les colonnes', colsReset: 'Largeurs de colonnes réinitialisées',
     colsHelp: 'Glissez le bord d\'un en-tête de colonne de la liste pour la redimensionner (mémorisé par ce navigateur).',
@@ -696,7 +702,8 @@ function compileMatchers() {
       // A regex may name a group "hl" to color only that part of the match.
       const hl = tag.regex && /\(\?P?<hl>/.test(tag.pattern);
       if (hl) src = src.replace(/\(\?P<hl>/g, '(?<hl>');
-      out.push({ re: new RegExp(src, 'gu' + (hl ? 'd' : '') + (tag.caseSensitive ? '' : 'i')), html: `<mark class="tag" style="${tagStyle(tag.color)}">` });
+      out.push({ re: new RegExp(src, 'gu' + (hl ? 'd' : '') + (tag.caseSensitive ? '' : 'i')), html: `<mark class="tag" style="${tagStyle(tag.color)}">`,
+        code: tag.code, name: tag.label || tag.pattern });
     } catch (e) {
       console.warn('Tag skipped (invalid pattern):', tag.pattern, e.message);
     }
@@ -738,6 +745,30 @@ function highlight(text) {
   return out + esc(text.slice(pos));
 }
 
+// Badges with the codes of the tags found in a message, in list order. The
+// column has room for 3: beyond that, 2 badges and "+N" (all in the tooltip).
+function codesHTML(text) {
+  text = String(text ?? '');
+  const found = [];
+  for (const m of state.matchers) {
+    if (!m.code || !text) continue;
+    m.re.lastIndex = 0;
+    let x;
+    while ((x = m.re.exec(text)) !== null) {
+      if (x[0] === '') { m.re.lastIndex++; continue; }
+      const g = x.indices?.groups?.hl;
+      if (!x.indices?.groups || g) { found.push(m); break; }
+    }
+  }
+  if (!found.length) return '';
+  const shown = found.length > 3 ? found.slice(0, 2) : found;
+  const title = found.map((m) => `${m.code} ${m.name}`).join('\n');
+  return `<span title="${esc(title)}">`
+    + shown.map((m) => `<b>${esc(m.code)}</b>`).join('')
+    + (found.length > 3 ? `<b class="more">+${found.length - 2}</b>` : '')
+    + '</span>';
+}
+
 /* ================= List rendering ================= */
 
 const SEV_CLASS = { emerg: 'crit', alert: 'crit', crit: 'crit', err: 'err', warning: 'warning', notice: 'notice', info: 'info', debug: 'debug' };
@@ -763,6 +794,7 @@ function rowHTML(r, isNew) {
     + (r.app
       ? `<span class="app${r.source_type === 'docker' ? ' proj' : ''}" data-act="app"${r.source_type === 'docker' ? ` style="--h:${hueOf(r.compose_project || r.container || r.app)}"` : ''} title="${esc((r.compose_project ? r.compose_project + '/' : '') + (r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${esc(r.app)}</span>`
       : '<span class="app"></span>')
+    + `<span class="codes">${codesHTML(r._msg)}</span>`
     + `<div class="msg">${highlight(r._msg)}</div>`
     + '</article>';
 }
@@ -829,7 +861,9 @@ function renderList() {
 function rehighlight() {
   for (const row of list.children) {
     const r = recOf.get(row);
-    if (r) row.querySelector('.msg').innerHTML = highlight(r._msg);
+    if (!r) continue;
+    row.querySelector('.msg').innerHTML = highlight(r._msg);
+    row.querySelector('.codes').innerHTML = codesHTML(r._msg);
   }
 }
 
@@ -2026,6 +2060,7 @@ function tagRowHTML(tag) {
   const opt = (field, label, title) =>
     `<label class="opt" title="${esc(title)}"><input type="checkbox" data-f="${field}"${tag[field] ? ' checked' : ''}>${esc(label)}</label>`;
   return `<div class="tag-row${tag.enabled ? '' : ' off'}" data-id="${esc(tag.id)}">
+    <span class="tag-code" title="${esc(t('tagCodeTitle'))}">${esc(tag.code || '··')}</span>
     <input type="color" value="${esc(tag.color)}" data-f="color" aria-label="${esc(t('colorAria'))}">
     <input type="text" value="${esc(tag.pattern)}" data-f="pattern" placeholder="${esc(t('keyword'))}" spellcheck="false" aria-label="${esc(t('keyword'))}">
     <span class="preview" title="${esc(tag.pattern)}"><mark class="tag" style="${tagStyle(tag.color)}">${esc(tag.label || tag.pattern || t('preview'))}</mark></span>
