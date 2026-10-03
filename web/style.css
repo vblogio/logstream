@@ -452,6 +452,7 @@ mark.hit { background: var(--hit); color: inherit; border-radius: 3px; padding: 
 .conn.ok::before { color: var(--sev-info); }
 .conn.ko::before { color: var(--sev-err); }
 #stats .bad { color: var(--sev-err); }
+#stats .warn { color: var(--sev-warning); }
 /* "Back to top", at the right end of the status bar: never over a log row */
 .to-top { width: 24px; height: 24px; margin: -5px -6px -5px auto; flex: none; } /* no taller bar */
 .to-top svg { width: 16px; height: 16px; }

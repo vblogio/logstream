@@ -38,6 +38,12 @@ type Entry struct {
 
 	SourceType string            // "syslog" or "docker"
 	Extra      map[string]string // additional fields (docker: container, image, …)
+
+	// Not stored. Wait: the producer can be slowed down when the queue is full
+	// (Docker, host logs) instead of losing the message. Done: called once the
+	// message is stored in VictoriaLogs or in the disk spool.
+	Wait bool
+	Done func()
 }
 
 // Record returns the entry in the shape stored in VictoriaLogs and returned by the API.

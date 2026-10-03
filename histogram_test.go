@@ -153,7 +153,7 @@ func TestHistogramHandler(t *testing.T) {
 {"_time":"2000-01-01T00:00:00Z","severity":"info","hits":"9"}
 `, recent.Format(time.RFC3339), recent.Format(time.RFC3339), older.Format(time.RFC3339))
 	}}
-	store := NewStore("http://vl", 10, 10, time.Second)
+	store := NewStore("http://vl", 10, 10, time.Second, nil)
 	store.streamClient.Transport = vl
 	a := &API{store: store}
 
@@ -207,7 +207,7 @@ func TestHistogramDayInParis(t *testing.T) {
 {"_time":"2026-09-21T20:00:00Z","severity":"info","hits":"100"}
 `
 	}}
-	store := NewStore("http://vl", 10, 10, time.Second)
+	store := NewStore("http://vl", 10, 10, time.Second, nil)
 	store.streamClient.Transport = vl
 	a := &API{store: store}
 	from := time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC)

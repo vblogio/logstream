@@ -61,8 +61,8 @@ type DockerManager struct {
 	cfg        dockerConfig
 	hostName   string
 	containers []DockerContainer
-	followers  map[string]*follower  // container ID -> running follower
-	checkpoint map[string]time.Time // container ID -> timestamp of the last line read
+	followers  map[string]*follower // container ID -> running follower
+	checkpoint map[string]time.Time // container ID -> timestamp of the last line stored
 	dirty      bool
 	connected  bool
 	lastErr    string
@@ -389,16 +389,19 @@ func (m *DockerManager) follow(ctx context.Context, c DockerContainer) {
 	}
 }
 
-func sleepCtx(ctx context.Context, d time.Duration) {
+// sleepCtx waits for d, or returns false if the context ends first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
 	t := time.NewTimer(d)
 	defer t.Stop()
 	select {
 	case <-ctx.Done():
+		return false
 	case <-t.C:
+		return true
 	}
 }
 
-// since returns where to resume reading: just after the last line read, or
+// since returns where to resume reading: just after the last line stored, or
 // DOCKER_BACKFILL ago for a container seen for the first time.
 func (m *DockerManager) since(id string) time.Time {
 	m.mu.Lock()
@@ -530,8 +533,6 @@ func (m *DockerManager) emit(c DockerContainer, stream string, line []byte) {
 	} else if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
 		ts, s = t, ""
 	}
-	defer m.setCheckpoint(c.ID, ts)
-
 	s = ansiRe.ReplaceAllString(s, "")
 	if !utf8.ValidString(s) {
 		s = strings.ToValidUTF8(s, string(utf8.RuneError))
@@ -575,6 +576,10 @@ func (m *DockerManager) emit(c DockerContainer, stream string, line []byte) {
 			"compose_service": c.Service,
 			"stream":          stream,
 		},
+		// Docker keeps the logs: wait for room in the queue rather than drop the
+		// line, and resume after it only once it is stored.
+		Wait: true,
+		Done: func() { m.setCheckpoint(c.ID, ts) },
 	})
 }
 
