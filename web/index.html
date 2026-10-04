@@ -102,6 +102,7 @@
       <option value="syslog">Syslog</option>
       <option value="docker">Docker</option>
       <option value="host" data-i18n="srcHost">Host system</option>
+      <option value="kernel" data-i18n="srcKernel">Kernel (dmesg)</option>
     </select>
     <span class="spacer"></span>
     <span id="count" class="muted"></span>
@@ -263,6 +264,16 @@
                 <span data-i18n="hostEnabled">Collect the system logs of this machine</span>
               </label>
               <p class="muted small" data-i18n="hostHelp"></p>
+            </section>
+
+            <section class="set-section">
+              <h3 data-i18n="dmesgTitle">Kernel messages (dmesg)</h3>
+              <p id="dmesgStatus" class="docker-status"></p>
+              <label class="switch-row">
+                <input id="dmesgEnabled" type="checkbox" class="switch">
+                <span data-i18n="dmesgEnabled">Collect the kernel messages of this machine</span>
+              </label>
+              <p class="muted small" data-i18n="dmesgHelp"></p>
             </section>
 
             <section class="set-section span">

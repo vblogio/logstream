@@ -23,6 +23,7 @@ type API struct {
 	docker     *DockerManager // nil when DOCKER_LOGS is off
 	syslog     *SyslogServer
 	host       *HostLogs
+	dmesg      *Dmesg
 	dbstats    dbStatsCache
 }
 
@@ -49,6 +50,28 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/docker", a.dockerConfigure)
 	mux.HandleFunc("GET /api/hostlogs", a.hostLogsStatus)
 	mux.HandleFunc("PUT /api/hostlogs", a.hostLogsConfigure)
+	mux.HandleFunc("GET /api/dmesg", a.dmesgStatus)
+	mux.HandleFunc("PUT /api/dmesg", a.dmesgConfigure)
+}
+
+// GET /api/dmesg: state of the kernel messages source (Settings > Sources).
+func (a *API) dmesgStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.dmesg.Status())
+}
+
+// PUT /api/dmesg {"enabled": bool}
+func (a *API) dmesgConfigure(w http.ResponseWriter, r *http.Request) {
+	var cfg dmesgConfig
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&cfg); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := a.dmesg.Configure(cfg); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Printf("kernel messages source changed from %s: %+v", r.RemoteAddr, cfg)
+	writeJSON(w, http.StatusOK, a.dmesg.Status())
 }
 
 // GET /api/hostlogs: state of the host system logs source (Settings > Sources).
