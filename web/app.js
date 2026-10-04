@@ -2638,6 +2638,19 @@ renderPeriod();
 fetch('/auth/me').then((res) => (res.ok ? res.json() : null)).then((me) => {
   if (!me) return;
   if (me.mode === 'none' && store.get('authWarnHidden') !== '1') $('#authWarn').hidden = false;
+  const who = $('#whoami');
+  if (me.mode === 'none') {
+    who.classList.add('none');
+    who.querySelector('.who-name').textContent = '(no auth)';
+    who.hidden = false;
+  } else if (me.user) {
+    who.querySelector('.who-name').textContent = me.user;
+    who.title = me.user;
+    const badge = who.querySelector('.who-badge');
+    badge.textContent = me.mode === 'oidc' ? 'OIDC' : 'local';
+    badge.classList.add(me.mode);
+    who.hidden = false;
+  }
   if (me.role === 'viewer') {
     document.body.classList.add('read-only');
     for (const p of document.querySelectorAll('[data-panel="filters"], [data-panel="sources"], [data-panel="data"]')) {
