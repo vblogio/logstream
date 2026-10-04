@@ -78,6 +78,22 @@ const I18N = {
     sourceAria: 'Source', srcAll: 'All sources', tabSources: 'Sources',
     srcHost: 'Host system',
     srcKernel: 'Kernel (dmesg)',
+    auditTitle: 'Linux audit (auditd)',
+    auditEnabled: 'Collect the audit events of this machine',
+    auditPath: 'File',
+    auditOff: 'Off: the audit log of the machine hosting LogStream is not read.',
+    auditOk: ({ p, r }) => `Following ${p}: ${r} events since startup.`,
+    audit_not_found: 'Audit log not found: mount /var/log/audit in the container (see docker-compose.yml) and check the path. ',
+    audit_permission: 'Permission denied on the audit log: set log_group in /etc/audit/auditd.conf, or add an ACL for UID 10001 (see the README). ',
+    audit_read: 'Cannot read the audit log: ',
+    auditHelp: 'Reads the log of the Linux audit daemon (auditd): logins, sudo, watched files, syscalls matched by your rules… The records of one event are grouped in one line, with a summary (who, what, result) and the raw record below it; failures are warnings. When turned on, the last hour is read first (AUDIT_BACKFILL); rotations are followed and reading resumes where it stopped.',
+    selfTitle: 'LogStream internal logs',
+    selfEnabled: 'Record the events of LogStream itself',
+    selfLevel: 'Minimum level',
+    selfOff: 'Off: the events of LogStream only go to its container output.',
+    selfOk: ({ n }) => `${n} events recorded since startup (host logstream).`,
+    selfDropped: (n) => ` ${n} left out (repeated or too many at once).`,
+    selfHelp: 'Turns the events of LogStream into logs (host logstream, app = component): VictoriaLogs unreachable and back, lost batches, syslog listener errors, Docker streams lost, failing sources, start and stop. The same event is recorded at most once every 30 s, with the number of repeats.',
     hostTitle: 'Host system logs',
     hostEnabled: 'Collect the system logs of this machine',
     hostOff: 'Off: the system logs of the machine hosting LogStream are not collected.',
@@ -262,6 +278,22 @@ const I18N = {
     sourceAria: 'Source', srcAll: 'Toutes les sources', tabSources: 'Sources',
     srcHost: 'Système hôte',
     srcKernel: 'Noyau (dmesg)',
+    auditTitle: 'Audit Linux (auditd)',
+    auditEnabled: 'Collecter les événements d\'audit de cette machine',
+    auditPath: 'Fichier',
+    auditOff: 'Désactivé : le journal d\'audit de la machine qui héberge LogStream n\'est pas lu.',
+    auditOk: ({ p, r }) => `Suivi de ${p} : ${r} événements depuis le démarrage.`,
+    audit_not_found: 'Journal d\'audit introuvable : montez /var/log/audit dans le conteneur (voir docker-compose.yml) et vérifiez le chemin. ',
+    audit_permission: 'Accès refusé au journal d\'audit : réglez log_group dans /etc/audit/auditd.conf, ou ajoutez une ACL pour l\'UID 10001 (voir le README). ',
+    audit_read: 'Lecture du journal d\'audit impossible : ',
+    auditHelp: 'Lit le journal du démon d\'audit Linux (auditd) : connexions, sudo, fichiers surveillés, appels système visés par vos règles… Les enregistrements d\'un même événement sont regroupés sur une ligne, avec un résumé (qui, quoi, résultat) et l\'enregistrement brut en dessous ; les échecs sont des warnings. À l\'activation, la dernière heure est lue d\'abord (AUDIT_BACKFILL) ; les rotations sont suivies et la lecture reprend où elle s\'était arrêtée.',
+    selfTitle: 'Logs internes de LogStream',
+    selfEnabled: 'Enregistrer les événements de LogStream lui-même',
+    selfLevel: 'Niveau minimal',
+    selfOff: 'Désactivé : les événements de LogStream ne vont que dans la sortie de son conteneur.',
+    selfOk: ({ n }) => `${n} événements enregistrés depuis le démarrage (hôte logstream).`,
+    selfDropped: (n) => ` ${n} écartés (répétés ou trop nombreux d\'un coup).`,
+    selfHelp: 'Transforme les événements de LogStream en logs (hôte logstream, app = composant) : VictoriaLogs injoignable puis de retour, lots perdus, erreurs du listener syslog, flux Docker décrochés, sources en échec, démarrage et arrêt. Un même événement est enregistré au plus une fois toutes les 30 s, avec le nombre de répétitions.',
     hostTitle: 'Logs système de l\'hôte',
     hostEnabled: 'Collecter les logs système de cette machine',
     hostOff: 'Désactivé : les logs système de la machine qui héberge LogStream ne sont pas collectés.',
@@ -564,6 +596,8 @@ function setLang(next) {
   renderSyslog();
   renderHost();
   renderDmesg();
+  renderAudit();
+  renderSelfLog();
   renderDocker();
 }
 
@@ -871,10 +905,15 @@ function fmtTime(s) {
   return `${day} ${p.h}:${p.m}:${p.s}<span class="ms">.${p.ms}</span>`;
 }
 
+// Sources with their own look in the list: a colored edge and a badge
+// before the app name (the severity badge stays the same).
+const SRC_BADGE = { audit: 'AUDIT', logstream: 'LS' };
+
 function rowHTML(r, isNew) {
   const sev = r.severity || '';
   const cls = SEV_CLASS[sev] || 'info';
-  return `<article class="row sev-${cls}${isNew ? ' new' : ''}" tabindex="0">`
+  const badge = SRC_BADGE[r.source_type];
+  return `<article class="row sev-${cls}${badge ? ' src-' + r.source_type : ''}${isNew ? ' new' : ''}" tabindex="0">`
     + `<time class="rcv" title="${esc(t('rcvTitle'))}">${r.received ? esc(fmtFull(r.received)) : '—'}</time>`
     + `<time class="mt" title="${esc(t('msgTimeTitle'))}">${fmtTime(r.msg_time || r._time)}</time>`
     + `<span class="sev">${esc(sev || '—')}</span>`
@@ -882,11 +921,18 @@ function rowHTML(r, isNew) {
       ? `<span class="host" data-act="host" title="${esc(hostTitle(r) + ' · ' + t('clickHost'))}">${esc(r.host_name || r.host)}</span>`
       : '<span class="host"></span>')
     + (r.app
-      ? `<span class="app${r.source_type === 'docker' ? ' proj' : ''}" data-act="app"${r.source_type === 'docker' ? ` style="--h:${hueOf(r.compose_project || r.container || r.app)}"` : ''} title="${esc((r.compose_project ? r.compose_project + '/' : '') + (r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${esc(r.app)}</span>`
+      ? `<span class="app${r.source_type === 'docker' ? ' proj' : ''}" data-act="app"${r.source_type === 'docker' ? ` style="--h:${hueOf(r.compose_project || r.container || r.app)}"` : ''} title="${esc((r.compose_project ? r.compose_project + '/' : '') + (r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${badge ? `<b class="src-badge">${badge}</b>` : ''}${esc(r.app)}</span>`
       : '<span class="app"></span>')
     + `<span class="codes">${codesHTML(r._msg)}</span>`
-    + `<div class="msg">${highlight(r._msg)}</div>`
+    + `<div class="msg">${msgHTML(r)}</div>`
     + '</article>';
+}
+
+// Message cell; audit events also show their raw record (hidden in compact
+// density until the row is opened).
+function msgHTML(r) {
+  return highlight(r._msg)
+    + (r.source_type === 'audit' && r.audit_raw ? `<div class="raw">${esc(r.audit_raw)}</div>` : '');
 }
 
 // Stable hue (0-359) for a name: the compose project color, shared by the
@@ -952,7 +998,7 @@ function rehighlight() {
   for (const row of list.children) {
     const r = recOf.get(row);
     if (!r) continue;
-    row.querySelector('.msg').innerHTML = highlight(r._msg);
+    row.querySelector('.msg').innerHTML = msgHTML(r);
     row.querySelector('.codes').innerHTML = codesHTML(r._msg);
   }
 }
@@ -979,8 +1025,8 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'unit', 'log_file', 'subsystem', 'device', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
-  const hidden = new Set(['_stream_id', '_stream', 'sevnum']);
+  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'audit_type', 'audit_serial', 'auid', 'user', 'exe', 'res', 'key', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'unit', 'log_file', 'subsystem', 'device', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const hidden = new Set(['_stream_id', '_stream', 'sevnum', 'audit_raw']); // audit_raw: shown under the message
   if (r.msg_time) hidden.add('_time'); // same as the reception time
   const keys = order.filter((k) => r[k] != null && r[k] !== '' && !hidden.has(k))
     .concat(Object.keys(r).filter((k) => !order.includes(k) && !hidden.has(k)).sort());
@@ -2060,6 +2106,82 @@ async function configureDmesg(enabled) {
 
 $('#dmesgEnabled').addEventListener('change', (ev) => configureDmesg(ev.target.checked));
 
+/* ================= Linux audit (auditd) ================= */
+
+let auditState = null;
+
+async function loadAudit() {
+  try { auditState = await api('/api/audit'); } catch { auditState = null; }
+  renderAudit();
+}
+
+function renderAudit() {
+  const s = auditState;
+  const status = $('#auditStatus');
+  if (!s) { status.textContent = ''; return; }
+  $('#auditEnabled').checked = s.enabled;
+  const input = $('#auditPath');
+  input.placeholder = s.defaultPath || '';
+  if (document.activeElement !== input) input.value = s.path || '';
+  let text = t('hostWaiting');
+  let cls = 'muted';
+  if (!s.enabled) {
+    text = t('auditOff');
+  } else if (s.code) {
+    text = t('audit_' + s.code) + (s.error || '');
+    cls = 'bad';
+  } else if (s.open) {
+    text = t('auditOk', { p: s.path || s.defaultPath, r: fmtNum(s.read) });
+    cls = 'good';
+  }
+  status.textContent = text;
+  status.className = 'docker-status ' + cls;
+}
+
+async function configureAudit(change) {
+  const body = { enabled: auditState?.enabled || false, path: auditState?.path || '', ...change };
+  auditState = { ...(auditState || {}), ...body };
+  renderAudit();
+  try { auditState = await api('/api/audit', { method: 'PUT', body }); } catch (e) { toast(e.message); }
+  renderAudit();
+  setTimeout(loadAudit, 1500); // the file is read in the background
+}
+
+$('#auditEnabled').addEventListener('change', (ev) => configureAudit({ enabled: ev.target.checked }));
+$('#auditPath').addEventListener('change', (ev) => configureAudit({ path: ev.target.value.trim() }));
+
+/* ================= LogStream internal logs ================= */
+
+let selfState = null;
+
+async function loadSelfLog() {
+  try { selfState = await api('/api/selflog'); } catch { selfState = null; }
+  renderSelfLog();
+}
+
+function renderSelfLog() {
+  const s = selfState;
+  const status = $('#selfStatus');
+  if (!s) { status.textContent = ''; return; }
+  $('#selfEnabled').checked = s.enabled;
+  $('#selfLevel').value = s.min_level || 'warning';
+  $('#selfLevel').disabled = !s.enabled;
+  const left = (s.dropped || 0) + (s.throttled || 0);
+  status.textContent = s.enabled ? t('selfOk', { n: fmtNum(s.emitted || 0) }) + (left ? t('selfDropped', fmtNum(left)) : '') : t('selfOff');
+  status.className = 'docker-status ' + (s.enabled ? 'good' : 'muted');
+}
+
+async function configureSelfLog(change) {
+  const body = { enabled: selfState?.enabled ?? true, min_level: selfState?.min_level || 'warning', ...change };
+  selfState = { ...(selfState || {}), ...body };
+  renderSelfLog();
+  try { selfState = await api('/api/selflog', { method: 'PUT', body }); } catch (e) { toast(e.message); }
+  renderSelfLog();
+}
+
+$('#selfEnabled').addEventListener('change', (ev) => configureSelfLog({ enabled: ev.target.checked }));
+$('#selfLevel').addEventListener('change', (ev) => configureSelfLog({ min_level: ev.target.value }));
+
 /* ================= Docker source ================= */
 
 let dockerState = null;
@@ -2177,6 +2299,8 @@ setInterval(() => {
     loadDocker();
     loadHost();
     loadDmesg();
+    loadAudit();
+    loadSelfLog();
   }
 }, 4000);
 
@@ -2471,6 +2595,8 @@ $('#settingsBtn').addEventListener('click', () => {
   loadSyslog();
   loadHost();
   loadDmesg();
+  loadAudit();
+  loadSelfLog();
   loadDocker();
   renderDbStats();
   loadDbStats();

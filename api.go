@@ -24,6 +24,8 @@ type API struct {
 	syslog     *SyslogServer
 	host       *HostLogs
 	dmesg      *Dmesg
+	audit      *Audit
+	selfLog    *SelfLog
 	dbstats    dbStatsCache
 }
 
@@ -52,6 +54,50 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/hostlogs", a.hostLogsConfigure)
 	mux.HandleFunc("GET /api/dmesg", a.dmesgStatus)
 	mux.HandleFunc("PUT /api/dmesg", a.dmesgConfigure)
+	mux.HandleFunc("GET /api/audit", a.auditStatus)
+	mux.HandleFunc("PUT /api/audit", a.auditConfigure)
+	mux.HandleFunc("GET /api/selflog", a.selfLogStatus)
+	mux.HandleFunc("PUT /api/selflog", a.selfLogConfigure)
+}
+
+// GET /api/audit: state of the Linux audit source (Settings > Sources).
+func (a *API) auditStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.audit.Status())
+}
+
+// PUT /api/audit {"enabled": bool, "path": "/var/log/audit/audit.log"}
+func (a *API) auditConfigure(w http.ResponseWriter, r *http.Request) {
+	var cfg auditConfig
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&cfg); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := a.audit.Configure(cfg); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Printf("audit source changed from %s: %+v", r.RemoteAddr, cfg)
+	writeJSON(w, http.StatusOK, a.audit.Status())
+}
+
+// GET /api/selflog: state of the LogStream internal logs (Settings > Sources).
+func (a *API) selfLogStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.selfLog.Status())
+}
+
+// PUT /api/selflog {"enabled": bool, "min_level": "warning"}
+func (a *API) selfLogConfigure(w http.ResponseWriter, r *http.Request) {
+	var cfg selfLogConfig
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&cfg); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := a.selfLog.Configure(cfg); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Printf("internal logs changed from %s: %+v", r.RemoteAddr, cfg)
+	writeJSON(w, http.StatusOK, a.selfLog.Status())
 }
 
 // GET /api/dmesg: state of the kernel messages source (Settings > Sources).

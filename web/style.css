@@ -22,6 +22,9 @@
   --hit: rgba(99, 102, 241, .18);
   --shadow: 0 10px 30px rgba(15, 23, 42, .12);
   --chip-l: 38%;            /* lightness of project-colored text (labels, Docker apps) */
+  --src-audit: #7c4dbd;     /* audit events (auditd) */
+  --src-ls: #1f9aa3;        /* LogStream internal logs */
+  --src-tint: 6%;           /* background tint of their rows */
 
   --sev-crit: #be123c;
   --sev-err: #dc2626;
@@ -70,6 +73,9 @@
   --hit: rgba(129, 140, 248, .28);
   --shadow: 0 10px 30px rgba(0, 0, 0, .5);
   --chip-l: 70%;
+  --src-audit: #a983e6;
+  --src-ls: #3cc3cc;
+  --src-tint: 9%;
   --sev-crit: #fb7185;
   --sev-err: #f87171;
   --sev-warning: #fbbf24;
@@ -102,6 +108,9 @@
     --hit: rgba(129, 140, 248, .28);
     --shadow: 0 10px 30px rgba(0, 0, 0, .5);
   --chip-l: 70%;
+    --src-audit: #a983e6;
+    --src-ls: #3cc3cc;
+    --src-tint: 9%;
     --sev-crit: #fb7185;
     --sev-err: #f87171;
     --sev-warning: #fbbf24;
@@ -401,6 +410,25 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .row.sev-crit, .row.sev-err, .row.sev-warning { border-left-color: var(--sev); }
 .row.sev-crit, .row.sev-err { background: color-mix(in srgb, var(--sev) 7%, transparent); }
 .row .host[data-act], .row .app[data-act] { cursor: pointer; }
+/* Audit events and LogStream internal logs: colored edge (over the severity
+   one), light tint, badge before the app name. */
+.row.src-audit { --src: var(--src-audit); }
+.row.src-logstream { --src: var(--src-ls); }
+.row.src-audit, .row.src-logstream { border-left-color: var(--src); background: color-mix(in srgb, var(--src) var(--src-tint), transparent); }
+.row.src-audit:hover, .row.src-logstream:hover { background: color-mix(in srgb, var(--src) 13%, var(--row-hover)); }
+.src-badge {
+  display: inline-block; margin-right: 5px; padding: 0 4px; border-radius: 4px; vertical-align: 1px;
+  font: 700 9.5px/1.45 var(--sans); letter-spacing: .04em;
+  color: var(--src); background: color-mix(in srgb, var(--src) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--src) 40%, transparent);
+}
+.row .raw {
+  margin-top: 2px; font-size: .85em; line-height: 1.35; color: var(--muted);
+  white-space: pre-wrap; word-break: break-all;
+}
+:root[data-density="compact"] .row:not(.open) .raw { display: none; }
+.src-help { margin-top: 10px !important; }
+.self-level { width: auto; justify-self: start; }
 /* Codes of the tags found in the message: grey badges, fixed size */
 .row .codes { white-space: nowrap; overflow: hidden; }
 .row .codes > span { display: inline-flex; gap: 3px; vertical-align: 1px; }

@@ -36,7 +36,7 @@ type Entry struct {
 	Proto    string // udp or tcp
 	HostIP   string // original host value when it was an IP resolved through DNS
 
-	SourceType string            // "syslog", "docker", "host" or "kernel"
+	SourceType string            // "syslog", "docker", "host", "kernel", "audit" or "logstream"
 	Extra      map[string]string // additional fields (docker: container, image, …)
 
 	// Not stored. Wait: the producer can be slowed down when the queue is full
@@ -239,7 +239,7 @@ func serveUDP(ctx context.Context, pc net.PacketConn, sink func(*Entry)) {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("syslog udp: %v", err)
+			logEvent("syslog", 4, "UDP read error: %v", err)
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
@@ -262,14 +262,14 @@ func serveTCP(ctx context.Context, ln net.Listener, sink func(*Entry)) {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("syslog tcp: %v", err)
+			logEvent("syslog", 4, "TCP accept error: %v", err)
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		select {
 		case slots <- struct{}{}:
 		default:
-			log.Printf("syslog tcp: %d connections already open, refusing %s", tcpMaxConns, conn.RemoteAddr())
+			logEvent("syslog", 4, "%d TCP connections already open, refusing %s", tcpMaxConns, conn.RemoteAddr())
 			conn.Close()
 			continue
 		}

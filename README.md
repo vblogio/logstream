@@ -220,6 +220,65 @@ on in **Settings > Sources > Kernel messages (dmesg)** (saved in `/data/dmesg.js
   `DMESG_BACKFILL` ago. Messages overwritten in the kernel buffer before being read are counted
   in Settings.
 
+## Linux audit (auditd)
+
+Logstream can follow the log of the Linux audit daemon (`/var/log/audit/audit.log`): logins,
+`sudo`, watched files, syscalls matched by your `auditctl` rules… The source is **off by
+default**: turn it on in **Settings > Sources > Linux audit (auditd)**, where the file path can
+also be changed (saved in `/data/audit.json`; `AUDIT_LOG` sets the default path).
+
+- **Mount**: uncomment `/var/log/audit:/var/log/audit:ro` in `docker-compose.yml`, then
+  `docker compose up -d`. (`/var/log` is already mounted under `/host` for the host system
+  logs, so `/host/var/log/audit/audit.log` also works as the path, without a new volume.)
+- **Permissions** (host side): auditd writes its log as `root`, mode `0600`, in a `0700`
+  directory, and Logstream runs as UID `10001`. The reliable way is the group the container
+  already gets for the host logs (`HOST_LOGS_GID`, `adm` by default):
+  ```bash
+  sudo sed -i 's/^log_group.*/log_group = adm/' /etc/audit/auditd.conf
+  sudo chgrp adm /var/log/audit && sudo chmod 750 /var/log/audit
+  sudo service auditd restart        # systemctl refuses to restart auditd on some distributions
+  ```
+  auditd then creates every rotated file with mode `0640` and group `adm`. An ACL also works
+  (`sudo setfacl -m u:10001:rx /var/log/audit && sudo setfacl -m u:10001:r /var/log/audit/audit.log`)
+  but must be applied again to each new file after a rotation. Settings > Sources says when the
+  file is missing or access is denied; it is tried again every second.
+- **Events**: the records of one event (`SYSCALL`, `EXECVE`, `CWD`, `PATH`, `PROCTITLE`…) share
+  the same `msg=audit(time:serial)` and become **one** log, once no record came for 2 seconds.
+  The message is a summary — who, what, result — such as
+  `cedric (as root): exec apt install nginx [exec] → success` or
+  `bob: PAM:authentication via /usr/sbin/sshd from 203.0.113.9 on ssh → failed`; the raw
+  records are kept in `audit_raw` and shown under the summary (folded in compact density until
+  the line is opened). Hexadecimal values (`proctitle`, `cmd`, arguments with spaces) are
+  decoded.
+- **Fields**: `audit_type` (type of the first record, also used as **app**), `audit_serial`,
+  `auid` (login user ID), `user` (its name, or the uid when it cannot be resolved), `exe`, `res`
+  (`success` / `failed`, from `res=` or `success=`) and `key` (rule key). Severity is `warning`
+  when the result is a failure, `info` otherwise; facility `authpriv`; source `audit`. In the
+  list, audit lines have a violet left edge, a light tint and an **AUDIT** badge before the app;
+  the **Source** filter shows them alone.
+- **Names**: `user` comes from the enriched format (`log_format = ENRICHED`, the default of
+  recent auditd versions), else from the host's `/etc/passwd` when it is mounted as
+  `/host/etc/passwd`. **host** is the `node=` of the records (`name_format = hostname` in
+  `auditd.conf`), else `AUDIT_HOST`, else `/host/etc/hostname`, else `localhost`.
+- When the source is turned on, the last hour is read first (`AUDIT_BACKFILL`, `0` = only new
+  events). The inode and an offset before which every event was sent are saved in
+  `/data/audit-state.json`: after a restart, reading resumes there; after a rotation by auditd,
+  the end of `audit.log.1` is read before the new file.
+
+## LogStream internal logs
+
+Logstream records its own events as logs, with **host** `logstream`, **app** the component
+(`store`, `syslog`, `docker`, `host`, `dmesg`, `audit`, `main`) and the `logstream` source:
+VictoriaLogs unreachable and back, lost batches, batches refused from the disk buffer, syslog
+listener errors, Docker API or container streams lost, sources that cannot read, start and
+stop. They are on by default from level **warning**; **Settings > Sources > LogStream internal
+logs** turns them off or changes the minimum level (saved in `/data/selflog.json`). The same
+event (component and message) is recorded at most once every 30 seconds, with the number of
+repeats left out; events go through a bounded queue and never wait for the storage, so an
+unreachable VictoriaLogs cannot make them pile up or loop. Everything still goes to
+`docker compose logs logstream` as before. In the list, these lines have a turquoise left edge
+and an **LS** badge before the app; the **Source** filter shows them alone.
+
 ## CSV export
 
 The **Export** button (next to the log count) downloads every stored log matching the
@@ -398,6 +457,9 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `HOST_LOGS_ROOT` | `/host` | where the host directories are mounted |
 | `DMESG_BACKFILL` | `1h` | history read when the kernel messages source is turned on |
 | `DMESG_DEVICE` | `/dev/kmsg` | kernel log device read by the kernel messages source |
+| `AUDIT_LOG` | `/var/log/audit/audit.log` | default path of the Linux audit log (can be changed in Settings > Sources) |
+| `AUDIT_BACKFILL` | `1h` | history read when the Linux audit source is turned on |
+| `AUDIT_HOST` | empty | host name of the audit events when the records carry no `node=` |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
 | `SPOOL_MAX_MB` | `1024` | disk buffer size for batches VictoriaLogs could not take (`0` = no buffer: retried for 15 s, then dropped) |
@@ -457,6 +519,8 @@ To update one of them:
 | `syslogserver.go` | syslog listeners opened and closed from Settings > Sources |
 | `hostlogs.go`, `journal.go` | host system logs: systemd journal reader (no `journalctl`) and `/var/log` follower |
 | `dmesg.go` | kernel messages: `/dev/kmsg` reader, record parsing, position by boot ID and sequence number |
+| `audit.go` | Linux audit: `audit.log` follower (rotation, saved offset), record parsing, grouping by event, summary |
+| `selflog.go` | LogStream internal logs: `logEvent`, minimum level, throttling, bounded queue |
 | `tags.go` | color tag storage |
 | `presets.go`, `presets.json` | color tag presets (`/api/presets`), built-in list |
 | `api.go` | `/api/*` HTTP routes |

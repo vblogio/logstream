@@ -103,6 +103,8 @@
       <option value="docker">Docker</option>
       <option value="host" data-i18n="srcHost">Host system</option>
       <option value="kernel" data-i18n="srcKernel">Kernel (dmesg)</option>
+      <option value="audit">Audit</option>
+      <option value="logstream">LogStream</option>
     </select>
     <span class="spacer"></span>
     <span id="count" class="muted"></span>
@@ -274,6 +276,39 @@
                 <span data-i18n="dmesgEnabled">Collect the kernel messages of this machine</span>
               </label>
               <p class="muted small" data-i18n="dmesgHelp"></p>
+            </section>
+
+            <section class="set-section">
+              <h3 data-i18n="auditTitle">Linux audit (auditd)</h3>
+              <p id="auditStatus" class="docker-status"></p>
+              <label class="switch-row">
+                <input id="auditEnabled" type="checkbox" class="switch">
+                <span data-i18n="auditEnabled">Collect the audit events of this machine</span>
+              </label>
+              <div class="sl-grid">
+                <label class="lbl" for="auditPath" data-i18n="auditPath">File</label>
+                <input id="auditPath" type="text" class="dk-filter" autocomplete="off" spellcheck="false">
+              </div>
+              <p class="muted small src-help" data-i18n="auditHelp"></p>
+            </section>
+
+            <section class="set-section">
+              <h3 data-i18n="selfTitle">LogStream internal logs</h3>
+              <p id="selfStatus" class="docker-status"></p>
+              <label class="switch-row">
+                <input id="selfEnabled" type="checkbox" class="switch">
+                <span data-i18n="selfEnabled">Record the events of LogStream itself</span>
+              </label>
+              <div class="sl-grid">
+                <label class="lbl" for="selfLevel" data-i18n="selfLevel">Minimum level</label>
+                <select id="selfLevel" class="field self-level">
+                  <option value="err" data-i18n="sev3">Errors and above</option>
+                  <option value="warning" data-i18n="sev4">Warnings and above</option>
+                  <option value="notice" data-i18n="sev5">Notice and above</option>
+                  <option value="info" data-i18n="sev6">Info and above</option>
+                </select>
+              </div>
+              <p class="muted small src-help" data-i18n="selfHelp"></p>
             </section>
 
             <section class="set-section span">

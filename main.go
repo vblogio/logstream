@@ -40,6 +40,9 @@ type config struct {
 	hostFill   time.Duration
 	kmsgDevice string
 	kmsgFill   time.Duration
+	auditLog   string
+	auditHost  string
+	auditFill  time.Duration
 	batchSize  int
 	queueSize  int
 	flushEvery time.Duration
@@ -119,6 +122,9 @@ func main() {
 		hostFill:   getenvDuration("HOST_LOGS_BACKFILL", time.Hour),
 		kmsgDevice: getenv("DMESG_DEVICE", "/dev/kmsg"),
 		kmsgFill:   getenvDuration("DMESG_BACKFILL", time.Hour),
+		auditLog:   getenv("AUDIT_LOG", "/var/log/audit/audit.log"),
+		auditHost:  os.Getenv("AUDIT_HOST"),
+		auditFill:  getenvDuration("AUDIT_BACKFILL", time.Hour),
 		batchSize:  getenvInt("BATCH_SIZE", 1000),
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
@@ -138,14 +144,16 @@ func main() {
 	var spool *Spool
 	if cfg.spoolMax > 0 {
 		if spool, err = OpenSpool(filepath.Join(cfg.dataDir, "spool"), cfg.spoolMax); err != nil {
-			log.Printf("disk buffer disabled: %v", err)
+			log.Printf("disk buffer disabled: %v", err) // before the self-logs exist
 			spool = nil
 		}
 	}
 	store := NewStore(cfg.vlogsURL, cfg.batchSize, cfg.queueSize, cfg.flushEvery, spool)
+	// The store stops after everything else, so the stop event is still stored.
+	storeCtx, stopStore := context.WithCancel(context.Background())
 	storeDone := make(chan struct{})
 	go func() {
-		store.Run(ctx)
+		store.Run(storeCtx)
 		close(storeDone)
 	}()
 
@@ -163,6 +171,20 @@ func main() {
 			hub.Publish(e)
 		})
 	}
+	// Internal events of LogStream (host=logstream), WARNING and above unless
+	// changed in Settings > Sources.
+	selfLog = NewSelfLog(cfg.dataDir, func(e *Entry) {
+		store.Enqueue(e)
+		hub.Publish(e)
+	})
+	selfCtx, stopSelf := context.WithCancel(context.Background())
+	selfDone := make(chan struct{})
+	go func() {
+		selfLog.Run(selfCtx)
+		close(selfDone)
+	}()
+	logEvent("main", 5, "LogStream started")
+
 	tcpMaxConns = getenvInt("SYSLOG_TCP_MAX_CONNS", tcpMaxConns)
 	if d := getenvDuration("SYSLOG_TCP_IDLE", tcpIdle); d > 0 {
 		tcpIdle = d
@@ -180,7 +202,7 @@ func main() {
 	if cfg.dockerLogs {
 		dm, err := NewDockerManager(cfg.dockerHost, cfg.dataDir, cfg.backfill, sink)
 		if err != nil {
-			log.Printf("docker logs disabled: %v", err)
+			logEvent("docker", 3, "Docker logs disabled: %v", err)
 		} else {
 			go dm.Run(ctx)
 			api.docker = dm
@@ -193,6 +215,10 @@ func main() {
 	// Kernel messages of the host (/dev/kmsg), off until enabled in Settings > Sources.
 	api.dmesg = NewDmesg(cfg.kmsgDevice, cfg.dataDir, cfg.kmsgFill, sink)
 	go api.dmesg.Run(ctx)
+	// Linux audit log of the host (auditd), off until enabled in Settings > Sources.
+	api.audit = NewAudit(cfg.auditLog, cfg.hostRoot, cfg.auditHost, cfg.dataDir, cfg.auditFill, sink)
+	go api.audit.Run(ctx)
+	api.selfLog = selfLog
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))
 
@@ -229,6 +255,10 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("http: %v", err)
 	}
+	logEvent("main", 5, "LogStream stopping")
+	stopSelf()
+	<-selfDone
+	stopStore()
 	<-storeDone
 	log.Println("shutdown complete")
 }

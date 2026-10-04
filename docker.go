@@ -242,7 +242,7 @@ func (m *DockerManager) setError(err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.lastErr != err.Error() {
-		log.Printf("docker: %v", err)
+		logEvent("docker", 3, "Docker API unreachable: %v", err)
 	}
 	m.connected = false
 	m.lastErr = err.Error()
@@ -290,7 +290,7 @@ func (m *DockerManager) sync(ctx context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.connected {
-		log.Printf("docker: connected, %d containers", len(list))
+		logEvent("docker", 6, "connected to the Docker API, %d containers", len(list))
 	}
 	m.connected, m.lastErr = true, ""
 	seen := map[string]bool{}
@@ -371,7 +371,7 @@ func (m *DockerManager) follow(ctx context.Context, c DockerContainer) {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("docker %s: %v", c.Name, err)
+			logEvent("docker", 4, "container %s: cannot inspect it: %v", c.Name, err)
 			sleepCtx(ctx, 5*time.Second)
 			continue
 		}
@@ -383,7 +383,7 @@ func (m *DockerManager) follow(ctx context.Context, c DockerContainer) {
 			return
 		}
 		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-			log.Printf("docker %s: %v", c.Name, err)
+			logEvent("docker", 4, "container %s: log stream lost, reconnecting: %v", c.Name, err)
 		}
 		sleepCtx(ctx, time.Second)
 	}

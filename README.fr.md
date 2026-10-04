@@ -240,6 +240,71 @@ défaut** : activez-la dans **Paramètres > Sources > Messages du noyau (dmesg)*
   buffer est lu depuis `DMESG_BACKFILL`. Les messages écrasés dans le buffer du noyau avant
   d'être lus sont comptés dans Paramètres.
 
+## Audit Linux (auditd)
+
+Logstream peut suivre le journal du démon d'audit Linux (`/var/log/audit/audit.log`) :
+connexions, `sudo`, fichiers surveillés, appels système visés par vos règles `auditctl`… La
+source est **désactivée par défaut** : activez-la dans **Réglages > Sources > Audit Linux
+(auditd)**, où le chemin du fichier peut aussi être changé (enregistré dans `/data/audit.json` ;
+`AUDIT_LOG` fixe le chemin par défaut).
+
+- **Montage** : décommentez `/var/log/audit:/var/log/audit:ro` dans `docker-compose.yml`, puis
+  `docker compose up -d`. (`/var/log` est déjà monté sous `/host` pour les logs système de
+  l'hôte : `/host/var/log/audit/audit.log` fonctionne donc aussi comme chemin, sans nouveau
+  volume.)
+- **Droits** (côté hôte) : auditd écrit son journal en `root`, mode `0600`, dans un répertoire
+  `0700`, et Logstream tourne avec l'UID `10001`. Le plus fiable est le groupe que le conteneur
+  reçoit déjà pour les logs de l'hôte (`HOST_LOGS_GID`, `adm` par défaut) :
+  ```bash
+  sudo sed -i 's/^log_group.*/log_group = adm/' /etc/audit/auditd.conf
+  sudo chgrp adm /var/log/audit && sudo chmod 750 /var/log/audit
+  sudo service auditd restart        # systemctl refuse de redémarrer auditd sur certaines distributions
+  ```
+  auditd crée alors chaque fichier, rotations comprises, en mode `0640` avec le groupe `adm`.
+  Une ACL fonctionne aussi
+  (`sudo setfacl -m u:10001:rx /var/log/audit && sudo setfacl -m u:10001:r /var/log/audit/audit.log`)
+  mais doit être réappliquée à chaque nouveau fichier après une rotation. Réglages > Sources
+  indique si le fichier est absent ou l'accès refusé ; il est réessayé chaque seconde.
+- **Événements** : les enregistrements d'un même événement (`SYSCALL`, `EXECVE`, `CWD`, `PATH`,
+  `PROCTITLE`…) partagent le même `msg=audit(heure:numéro)` et deviennent **un seul** log, dès
+  qu'aucun enregistrement n'est arrivé depuis 2 secondes. Le message est un résumé — qui, quoi,
+  résultat — comme `cedric (as root): exec apt install nginx [exec] → success` ou
+  `bob: PAM:authentication via /usr/sbin/sshd from 203.0.113.9 on ssh → failed` ; les
+  enregistrements bruts sont gardés dans `audit_raw` et affichés sous le résumé (repliés en
+  densité compacte tant que la ligne n'est pas ouverte). Les valeurs hexadécimales
+  (`proctitle`, `cmd`, arguments avec espaces) sont décodées.
+- **Champs** : `audit_type` (type du premier enregistrement, aussi utilisé comme **app**),
+  `audit_serial`, `auid` (identifiant de l'utilisateur connecté), `user` (son nom, ou l'uid s'il
+  ne peut pas être résolu), `exe`, `res` (`success` / `failed`, d'après `res=` ou `success=`) et
+  `key` (clé de la règle). La sévérité est `warning` en cas d'échec, `info` sinon ; facility
+  `authpriv` ; source `audit`. Dans la liste, les lignes d'audit ont un liseré gauche violet,
+  un fond légèrement teinté et un badge **AUDIT** devant l'app ; le filtre **Source** permet de
+  les afficher seules.
+- **Noms** : `user` vient du format enrichi (`log_format = ENRICHED`, le défaut des versions
+  récentes d'auditd), sinon du `/etc/passwd` de l'hôte s'il est monté en `/host/etc/passwd`.
+  **host** est le `node=` des enregistrements (`name_format = hostname` dans `auditd.conf`),
+  sinon `AUDIT_HOST`, sinon `/host/etc/hostname`, sinon `localhost`.
+- À l'activation, la dernière heure est lue d'abord (`AUDIT_BACKFILL`, `0` = seulement les
+  nouveaux événements). L'inode et une position avant laquelle tout événement a été envoyé sont
+  enregistrés dans `/data/audit-state.json` : après un redémarrage, la lecture reprend là ;
+  après une rotation par auditd, la fin de `audit.log.1` est lue avant le nouveau fichier.
+
+## Logs internes de LogStream
+
+Logstream enregistre ses propres événements comme des logs, avec l'**hôte** `logstream`,
+l'**app** du composant (`store`, `syslog`, `docker`, `host`, `dmesg`, `audit`, `main`) et la
+source `logstream` : VictoriaLogs injoignable puis de retour, lots perdus, lots refusés depuis
+le tampon disque, erreurs du listener syslog, API Docker ou flux d'un conteneur décrochés,
+sources qui ne peuvent pas lire, démarrage et arrêt. Ils sont actifs par défaut à partir du
+niveau **warning** ; **Réglages > Sources > Logs internes de LogStream** permet de les couper
+ou de changer le niveau minimal (enregistré dans `/data/selflog.json`). Un même événement
+(composant et message) est enregistré au plus une fois toutes les 30 secondes, avec le nombre
+de répétitions écartées ; les événements passent par une file bornée et n'attendent jamais le
+stockage : un VictoriaLogs injoignable ne peut ni les accumuler ni les faire boucler. Tout
+continue d'aller dans `docker compose logs logstream` comme avant. Dans la liste, ces lignes
+ont un liseré gauche turquoise et un badge **LS** devant l'app ; le filtre **Source** permet de
+les afficher seules.
+
 ## Export CSV
 
 Le bouton **Exporter** (à côté du nombre de logs) télécharge tous les logs stockés qui
@@ -435,6 +500,9 @@ résolutions.
 | `HOST_LOGS_ROOT` | `/host` | emplacement de montage des répertoires de l'hôte |
 | `DMESG_BACKFILL` | `1h` | historique lu à l'activation de la source « messages du noyau » |
 | `DMESG_DEVICE` | `/dev/kmsg` | périphérique du log noyau lu par la source « messages du noyau » |
+| `AUDIT_LOG` | `/var/log/audit/audit.log` | chemin par défaut du journal d'audit Linux (modifiable dans Réglages > Sources) |
+| `AUDIT_BACKFILL` | `1h` | historique lu à l'activation de la source « audit Linux » |
+| `AUDIT_HOST` | vide | nom d'hôte des événements d'audit quand les enregistrements n'ont pas de `node=` |
 | `TZ` | `Europe/Paris` | fuseau horaire des horodatages RFC 3164 (qui n'en portent pas) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | réglage de l'ingestion |
 | `SPOOL_MAX_MB` | `1024` | taille du tampon disque des lots refusés par VictoriaLogs (`0` = pas de tampon : 15 s de tentatives, puis perte) |
@@ -496,6 +564,8 @@ Pour mettre à jour l'une d'elles :
 | `syslogserver.go` | écoutes syslog ouvertes et fermées depuis Paramètres > Sources |
 | `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
 | `dmesg.go` | messages du noyau : lecture de `/dev/kmsg`, analyse des enregistrements, position par identifiant de démarrage et numéro de séquence |
+| `audit.go` | audit Linux : suivi de `audit.log` (rotation, position enregistrée), analyse des enregistrements, regroupement par événement, résumé |
+| `selflog.go` | logs internes de LogStream : `logEvent`, niveau minimal, limitation des répétitions, file bornée |
 | `tags.go` | stockage des tags de couleur |
 | `presets.go`, `presets.json` | préréglages de tags (`/api/presets`), liste intégrée |
 | `api.go` | routes HTTP `/api/*` |

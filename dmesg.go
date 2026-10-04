@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -173,7 +172,7 @@ func (d *Dmesg) saveState() {
 	pos := d.pos
 	d.mu.Unlock()
 	if err := writeJSONFile(d.statePath, pos); err != nil {
-		log.Printf("dmesg: saving position: %v", err)
+		logEvent("dmesg", 4, "saving position: %v", err)
 	}
 }
 
@@ -197,7 +196,7 @@ func (d *Dmesg) fail(err error) {
 	d.open, d.errCode, d.errDetail = false, code, detail
 	d.mu.Unlock()
 	if changed && code != "" {
-		log.Printf("dmesg: %v", err)
+		logEvent("dmesg", 4, "cannot read the kernel messages: %v", err)
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,6 +33,7 @@ type Store struct {
 	ingested atomic.Int64
 	dropped  atomic.Int64
 	lastErr  atomic.Value // string
+	failing  atomic.Bool  // VictoriaLogs refused or missed the last send
 }
 
 func NewStore(base string, batchSize, queueSize int, flushEvery time.Duration, spool *Spool) *Store {
@@ -133,7 +133,7 @@ func (s *Store) store(ctx context.Context, batch []*Entry) {
 	if err != nil {
 		s.dropped.Add(int64(len(batch)))
 		s.lastErr.Store(err.Error())
-		log.Printf("victorialogs: %d messages dropped: %v", len(batch), err)
+		logEvent("store", 3, "%d messages lost: %v", len(batch), err)
 		return
 	}
 	for _, e := range batch {
@@ -153,9 +153,10 @@ func (s *Store) save(ctx context.Context, body []byte, lines int) error {
 			}
 			if err = s.post(ctx, body); err == nil {
 				s.ingested.Add(int64(lines))
-				s.lastErr.Store("")
+				s.sent()
 				return nil
 			}
+			s.sendFailed(err)
 		}
 		return err
 	}
@@ -164,10 +165,10 @@ func (s *Store) save(ctx context.Context, body []byte, lines int) error {
 	if waiting, _ := s.spool.Pending(); waiting == 0 {
 		if postErr = s.post(ctx, body); postErr == nil {
 			s.ingested.Add(int64(lines))
-			s.lastErr.Store("")
+			s.sent()
 			return nil
 		}
-		s.lastErr.Store(postErr.Error())
+		s.sendFailed(postErr)
 	}
 	err := s.spool.Write(body, lines)
 	if err == nil {
@@ -192,13 +193,13 @@ func (s *Store) save(ctx context.Context, body []byte, lines int) error {
 // an increasing pause (up to 30 s) while it keeps failing.
 func (s *Store) replay(ctx context.Context) {
 	if n, size := s.spool.Pending(); n > 0 {
-		log.Printf("spool: %d messages (%d bytes) waiting from a previous run", n, size)
+		logEvent("store", 5, "disk spool: %d messages (%d bytes) waiting from a previous run", n, size)
 	}
 	backoff := time.Second
 	for {
 		f, body, ok, err := s.spool.Oldest()
 		if err != nil {
-			log.Printf("spool: %v", err)
+			logEvent("store", 4, "disk spool: %v", err)
 		}
 		if !ok {
 			select {
@@ -214,21 +215,41 @@ func (s *Store) replay(ctx context.Context) {
 		case err == nil:
 			s.spool.Remove(f)
 			s.ingested.Add(f.lines)
-			s.lastErr.Store("")
+			s.sent()
 			backoff = time.Second
 			continue
 		case isRejected(err):
 			// VictoriaLogs refuses the data itself: sending it again would not help.
 			s.spool.Remove(f)
 			s.dropped.Add(f.lines)
-			log.Printf("spool: %d messages refused by victorialogs: %v", f.lines, err)
+			logEvent("store", 3, "disk spool: %d messages refused by VictoriaLogs and lost: %v", f.lines, err)
 			continue
 		}
-		s.lastErr.Store(err.Error())
+		s.sendFailed(err)
 		if !sleepCtx(ctx, backoff) {
 			return
 		}
 		backoff = min(2*backoff, 30*time.Second)
+	}
+}
+
+// sendFailed and sent report when VictoriaLogs stops and starts taking the
+// batches again, once per change.
+func (s *Store) sendFailed(err error) {
+	s.lastErr.Store(err.Error())
+	if !s.failing.Swap(true) {
+		if s.spool != nil {
+			logEvent("store", 4, "VictoriaLogs unreachable, batches are kept in the disk spool: %v", err)
+		} else {
+			logEvent("store", 4, "VictoriaLogs unreachable, retrying: %v", err)
+		}
+	}
+}
+
+func (s *Store) sent() {
+	s.lastErr.Store("")
+	if s.failing.Swap(false) {
+		logEvent("store", 5, "VictoriaLogs reachable again")
 	}
 }
 

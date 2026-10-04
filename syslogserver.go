@@ -94,7 +94,7 @@ func (s *SyslogServer) apply() {
 		pc, err := net.ListenPacket("udp", s.addr)
 		if err != nil {
 			s.errUDP = err.Error()
-			log.Printf("syslog udp: %v", err)
+			logEvent("syslog", 3, "UDP listener failed: %v", err)
 		} else {
 			if uc, ok := pc.(*net.UDPConn); ok {
 				_ = uc.SetReadBuffer(8 << 20)
@@ -108,7 +108,7 @@ func (s *SyslogServer) apply() {
 		ln, err := net.Listen("tcp", s.addr)
 		if err != nil {
 			s.errTCP = err.Error()
-			log.Printf("syslog tcp: %v", err)
+			logEvent("syslog", 3, "TCP listener failed: %v", err)
 		} else {
 			s.ln = ln
 			go serveTCP(ctx, ln, s.sink)

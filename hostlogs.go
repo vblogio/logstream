@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -116,14 +115,18 @@ func (h *HostLogs) saveState() {
 	}
 	h.dirty = false
 	if err := writeJSONFile(h.statePath, h.pos); err != nil {
-		log.Printf("host logs: saving positions: %v", err)
+		logEvent("host", 4, "saving positions: %v", err)
 	}
 }
 
 func (h *HostLogs) setStatus(mode string, files int, code, detail string) {
 	h.mu.Lock()
+	changed := code != h.errCode
 	h.mode, h.files, h.errCode, h.errDetail = mode, files, code, detail
 	h.mu.Unlock()
+	if changed && code != "" && code != "empty" {
+		logEvent("host", 4, "cannot read the host system logs (%s): %s", code, detail)
+	}
 }
 
 // scan reads what was added since the previous poll.
