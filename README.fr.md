@@ -55,7 +55,7 @@ Ouvrez ensuite <http://localhost:8080>.
 - **Test manuel** : `logger -n 127.0.0.1 -P 514 -d "hello error"` (util-linux) ou
   `echo "<14>test ok" | nc -u -w1 127.0.0.1 514`.
 
-**Paramètres > Sources > Syslog** active ou désactive la réception syslog et choisit les
+**Paramètres > Sources de logs > Syslog** active ou désactive la réception syslog et choisit les
 protocoles (UDP, TCP) sans redémarrage ; le choix est enregistré dans `/data/syslog.json`. Cet
 onglet affiche aussi l'état d'écoute (et l'erreur si le port est déjà utilisé). Le port
 lui-même est publié par docker-compose : modifiez `SYSLOG_PORT` dans `.env`, puis lancez
@@ -98,7 +98,7 @@ affiche tous ses champs.
 Les en-têtes de colonnes restent visibles pendant le défilement. Faites glisser le bord d'un
 en-tête (réception, heure message, sévérité, hôte, app) pour redimensionner la colonne, et
 double-cliquez dessus pour revenir à la largeur automatique ; le message occupe l'espace
-restant. Les largeurs sont mémorisées par le navigateur (**Paramètres > Interface >
+restant. Les largeurs sont mémorisées par le navigateur (**Paramètres > Affichage >
 Réinitialiser les colonnes** les rétablit toutes). Sur téléphone, la liste garde sa
 présentation sur deux lignes, sans colonnes.
 
@@ -126,7 +126,7 @@ lignes).
   chaque nouvel intervalle. Rien n'est rafraîchi tant que l'onglet du navigateur est masqué ;
   la frise se met à jour dès qu'il redevient visible.
 
-**Paramètres > Interface > Frise** (mémorisé par navigateur) : échelle (linéaire, √ par défaut,
+**Paramètres > Affichage > Frise** (mémorisé par navigateur) : échelle (linéaire, √ par défaut,
 log), hauteur (S/M/L : 40/80/120 px), couleur (empilement par sévérité, intensité comparée à
 la médiane de la fenêtre : calme, rafale au-delà de 3×, anomalie au-delà de 10×, ou aucune),
 barres ou aire, division (automatique, environ 100 intervalles, ou fixe : 1 s, 10 s, 1 min,
@@ -155,7 +155,7 @@ colorés et exportés comme les messages syslog :
   (`"level":"error"`), logfmt (`level=warn`), `[ERROR]`, ou un niveau en majuscules au début de
   la ligne (`ERROR`, `WARN`…). Sinon, elle vaut `info`. Les codes de couleur du terminal sont
   supprimés.
-- **Paramètres > Sources** affiche une étiquette par conteneur (`project/service`) dans un seul
+- **Paramètres > Sources de logs** affiche une étiquette par conteneur (`project/service`) dans un seul
   champ : les conteneurs suivis en couleur, puis les non suivis en gris ; un clic bascule une
   étiquette. La couleur identifie le projet compose, et les noms d'applications Docker de la
   liste utilisent la même couleur. Les conteneurs arrêtés sont masqués par défaut (« Afficher
@@ -181,7 +181,7 @@ moteur (`GET` uniquement).
 
 Logstream peut aussi collecter les logs système de la machine qui héberge la stack, sans rien
 configurer sur l'hôte. La source est **désactivée par défaut** : activez-la dans
-**Paramètres > Sources > Logs système de l'hôte** (enregistré dans `/data/hostlogs.json`).
+**Paramètres > Sources de logs > Logs système de l'hôte** (enregistré dans `/data/hostlogs.json`).
 
 - `docker-compose.yml` monte `/var/log` et `/run/log/journal` en lecture seule sous `/host`.
 - Si l'hôte utilise systemd, Logstream lit directement les fichiers du **journal systemd**
@@ -196,7 +196,7 @@ configurer sur l'hôte. La source est **désactivée par défaut** : activez-la 
 - **Droits** : le conteneur tourne avec un utilisateur sans privilège et reçoit le groupe `adm`
   (gid 4), qui peut lire le journal et `/var/log` sur Debian et Ubuntu. Sur d'autres systèmes,
   réglez `HOST_LOGS_GID` dans `.env` sur le gid de `systemd-journal`
-  (`getent group systemd-journal | cut -d: -f3`). Paramètres > Sources affiche un message clair
+  (`getent group systemd-journal | cut -d: -f3`). Paramètres > Sources de logs affiche un message clair
   si l'accès est refusé.
 - Limites : les champs du journal compressés par journald (messages de plus de 512 octets,
   compressés en zstd/lz4/xz) ne peuvent pas être décodés sans bibliothèque supplémentaire ; ils
@@ -207,7 +207,7 @@ configurer sur l'hôte. La source est **désactivée par défaut** : activez-la 
 
 Logstream peut collecter le buffer circulaire du noyau de l'hôte (ce qu'affiche `dmesg` :
 matériel, pilotes, OOM killer, pare-feu…) en lisant `/dev/kmsg`. La source est **désactivée par
-défaut** : activez-la dans **Paramètres > Sources > Messages du noyau (dmesg)** (enregistré dans
+défaut** : activez-la dans **Paramètres > Sources de logs > Messages du noyau (dmesg)** (enregistré dans
 `/data/dmesg.json`).
 
 - **Périphérique** : le conteneur ne voit pas `/dev/kmsg` par défaut. Décommentez la section
@@ -223,7 +223,7 @@ défaut** : activez-la dans **Paramètres > Sources > Messages du noyau (dmesg)*
   - ou lancer Logstream en root avec la capacité `SYSLOG` : décommentez `user: "0:0"` et
     `cap_add: [SYSLOG]` dans `docker-compose.yml`.
 
-  Paramètres > Sources indique si le périphérique est absent ou l'accès refusé ; le reste de
+  Paramètres > Sources de logs indique si le périphérique est absent ou l'accès refusé ; le reste de
   Logstream continue de fonctionner et le périphérique est réessayé toutes les 10 secondes.
 - **Champs** : **app** vaut `kernel` (ou le nom du programme pour les messages écrits par des
   programmes, comme `systemd[1]: …`), la sévérité et la facility viennent de l'enregistrement,
@@ -330,13 +330,13 @@ En ligne de commande : `curl -o logs.csv 'localhost:8080/api/export.csv?q=error&
 L'icône en forme d'engrenage ouvre les paramètres, organisés en onglets. Tout, sauf les tags de
 couleur, est mémorisé par navigateur.
 
-- **Localisation**
+- **Localisation et langue**
   - *Langue* : anglais ou français.
   - *Date et heure* : fuseau horaire (celui du navigateur, UTC ou environ 80 fuseaux courants)
     et format d'affichage de l'heure de réception : `DD/MM/YYYY HH:MM:SS` (par défaut,
     l'affichage français habituel), avec millisecondes, `YYYY-MM-DD`, horloge sur 12 heures,
     ISO 8601 ou epoch Unix. Le fuseau horaire s'applique à toutes les dates affichées.
-- **Motif de recherche** : tags de couleur. Chaque tag a un mot-clé, une couleur de fond (le texte passe
+- **Motifs de recherche** : tags de couleur. Chaque tag a un mot-clé, une couleur de fond (le texte passe
   automatiquement en noir ou en blanc pour rester lisible) et des options : mot entier, respect
   de la casse, expression régulière, actif. Les tags sont stockés sur le serveur dans
   `/data/tags.json` (volume `logstream-data`) : ils sont donc partagés par tous les navigateurs.
@@ -358,7 +358,7 @@ couleur, est mémorisé par navigateur.
   un aussi). La colonne *Motif de recherche* de la liste affiche, en badges gris, les codes des tags actifs
   trouvés dans chaque message ; elle a la place pour 3, au-delà elle en affiche 2 et `+N`, et
   l'infobulle les liste tous.
-- **Interface**
+- **Affichage**
   - *Thème* : Système (suit la préférence de l'ordinateur ou du téléphone), Clair ou Sombre. Le
     bouton soleil/lune de l'en-tête bascule entre clair et sombre.
   - *Affichage des logs* : taille du texte (très petite, petite, moyenne, grande), densité
@@ -372,7 +372,7 @@ couleur, est mémorisé par navigateur.
     européen de polices respectueux de la vie privée ; sans accès à internet, la police du
     système est utilisée. Les ligatures sont désactivées pour que `->` ou `!=` s'affichent tels
     quels. Le réglage le plus dense est Très petite + Compacte + Inconsolata Condensed.
-- **Données** : chiffres de la base lus dans VictoriaLogs (actualisés au plus toutes les 30 s) :
+- **Base de données** : chiffres de la base lus dans VictoriaLogs (actualisés au plus toutes les 30 s) :
   lignes stockées, taille sur disque (index compris), taille brute et taux de compression,
   période couverte avec la rétention, lignes des dernières 24 h et de la dernière heure, hôtes
   et applications distincts, espace disque libre. Les tailles sont en Ko/Mo/Go (KB/MB/GB en
@@ -543,7 +543,7 @@ Pour mettre à jour l'une d'elles :
    VictoriaLogs conserve son format de stockage entre versions mineures ; lisez le changelog
    avant un changement de version majeure.
 2. Modifiez la version dans le fichier indiqué ci-dessus, puis lancez `docker compose up -d --build`.
-3. Vérifiez la barre du bas (reçus / stockés / perdus) et **Paramètres > Sources**. Pour revenir
+3. Vérifiez la barre du bas (reçus / stockés / perdus) et **Paramètres > Sources de logs**. Pour revenir
    en arrière, remettez la version précédente et lancez la même commande.
 
 ## Organisation du code
@@ -561,7 +561,7 @@ Pour mettre à jour l'une d'elles :
 | `rdns.go` | résolutions DNS inverses avec cache |
 | `export.go` | export CSV en flux |
 | `docker.go` | logs des conteneurs Docker (API, lecteurs, positions, détection du niveau) |
-| `syslogserver.go` | écoutes syslog ouvertes et fermées depuis Paramètres > Sources |
+| `syslogserver.go` | écoutes syslog ouvertes et fermées depuis Paramètres > Sources de logs |
 | `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
 | `dmesg.go` | messages du noyau : lecture de `/dev/kmsg`, analyse des enregistrements, position par identifiant de démarrage et numéro de séquence |
 | `audit.go` | audit Linux : suivi de `audit.log` (rotation, position enregistrée), analyse des enregistrements, regroupement par événement, résumé |

@@ -50,7 +50,7 @@ Then open <http://localhost:8080>.
 - **Manual test**: `logger -n 127.0.0.1 -P 514 -d "hello error"` (util-linux) or
   `echo "<14>test ok" | nc -u -w1 127.0.0.1 514`.
 
-**Settings > Sources > Syslog** turns syslog reception on or off and chooses the protocols
+**Settings > Log sources > Syslog** turns syslog reception on or off and chooses the protocols
 (UDP, TCP) without restarting; the choice is saved in `/data/syslog.json`. It also shows the
 listening state (and the error if the port is already in use). The port itself is published
 by docker-compose: change `SYSLOG_PORT` in `.env`, then run `docker compose up -d`.
@@ -89,7 +89,7 @@ Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all
 The column headers stay visible while scrolling. Drag the edge of a header (received, message
 time, severity, host, app) to resize the column, double-click it to go back to the automatic
 width; the message takes the remaining space. Widths are remembered by the browser
-(**Settings > Interface > Reset column widths** restores them all). On phones the list keeps its
+(**Settings > Appearance > Reset column widths** restores them all). On phones the list keeps its
 two-line layout without columns.
 
 ## Stream and Time range modes
@@ -114,7 +114,7 @@ time** on the server clock (so it matches the times shown in the rows).
 - In live mode the last interval grows as messages arrive, and the timeline reloads at each new
   interval. Nothing is refreshed while the browser tab is hidden; it catches up when shown again.
 
-**Settings > Interface > Timeline** (remembered per browser): scale (linear, √ by default, log),
+**Settings > Appearance > Timeline** (remembered per browser): scale (linear, √ by default, log),
 height (S/M/L: 40/80/120 px), color (stacked by severity, intensity compared with the median of
 the window: calm, burst above 3×, anomaly above 10×, or none), bars or area, division
 (automatic, about 100 intervals, or fixed: 1 s, 10 s, 1 min, 5 min, 1 h, 1 day) and refresh
@@ -141,7 +141,7 @@ colored and exported like syslog messages:
 - The severity comes from the line itself when the application writes it: JSON
   (`"level":"error"`), logfmt (`level=warn`), `[ERROR]`, or an upper-case level word at the
   start of the line (`ERROR`, `WARN`…). Otherwise it is `info`. Terminal color codes are removed.
-- **Settings > Sources** shows one label per container (`project/service`) in a single field:
+- **Settings > Log sources** shows one label per container (`project/service`) in a single field:
   followed containers in color, then not followed ones in grey; a click switches a label.
   The color identifies the compose project, and Docker app names in the log list use the
   same color. Stopped containers are hidden by default ("Show stopped containers" displays
@@ -165,7 +165,7 @@ which only lets through listing containers, reading logs, events and engine info
 
 Logstream can also collect the system logs of the machine hosting the stack, without
 configuring anything on the host. The source is **off by default**: turn it on in
-**Settings > Sources > Host system logs** (saved in `/data/hostlogs.json`).
+**Settings > Log sources > Host system logs** (saved in `/data/hostlogs.json`).
 
 - `docker-compose.yml` mounts `/var/log` and `/run/log/journal` read-only under `/host`.
 - When the host runs systemd, Logstream reads the **systemd journal** files directly (no
@@ -180,7 +180,7 @@ configuring anything on the host. The source is **off by default**: turn it on i
 - **Permissions**: the container runs as an unprivileged user and gets the `adm` group
   (gid 4), which can read the journal and `/var/log` on Debian and Ubuntu. On other systems,
   set `HOST_LOGS_GID` in `.env` to the gid of `systemd-journal`
-  (`getent group systemd-journal | cut -d: -f3`). Settings > Sources shows a clear message when
+  (`getent group systemd-journal | cut -d: -f3`). Settings > Log sources shows a clear message when
   access is denied.
 - Limits: journal fields compressed by journald (messages longer than 512 bytes, compressed
   with zstd/lz4/xz) cannot be decoded without extra libraries; they are counted in Settings and
@@ -191,7 +191,7 @@ configuring anything on the host. The source is **off by default**: turn it on i
 
 Logstream can collect the kernel ring buffer of the host (what `dmesg` shows: hardware,
 drivers, OOM killer, firewall…) by reading `/dev/kmsg`. The source is **off by default**: turn it
-on in **Settings > Sources > Kernel messages (dmesg)** (saved in `/data/dmesg.json`).
+on in **Settings > Log sources > Kernel messages (dmesg)** (saved in `/data/dmesg.json`).
 
 - **Device**: the container does not see `/dev/kmsg` by default. Uncomment the `devices`
   section of `docker-compose.yml` (`/dev/kmsg:/dev/kmsg:r`, read-only), then
@@ -205,7 +205,7 @@ on in **Settings > Sources > Kernel messages (dmesg)** (saved in `/data/dmesg.js
   - or run Logstream as root with the `SYSLOG` capability: uncomment `user: "0:0"` and
     `cap_add: [SYSLOG]` in `docker-compose.yml`.
 
-  Settings > Sources says when the device is missing or access is denied; the rest of
+  Settings > Log sources says when the device is missing or access is denied; the rest of
   Logstream keeps working and the device is tried again every 10 seconds.
 - **Fields**: **app** is `kernel` (or the program name for messages written by programs such
   as `systemd[1]: …`), severity and facility come from the record, **host** is `localhost`,
@@ -224,7 +224,7 @@ on in **Settings > Sources > Kernel messages (dmesg)** (saved in `/data/dmesg.js
 
 Logstream can follow the log of the Linux audit daemon (`/var/log/audit/audit.log`): logins,
 `sudo`, watched files, syscalls matched by your `auditctl` rules… The source is **off by
-default**: turn it on in **Settings > Sources > Linux audit (auditd)**, where the file path can
+default**: turn it on in **Settings > Log sources > Linux audit (auditd)**, where the file path can
 also be changed (saved in `/data/audit.json`; `AUDIT_LOG` sets the default path).
 
 - **Mount**: uncomment `/var/log/audit:/var/log/audit:ro` in `docker-compose.yml`, then
@@ -240,7 +240,7 @@ also be changed (saved in `/data/audit.json`; `AUDIT_LOG` sets the default path)
   ```
   auditd then creates every rotated file with mode `0640` and group `adm`. An ACL also works
   (`sudo setfacl -m u:10001:rx /var/log/audit && sudo setfacl -m u:10001:r /var/log/audit/audit.log`)
-  but must be applied again to each new file after a rotation. Settings > Sources says when the
+  but must be applied again to each new file after a rotation. Settings > Log sources says when the
   file is missing or access is denied; it is tried again every second.
 - **Events**: the records of one event (`SYSCALL`, `EXECVE`, `CWD`, `PATH`, `PROCTITLE`…) share
   the same `msg=audit(time:serial)` and become **one** log, once no record came for 2 seconds.
@@ -271,7 +271,7 @@ Logstream records its own events as logs, with **host** `logstream`, **app** the
 (`store`, `syslog`, `docker`, `host`, `dmesg`, `audit`, `main`) and the `logstream` source:
 VictoriaLogs unreachable and back, lost batches, batches refused from the disk buffer, syslog
 listener errors, Docker API or container streams lost, sources that cannot read, start and
-stop. They are on by default from level **warning**; **Settings > Sources > LogStream internal
+stop. They are on by default from level **warning**; **Settings > Log sources > LogStream internal
 logs** turns them off or changes the minimum level (saved in `/data/selflog.json`). The same
 event (component and message) is recorded at most once every 30 seconds, with the number of
 repeats left out; events go through a bounded queue and never wait for the storage, so an
@@ -307,7 +307,7 @@ remembered per browser.
     format of the reception time: `DD/MM/YYYY HH:MM:SS` (default, the usual French display),
     with milliseconds, `YYYY-MM-DD`, 12-hour clock, ISO 8601 or Unix epoch. The time zone
     applies to every date shown.
-- **Pattern**: color tags. Each tag has a keyword, a background color (the text automatically
+- **Patterns**: color tags. Each tag has a keyword, a background color (the text automatically
   switches to black or white to stay readable) and options: whole word, match case,
   regular expression, active. Tags are stored on the server in `/data/tags.json`
   (`logstream-data` volume), so they are shared by every browser. Default tags (pastel):
@@ -327,7 +327,7 @@ remembered per browser.
   *Pattern* column of the log list shows, as grey badges, the codes of the active tags found in
   each message; it has room for 3, beyond that it shows 2 and `+N`, and the tooltip lists them
   all.
-- **Interface**
+- **Appearance**
   - *Theme*: System (follows the computer/phone preference), Light or Dark. The sun/moon
     button in the header switches between light and dark.
   - *Log display*: font size (tiny, small, medium, large), density (normal, or compact to
@@ -339,7 +339,7 @@ remembered per browser.
     [Bunny Fonts](https://fonts.bunny.net), a privacy-friendly European font service; without
     internet access, the system font is used. Ligatures are disabled so `->` or `!=` show as
     typed. The densest setting is Tiny + Compact + Inconsolata Condensed.
-- **Data**: database figures read from VictoriaLogs (refreshed at most every 30 s): stored
+- **Database**: database figures read from VictoriaLogs (refreshed at most every 30 s): stored
   lines, size on disk (index included), raw size and compression ratio, period covered with
   the retention, lines of the last 24 h and last hour, distinct hosts and apps, free disk
   space. Sizes use KB/MB/GB (Ko/Mo/Go in French). "Delete all logs" permanently erases every stored log (you must type
@@ -457,7 +457,7 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `HOST_LOGS_ROOT` | `/host` | where the host directories are mounted |
 | `DMESG_BACKFILL` | `1h` | history read when the kernel messages source is turned on |
 | `DMESG_DEVICE` | `/dev/kmsg` | kernel log device read by the kernel messages source |
-| `AUDIT_LOG` | `/var/log/audit/audit.log` | default path of the Linux audit log (can be changed in Settings > Sources) |
+| `AUDIT_LOG` | `/var/log/audit/audit.log` | default path of the Linux audit log (can be changed in Settings > Log sources) |
 | `AUDIT_BACKFILL` | `1h` | history read when the Linux audit source is turned on |
 | `AUDIT_HOST` | empty | host name of the audit events when the records carry no `node=` |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
@@ -498,7 +498,7 @@ To update one of them:
    VictoriaLogs keeps its storage format across minor versions; read the changelog before a
    major version change.
 2. Change the version in the file above, then run `docker compose up -d --build`.
-3. Check the bottom bar (received / stored / dropped) and **Settings > Sources**. To go back,
+3. Check the bottom bar (received / stored / dropped) and **Settings > Log sources**. To go back,
    restore the previous version and run the same command.
 
 ## Code layout
@@ -516,7 +516,7 @@ To update one of them:
 | `rdns.go` | cached reverse DNS lookups |
 | `export.go` | streamed CSV export |
 | `docker.go` | Docker container logs (API, followers, positions, level detection) |
-| `syslogserver.go` | syslog listeners opened and closed from Settings > Sources |
+| `syslogserver.go` | syslog listeners opened and closed from Settings > Log sources |
 | `hostlogs.go`, `journal.go` | host system logs: systemd journal reader (no `journalctl`) and `/var/log` follower |
 | `dmesg.go` | kernel messages: `/dev/kmsg` reader, record parsing, position by boot ID and sequence number |
 | `audit.go` | Linux audit: `audit.log` follower (rotation, saved offset), record parsing, grouping by event, summary |
