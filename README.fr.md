@@ -336,7 +336,7 @@ couleur, est mémorisé par navigateur.
     et format d'affichage de l'heure de réception : `DD/MM/YYYY HH:MM:SS` (par défaut,
     l'affichage français habituel), avec millisecondes, `YYYY-MM-DD`, horloge sur 12 heures,
     ISO 8601 ou epoch Unix. Le fuseau horaire s'applique à toutes les dates affichées.
-- **Filtres** : tags de couleur. Chaque tag a un mot-clé, une couleur de fond (le texte passe
+- **Motif de recherche** : tags de couleur. Chaque tag a un mot-clé, une couleur de fond (le texte passe
   automatiquement en noir ou en blanc pour rester lisible) et des options : mot entier, respect
   de la casse, expression régulière, actif. Les tags sont stockés sur le serveur dans
   `/data/tags.json` (volume `logstream-data`) : ils sont donc partagés par tous les navigateurs.
@@ -355,7 +355,7 @@ couleur, est mémorisé par navigateur.
   les préréglages s'en servent pour colorer le code de statut ou la méthode, pas le texte autour.
   Chaque tag reçoit un code à deux chiffres (`01`, `02`…) attribué par le serveur : il reste
   attaché au tag jusqu'à sa suppression (les tags créés par les versions précédentes en reçoivent
-  un aussi). La colonne *Filtres* de la liste affiche, en badges gris, les codes des tags actifs
+  un aussi). La colonne *Motif de recherche* de la liste affiche, en badges gris, les codes des tags actifs
   trouvés dans chaque message ; elle a la place pour 3, au-delà elle en affiche 2 et `+N`, et
   l'infobulle les liste tous.
 - **Interface**

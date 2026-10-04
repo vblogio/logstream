@@ -143,7 +143,7 @@
       <span data-col="sev"><span class="lbl" data-i18n="colSev">Severity</span><i class="grip" data-i18n-title="colGrip"></i></span>
       <span data-col="host"><span class="lbl" data-i18n="colHost">Host</span><i class="grip" data-i18n-title="colGrip"></i></span>
       <span data-col="app"><span class="lbl" data-i18n="colApp">App</span><i class="grip" data-i18n-title="colGrip"></i></span>
-      <span data-col="codes"><span class="lbl" data-i18n="colCodes" data-i18n-title="codesTitle">Filters</span></span>
+      <span data-col="codes"><span class="lbl" data-i18n="colCodes" data-i18n-title="codesTitle">Pattern</span></span>
       <span data-col="msg"><span class="lbl" data-i18n="colMsg">Message</span></span>
     </div>
     <main id="list" class="list"></main>
@@ -179,7 +179,7 @@
           </button>
           <button type="button" role="tab" data-tab="filters">
             <svg viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/></svg>
-            <span data-i18n="tabFilters">Filters</span>
+            <span data-i18n="tabFilters">Pattern</span>
           </button>
           <button type="button" role="tab" data-tab="sources">
             <svg viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
@@ -218,7 +218,7 @@
             </section>
           </div>
 
-          <!-- Filters -->
+          <!-- Pattern (color tags; the "filters" tab id is kept for saved settings) -->
           <div class="set-panel wide" role="tabpanel" data-panel="filters" hidden>
             <section class="set-section tags-section">
               <div class="sec-head">

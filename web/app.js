@@ -142,7 +142,7 @@ const I18N = {
     exportNote: (n) => `Up to ${n} logs matching the current filters, newest first. Dates use the time zone chosen in Settings.`,
     exporting: 'Exporting…', exportDone: (f) => `Downloaded: ${f}`, exportError: 'Export failed: ',
     err_export_pipes: 'Export does not support LogsQL pipes (| …): keep only the filter part',
-    tabLocale: 'Localization', tabFilters: 'Filters', tabInterface: 'Interface', tabData: 'Data',
+    tabLocale: 'Localization', tabFilters: 'Pattern', tabInterface: 'Interface', tabData: 'Data',
     themeTitle: 'Theme', themeSystem: 'System', themeLight: 'Light', themeDark: 'Dark',
     themeHelp: 'System follows the light/dark preference of your computer or phone.',
     logDisplay: 'Log display', fontSize: 'Font size',
@@ -196,7 +196,7 @@ const I18N = {
     hCappedTitle: 'The chosen division would exceed 300 intervals over this range: it has been enlarged.',
     hUnzoom: '× Back to stream', unitDay: 'd',
     toTop: 'Back to top',
-    colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colCodes: 'Filters', colMsg: 'Message',
+    colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colCodes: 'Pattern', colMsg: 'Message',
     codesTitle: 'Codes of the color tags found in the message',
     tagCodeTitle: 'Code shown on the log lines this tag matches',
     colGrip: 'Drag to resize, double-click for the automatic width',
@@ -342,7 +342,7 @@ const I18N = {
     exportNote: (n) => `Jusqu'à ${n} logs correspondant aux filtres, du plus récent au plus ancien. Dates dans le fuseau choisi dans Paramètres.`,
     exporting: 'Export…', exportDone: (f) => `Téléchargé : ${f}`, exportError: 'Échec de l\'export : ',
     err_export_pipes: 'L\'export ne gère pas les pipes LogsQL (| …) : gardez seulement la partie filtre',
-    tabLocale: 'Localisation', tabFilters: 'Filtres', tabInterface: 'Interface', tabData: 'Données',
+    tabLocale: 'Localisation', tabFilters: 'Motif de recherche', tabInterface: 'Interface', tabData: 'Données',
     themeTitle: 'Thème', themeSystem: 'Système', themeLight: 'Clair', themeDark: 'Sombre',
     themeHelp: 'Système suit la préférence clair/sombre de votre ordinateur ou de votre téléphone.',
     logDisplay: 'Affichage des logs', fontSize: 'Taille du texte',
@@ -396,7 +396,7 @@ const I18N = {
     hCappedTitle: 'La division choisie dépasserait 300 intervalles sur cette plage : elle a été élargie.',
     hUnzoom: '× Revenir au flux', unitDay: 'j',
     toTop: 'Revenir en haut',
-    colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colCodes: 'Filtres', colMsg: 'Message',
+    colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colCodes: 'Motif de recherche', colMsg: 'Message',
     codesTitle: 'Codes des tags de couleur trouvés dans le message',
     tagCodeTitle: 'Code affiché sur les lignes de log où ce tag est trouvé',
     colGrip: 'Glisser pour redimensionner, double-clic pour la largeur automatique',
@@ -2476,7 +2476,7 @@ function renderTagList() {
   filterTagList();
 }
 
-// Settings > Filters: shows only the tags whose keyword, label or code contains the filter.
+// Settings > Pattern: shows only the tags whose keyword, label or code contains the filter.
 function filterTagList() {
   const q = $('#tagFilter').value.trim().toLowerCase();
   let shown = 0;

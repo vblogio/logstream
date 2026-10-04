@@ -2,7 +2,7 @@
 
 # Color tag presets
 
-In **Settings › Filters**, the **+ Preset…** menu adds a group of ready-made color tags in one
+In **Settings › Pattern**, the **+ Preset…** menu adds a group of ready-made color tags in one
 click. Added tags are ordinary tags: you can change their color, pattern or options, or delete
 them. A tag whose pattern is already in the list is not added twice.
 

@@ -307,7 +307,7 @@ remembered per browser.
     format of the reception time: `DD/MM/YYYY HH:MM:SS` (default, the usual French display),
     with milliseconds, `YYYY-MM-DD`, 12-hour clock, ISO 8601 or Unix epoch. The time zone
     applies to every date shown.
-- **Filters**: color tags. Each tag has a keyword, a background color (the text automatically
+- **Pattern**: color tags. Each tag has a keyword, a background color (the text automatically
   switches to black or white to stay readable) and options: whole word, match case,
   regular expression, active. Tags are stored on the server in `/data/tags.json`
   (`logstream-data` volume), so they are shared by every browser. Default tags (pastel):
@@ -324,7 +324,7 @@ remembered per browser.
   or the method, not the text around it.
   Each tag gets a two-digit code (`01`, `02`…) assigned by the server: it stays with the tag
   until the tag is deleted (codes are also given to tags created by earlier versions). The
-  *Filters* column of the log list shows, as grey badges, the codes of the active tags found in
+  *Pattern* column of the log list shows, as grey badges, the codes of the active tags found in
   each message; it has room for 3, beyond that it shows 2 and `+N`, and the tooltip lists them
   all.
 - **Interface**

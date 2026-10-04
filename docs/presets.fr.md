@@ -2,7 +2,7 @@
 
 # Préréglages de tags de couleur
 
-Dans **Paramètres › Filtres**, le menu **+ Préréglage…** ajoute d'un clic un groupe de tags de
+Dans **Paramètres › Motif de recherche**, le menu **+ Préréglage…** ajoute d'un clic un groupe de tags de
 couleur tout faits. Les tags ajoutés sont des tags ordinaires : vous pouvez changer leur couleur,
 leur motif ou leurs options, ou les supprimer. Un tag dont le motif est déjà dans la liste n'est
 pas ajouté en double.
