@@ -189,7 +189,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
 .actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-/* Logged-in user, with how they logged in (OIDC / local) */
+/* Logged-in user, with how they logged in (oidc / local) */
 .whoami { display: flex; align-items: center; gap: 6px; min-width: 0; margin-left: 6px; font-size: 13px; color: var(--muted); }
 .whoami .who-name { font-weight: 600; color: var(--text); max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .whoami .who-badge {

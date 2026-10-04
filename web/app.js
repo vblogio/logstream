@@ -2647,7 +2647,7 @@ fetch('/auth/me').then((res) => (res.ok ? res.json() : null)).then((me) => {
     who.querySelector('.who-name').textContent = me.user;
     who.title = me.user;
     const badge = who.querySelector('.who-badge');
-    badge.textContent = me.mode === 'oidc' ? 'OIDC' : 'local';
+    badge.textContent = me.mode;
     badge.classList.add(me.mode);
     who.hidden = false;
   }
