@@ -528,7 +528,7 @@ dialog.settings {
 }
 dialog.settings .dlg { display: flex; flex-direction: column; height: 100%; padding: 0; }
 dialog.settings .dlg > header { padding: 14px 16px 14px 22px; border-bottom: 1px solid var(--border); }
-.set-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 176px minmax(0, 1fr); }
+.set-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(176px, max-content) minmax(0, 1fr); }
 .set-nav {
   display: flex; flex-direction: column; gap: 2px;
   padding: 12px 10px; border-right: 1px solid var(--border);
@@ -794,7 +794,7 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
     flex-direction: column; justify-content: center; height: auto; padding: 6px 2px; gap: 3px;
     font-size: 11.5px; text-align: center;
   }
-  .set-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .set-nav button span { max-width: 100%; white-space: normal; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; }
   .set-panels { padding: 12px 12px 18px; }
   .set-panel { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .set-panel > .set-section, .set-panel > .set-section + .set-section { padding: 12px; }
