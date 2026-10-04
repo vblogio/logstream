@@ -38,6 +38,8 @@ type config struct {
 	backfill   time.Duration
 	hostRoot   string
 	hostFill   time.Duration
+	kmsgDevice string
+	kmsgFill   time.Duration
 	batchSize  int
 	queueSize  int
 	flushEvery time.Duration
@@ -115,6 +117,8 @@ func main() {
 		backfill:   getenvDuration("DOCKER_BACKFILL", time.Hour),
 		hostRoot:   getenv("HOST_LOGS_ROOT", "/host"),
 		hostFill:   getenvDuration("HOST_LOGS_BACKFILL", time.Hour),
+		kmsgDevice: getenv("DMESG_DEVICE", "/dev/kmsg"),
+		kmsgFill:   getenvDuration("DMESG_BACKFILL", time.Hour),
 		batchSize:  getenvInt("BATCH_SIZE", 1000),
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
@@ -186,6 +190,9 @@ func main() {
 	// System logs of the host (journal or /var/log), off until enabled in Settings > Sources.
 	api.host = NewHostLogs(cfg.hostRoot, cfg.dataDir, cfg.hostFill, sink)
 	go api.host.Run(ctx)
+	// Kernel messages of the host (/dev/kmsg), off until enabled in Settings > Sources.
+	api.dmesg = NewDmesg(cfg.kmsgDevice, cfg.dataDir, cfg.kmsgFill, sink)
+	go api.dmesg.Run(ctx)
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))
 

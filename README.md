@@ -187,6 +187,39 @@ configuring anything on the host. The source is **off by default**: turn it on i
   shown as "(compressed journal entry)". Rotated or compressed text files (`*.1`, `*.gz`) are
   not read.
 
+## Kernel messages (dmesg)
+
+Logstream can collect the kernel ring buffer of the host (what `dmesg` shows: hardware,
+drivers, OOM killer, firewall…) by reading `/dev/kmsg`. The source is **off by default**: turn it
+on in **Settings > Sources > Kernel messages (dmesg)** (saved in `/data/dmesg.json`).
+
+- **Device**: the container does not see `/dev/kmsg` by default. Uncomment the `devices`
+  section of `docker-compose.yml` (`/dev/kmsg:/dev/kmsg:r`, read-only), then
+  `docker compose up -d`.
+- **Permissions**: when the host has `kernel.dmesg_restrict=1` (the default on Debian and
+  Ubuntu), only processes with the `CAP_SYSLOG` capability can read the kernel log, and the
+  container runs as an unprivileged user. Either:
+  - allow it on the host: `sysctl -w kernel.dmesg_restrict=0`, kept across reboots with
+    `echo kernel.dmesg_restrict=0 | sudo tee /etc/sysctl.d/50-dmesg.conf` (every user of the
+    host can then run `dmesg`); this setting cannot be changed from a container;
+  - or run Logstream as root with the `SYSLOG` capability: uncomment `user: "0:0"` and
+    `cap_add: [SYSLOG]` in `docker-compose.yml`.
+
+  Settings > Sources says when the device is missing or access is denied; the rest of
+  Logstream keeps working and the device is tried again every 10 seconds.
+- **Fields**: **app** is `kernel` (or the program name for messages written by programs such
+  as `systemd[1]: …`), severity and facility come from the record, **host** is `localhost`,
+  `subsystem` and `device` are kept when the kernel gives them. These logs have the `kernel`
+  source (`proto` `kmsg`): the **Source** filter shows them alone.
+- **Time**: records carry the time since boot; Logstream turns it into a date using the boot
+  time (`/proc/uptime`). As with `dmesg -T`, the time can be early after the host was suspended.
+- When the source is turned on, the last hour is read first (`DMESG_BACKFILL`, `0` = only new
+  messages). The sequence number of the last message and the boot ID are saved in
+  `/data/dmesg-state.json`: after a restart of Logstream, reading resumes after the last
+  message (no duplicates); after a reboot of the host, the new buffer is read from
+  `DMESG_BACKFILL` ago. Messages overwritten in the kernel buffer before being read are counted
+  in Settings.
+
 ## CSV export
 
 The **Export** button (next to the log count) downloads every stored log matching the
@@ -363,6 +396,8 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `HOST_LOGS_GID` | `4` (adm) in compose | group given to the container to read the host logs |
 | `HOST_LOGS_BACKFILL` | `1h` | history read when the host system logs source is turned on |
 | `HOST_LOGS_ROOT` | `/host` | where the host directories are mounted |
+| `DMESG_BACKFILL` | `1h` | history read when the kernel messages source is turned on |
+| `DMESG_DEVICE` | `/dev/kmsg` | kernel log device read by the kernel messages source |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
 | `SPOOL_MAX_MB` | `1024` | disk buffer size for batches VictoriaLogs could not take (`0` = no buffer: retried for 15 s, then dropped) |
@@ -421,6 +456,7 @@ To update one of them:
 | `docker.go` | Docker container logs (API, followers, positions, level detection) |
 | `syslogserver.go` | syslog listeners opened and closed from Settings > Sources |
 | `hostlogs.go`, `journal.go` | host system logs: systemd journal reader (no `journalctl`) and `/var/log` follower |
+| `dmesg.go` | kernel messages: `/dev/kmsg` reader, record parsing, position by boot ID and sequence number |
 | `tags.go` | color tag storage |
 | `presets.go`, `presets.json` | color tag presets (`/api/presets`), built-in list |
 | `api.go` | `/api/*` HTTP routes |

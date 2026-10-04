@@ -203,6 +203,43 @@ configurer sur l'hôte. La source est **désactivée par défaut** : activez-la 
   sont comptés dans les Paramètres et affichés comme « (compressed journal entry) ». Les fichiers
   texte tournés ou compressés (`*.1`, `*.gz`) ne sont pas lus.
 
+## Messages du noyau (dmesg)
+
+Logstream peut collecter le buffer circulaire du noyau de l'hôte (ce qu'affiche `dmesg` :
+matériel, pilotes, OOM killer, pare-feu…) en lisant `/dev/kmsg`. La source est **désactivée par
+défaut** : activez-la dans **Paramètres > Sources > Messages du noyau (dmesg)** (enregistré dans
+`/data/dmesg.json`).
+
+- **Périphérique** : le conteneur ne voit pas `/dev/kmsg` par défaut. Décommentez la section
+  `devices` de `docker-compose.yml` (`/dev/kmsg:/dev/kmsg:r`, en lecture seule), puis
+  `docker compose up -d`.
+- **Droits** : si l'hôte a `kernel.dmesg_restrict=1` (le défaut sur Debian et Ubuntu), seuls
+  les processus qui ont la capacité `CAP_SYSLOG` peuvent lire le log du noyau, et le conteneur
+  tourne avec un utilisateur sans privilège. Au choix :
+  - l'autoriser sur l'hôte : `sysctl -w kernel.dmesg_restrict=0`, conservé au redémarrage avec
+    `echo kernel.dmesg_restrict=0 | sudo tee /etc/sysctl.d/50-dmesg.conf` (tous les
+    utilisateurs de l'hôte peuvent alors lancer `dmesg`) ; ce réglage ne peut pas être changé
+    depuis un conteneur ;
+  - ou lancer Logstream en root avec la capacité `SYSLOG` : décommentez `user: "0:0"` et
+    `cap_add: [SYSLOG]` dans `docker-compose.yml`.
+
+  Paramètres > Sources indique si le périphérique est absent ou l'accès refusé ; le reste de
+  Logstream continue de fonctionner et le périphérique est réessayé toutes les 10 secondes.
+- **Champs** : **app** vaut `kernel` (ou le nom du programme pour les messages écrits par des
+  programmes, comme `systemd[1]: …`), la sévérité et la facility viennent de l'enregistrement,
+  **host** vaut `localhost`, `subsystem` et `device` sont conservés quand le noyau les fournit.
+  Ces logs ont la source `kernel` (`proto` `kmsg`) : le filtre **Source** permet de les afficher
+  seuls.
+- **Heure** : les enregistrements portent le temps écoulé depuis le démarrage ; Logstream le
+  convertit en date grâce à l'heure de démarrage (`/proc/uptime`). Comme avec `dmesg -T`,
+  l'heure peut être trop tôt après une mise en veille de l'hôte.
+- À l'activation, la dernière heure est lue d'abord (`DMESG_BACKFILL`, `0` = seulement les
+  nouveaux messages). Le numéro de séquence du dernier message et l'identifiant de démarrage
+  sont enregistrés dans `/data/dmesg-state.json` : après un redémarrage de Logstream, la lecture
+  reprend après le dernier message (sans doublon) ; après un redémarrage de l'hôte, le nouveau
+  buffer est lu depuis `DMESG_BACKFILL`. Les messages écrasés dans le buffer du noyau avant
+  d'être lus sont comptés dans Paramètres.
+
 ## Export CSV
 
 Le bouton **Exporter** (à côté du nombre de logs) télécharge tous les logs stockés qui
@@ -396,6 +433,8 @@ résolutions.
 | `HOST_LOGS_GID` | `4` (adm) dans compose | groupe donné au conteneur pour lire les logs de l'hôte |
 | `HOST_LOGS_BACKFILL` | `1h` | historique lu à l'activation de la source « logs système de l'hôte » |
 | `HOST_LOGS_ROOT` | `/host` | emplacement de montage des répertoires de l'hôte |
+| `DMESG_BACKFILL` | `1h` | historique lu à l'activation de la source « messages du noyau » |
+| `DMESG_DEVICE` | `/dev/kmsg` | périphérique du log noyau lu par la source « messages du noyau » |
 | `TZ` | `Europe/Paris` | fuseau horaire des horodatages RFC 3164 (qui n'en portent pas) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | réglage de l'ingestion |
 | `SPOOL_MAX_MB` | `1024` | taille du tampon disque des lots refusés par VictoriaLogs (`0` = pas de tampon : 15 s de tentatives, puis perte) |
@@ -456,6 +495,7 @@ Pour mettre à jour l'une d'elles :
 | `docker.go` | logs des conteneurs Docker (API, lecteurs, positions, détection du niveau) |
 | `syslogserver.go` | écoutes syslog ouvertes et fermées depuis Paramètres > Sources |
 | `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
+| `dmesg.go` | messages du noyau : lecture de `/dev/kmsg`, analyse des enregistrements, position par identifiant de démarrage et numéro de séquence |
 | `tags.go` | stockage des tags de couleur |
 | `presets.go`, `presets.json` | préréglages de tags (`/api/presets`), liste intégrée |
 | `api.go` | routes HTTP `/api/*` |

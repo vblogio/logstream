@@ -77,6 +77,7 @@ const I18N = {
     clickHost: 'Click to filter on this host', clickApp: 'Click to filter on this app',
     sourceAria: 'Source', srcAll: 'All sources', tabSources: 'Sources',
     srcHost: 'Host system',
+    srcKernel: 'Kernel (dmesg)',
     hostTitle: 'Host system logs',
     hostEnabled: 'Collect the system logs of this machine',
     hostOff: 'Off: the system logs of the machine hosting LogStream are not collected.',
@@ -89,6 +90,15 @@ const I18N = {
     host_empty: 'No systemd journal and no log file found in /var/log.',
     host_read: 'Cannot read the host logs: ',
     hostHelp: 'Reads the systemd journal of the host (/var/log/journal, /run/log/journal), or the text files of /var/log (syslog, messages, *.log) when there is no journal. Directories are mounted read-only. When turned on, the last hour is read first (HOST_LOGS_BACKFILL).',
+    dmesgTitle: 'Kernel messages (dmesg)',
+    dmesgEnabled: 'Collect the kernel messages of this machine',
+    dmesgOff: 'Off: the kernel messages of the machine hosting LogStream are not collected.',
+    dmesgOk: ({ d, r }) => `Reading ${d}: ${r} messages since startup.`,
+    dmesgLost: (n) => ` ${n} messages were overwritten in the kernel buffer before being read.`,
+    dmesg_not_found: 'Device /dev/kmsg not found in the container: uncomment its devices section in docker-compose.yml (see the README).',
+    dmesg_permission: 'Permission denied on /dev/kmsg: set kernel.dmesg_restrict=0 on the host, or run the container as root with the SYSLOG capability (see the README). ',
+    dmesg_read: 'Cannot read the kernel messages: ',
+    dmesgHelp: 'Reads the kernel ring buffer of the host through /dev/kmsg, like dmesg: hardware, drivers, OOM killer, firewall… When turned on, the last hour is read first (DMESG_BACKFILL); after a restart, reading resumes where it stopped.',
     syslogEnabled: 'Receive syslog messages', syslogProtocols: 'Protocols', syslogPort: 'Port',
     syslogListening: ({ port, protos }) => `Listening on port ${port} (${protos}).`,
     syslogOff: 'Syslog reception is off: syslog messages are ignored (Docker logs are still collected).',
@@ -251,6 +261,7 @@ const I18N = {
     clickHost: 'Cliquer pour filtrer sur cet hôte', clickApp: 'Cliquer pour filtrer sur cette appli',
     sourceAria: 'Source', srcAll: 'Toutes les sources', tabSources: 'Sources',
     srcHost: 'Système hôte',
+    srcKernel: 'Noyau (dmesg)',
     hostTitle: 'Logs système de l\'hôte',
     hostEnabled: 'Collecter les logs système de cette machine',
     hostOff: 'Désactivé : les logs système de la machine qui héberge LogStream ne sont pas collectés.',
@@ -263,6 +274,15 @@ const I18N = {
     host_empty: 'Ni journal systemd ni fichier de log trouvé dans /var/log.',
     host_read: 'Lecture des logs de l\'hôte impossible : ',
     hostHelp: 'Lit le journal systemd de l\'hôte (/var/log/journal, /run/log/journal), ou les fichiers texte de /var/log (syslog, messages, *.log) s\'il n\'y a pas de journal. Les répertoires sont montés en lecture seule. À l\'activation, la dernière heure est lue d\'abord (HOST_LOGS_BACKFILL).',
+    dmesgTitle: 'Messages du noyau (dmesg)',
+    dmesgEnabled: 'Collecter les messages du noyau de cette machine',
+    dmesgOff: 'Désactivé : les messages du noyau de la machine qui héberge LogStream ne sont pas collectés.',
+    dmesgOk: ({ d, r }) => `Lecture de ${d} : ${r} messages depuis le démarrage.`,
+    dmesgLost: (n) => ` ${n} messages ont été écrasés dans le buffer du noyau avant d'être lus.`,
+    dmesg_not_found: 'Périphérique /dev/kmsg absent du conteneur : décommentez sa section devices dans docker-compose.yml (voir le README).',
+    dmesg_permission: 'Accès refusé à /dev/kmsg : réglez kernel.dmesg_restrict=0 sur l\'hôte, ou lancez le conteneur en root avec la capacité SYSLOG (voir le README). ',
+    dmesg_read: 'Lecture des messages du noyau impossible : ',
+    dmesgHelp: 'Lit le buffer circulaire du noyau de l\'hôte via /dev/kmsg, comme dmesg : matériel, pilotes, OOM killer, pare-feu… À l\'activation, la dernière heure est lue d\'abord (DMESG_BACKFILL) ; après un redémarrage, la lecture reprend où elle s\'était arrêtée.',
     syslogEnabled: 'Recevoir les messages syslog', syslogProtocols: 'Protocoles', syslogPort: 'Port',
     syslogListening: ({ port, protos }) => `Écoute sur le port ${port} (${protos}).`,
     syslogOff: 'Réception syslog désactivée : les messages syslog sont ignorés (les logs Docker sont toujours collectés).',
@@ -543,6 +563,7 @@ function setLang(next) {
   renderInterface();
   renderSyslog();
   renderHost();
+  renderDmesg();
   renderDocker();
 }
 
@@ -958,7 +979,7 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'unit', 'log_file', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'unit', 'log_file', 'subsystem', 'device', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
   const hidden = new Set(['_stream_id', '_stream', 'sevnum']);
   if (r.msg_time) hidden.add('_time'); // same as the reception time
   const keys = order.filter((k) => r[k] != null && r[k] !== '' && !hidden.has(k))
@@ -2000,6 +2021,45 @@ async function configureHost(enabled) {
 
 $('#hostEnabled').addEventListener('change', (ev) => configureHost(ev.target.checked));
 
+/* ================= Kernel messages (dmesg) ================= */
+
+let dmesgState = null;
+
+async function loadDmesg() {
+  try { dmesgState = await api('/api/dmesg'); } catch { dmesgState = null; }
+  renderDmesg();
+}
+
+function renderDmesg() {
+  const s = dmesgState;
+  const status = $('#dmesgStatus');
+  if (!s) { status.textContent = ''; return; }
+  $('#dmesgEnabled').checked = s.enabled;
+  let text = t('hostWaiting');
+  let cls = 'muted';
+  if (!s.enabled) {
+    text = t('dmesgOff');
+  } else if (s.code) {
+    text = t('dmesg_' + s.code) + (s.code === 'read' || s.code === 'permission' ? s.error || '' : '');
+    cls = 'bad';
+  } else if (s.open) {
+    text = t('dmesgOk', { d: s.device, r: fmtNum(s.read) }) + (s.lost ? t('dmesgLost', fmtNum(s.lost)) : '');
+    cls = 'good';
+  }
+  status.textContent = text;
+  status.className = 'docker-status ' + cls;
+}
+
+async function configureDmesg(enabled) {
+  dmesgState = { ...(dmesgState || {}), enabled };
+  renderDmesg();
+  try { dmesgState = await api('/api/dmesg', { method: 'PUT', body: { enabled } }); } catch (e) { toast(e.message); }
+  renderDmesg();
+  setTimeout(loadDmesg, 1500); // the device is opened in the background
+}
+
+$('#dmesgEnabled').addEventListener('change', (ev) => configureDmesg(ev.target.checked));
+
 /* ================= Docker source ================= */
 
 let dockerState = null;
@@ -2116,6 +2176,7 @@ setInterval(() => {
   if ($('#settingsDlg').open && !document.querySelector('[data-panel="sources"]').hidden) {
     loadDocker();
     loadHost();
+    loadDmesg();
   }
 }, 4000);
 
@@ -2409,6 +2470,7 @@ $('#settingsBtn').addEventListener('click', () => {
   loadPurgeStatus();
   loadSyslog();
   loadHost();
+  loadDmesg();
   loadDocker();
   renderDbStats();
   loadDbStats();

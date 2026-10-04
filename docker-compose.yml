@@ -37,8 +37,19 @@ services:
       DOCKER_HOST: tcp://docker-proxy:2375        # lecture seul de l'API Docker
       DOCKER_BACKFILL: ${DOCKER_BACKFILL:-1h}
       HOST_LOGS_BACKFILL: ${HOST_LOGS_BACKFILL:-1h}   # historique lu a l'activation des logs systeme de l'hote
+      DMESG_BACKFILL: ${DMESG_BACKFILL:-1h}   # historique lu a l'activation des messages du noyau (dmesg)
     group_add:
       - "${HOST_LOGS_GID:-4}"        # groupe autorise a lire les logs de l'hote (4 = adm sur Debian/Ubuntu)
+    # messages du noyau de l'hote (dmesg), source a activer dans Reglages > Sources :
+    # decommenter devices pour donner /dev/kmsg (lecture seule) au conteneur
+    # devices:
+    #   - /dev/kmsg:/dev/kmsg:r
+    # si l'hote a kernel.dmesg_restrict=1 (defaut Debian/Ubuntu), soit sur l'hote :
+    #   sysctl -w kernel.dmesg_restrict=0   (et kernel.dmesg_restrict = 0 dans /etc/sysctl.d/ pour le garder)
+    # soit lancer le conteneur en root avec la capacite SYSLOG (decommenter les deux) :
+    # user: "0:0"
+    # cap_add:
+    #   - SYSLOG
     volumes:
       - logstream-data:/data         # tags.json, docker.json (les choix des conteneurs)
       # logs systeme de l'hote, en lecture seule (source a activer dans Reglages > Sources)
