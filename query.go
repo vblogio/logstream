@@ -119,10 +119,10 @@ func (f Filter) filterExpr() string {
 		parts = append(parts, "app:="+strconv.Quote(f.App))
 	}
 	switch f.Source {
-	case "docker", "host", "kernel", "audit", "logstream":
+	case "docker", "host", "kernel", "audit", "logstream", "file":
 		parts = append(parts, `source_type:=`+strconv.Quote(f.Source))
 	case "syslog": // also matches logs stored before source_type existed
-		parts = append(parts, `!(source_type:in("docker","host","kernel","audit","logstream"))`)
+		parts = append(parts, `!(source_type:in("docker","host","kernel","audit","logstream","file"))`)
 	}
 	if f.Severity >= 0 && f.Severity < 7 {
 		names := make([]string, 0, 8)

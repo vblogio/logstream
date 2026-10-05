@@ -25,6 +25,7 @@ type API struct {
 	host       *HostLogs
 	dmesg      *Dmesg
 	audit      *Audit
+	files      *Files
 	selfLog    *SelfLog
 	dbstats    dbStatsCache
 }
@@ -56,6 +57,8 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/dmesg", a.dmesgConfigure)
 	mux.HandleFunc("GET /api/audit", a.auditStatus)
 	mux.HandleFunc("PUT /api/audit", a.auditConfigure)
+	mux.HandleFunc("GET /api/files", a.filesStatus)
+	mux.HandleFunc("PUT /api/files", a.filesConfigure)
 	mux.HandleFunc("GET /api/selflog", a.selfLogStatus)
 	mux.HandleFunc("PUT /api/selflog", a.selfLogConfigure)
 }
@@ -78,6 +81,27 @@ func (a *API) auditConfigure(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("audit source changed from %s: %+v", r.RemoteAddr, cfg)
 	writeJSON(w, http.StatusOK, a.audit.Status())
+}
+
+// GET /api/files: the log files of the "Files" source (Settings > Sources).
+func (a *API) filesStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.files.Status())
+}
+
+// PUT /api/files {"sources": [{"id", "name", "path", "format", "regex", "host", "enabled"}]}
+// (no id: a new file).
+func (a *API) filesConfigure(w http.ResponseWriter, r *http.Request) {
+	var cfg filesConfig
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&cfg); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := a.files.Configure(cfg); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	log.Printf("file sources changed from %s: %d files", r.RemoteAddr, len(cfg.Sources))
+	writeJSON(w, http.StatusOK, a.files.Status())
 }
 
 // GET /api/selflog: state of the LogStream internal logs (Settings > Sources).

@@ -43,6 +43,7 @@ type config struct {
 	auditLog   string
 	auditHost  string
 	auditFill  time.Duration
+	filesFill  time.Duration
 	batchSize  int
 	queueSize  int
 	flushEvery time.Duration
@@ -125,6 +126,7 @@ func main() {
 		auditLog:   getenv("AUDIT_LOG", "/var/log/audit/audit.log"),
 		auditHost:  os.Getenv("AUDIT_HOST"),
 		auditFill:  getenvDuration("AUDIT_BACKFILL", time.Hour),
+		filesFill:  getenvDuration("FILES_BACKFILL", time.Hour),
 		batchSize:  getenvInt("BATCH_SIZE", 1000),
 		queueSize:  getenvInt("QUEUE_SIZE", 100000),
 		flushEvery: time.Duration(getenvInt("FLUSH_MS", 1000)) * time.Millisecond,
@@ -218,6 +220,10 @@ func main() {
 	// Linux audit log of the host (auditd), off until enabled in Settings > Sources.
 	api.audit = NewAudit(cfg.auditLog, cfg.hostRoot, cfg.auditHost, cfg.dataDir, cfg.auditFill, sink)
 	go api.audit.Run(ctx)
+	// Log files of other programs (Traefik, nginx…) mounted in the container,
+	// declared in Settings > Sources.
+	api.files = NewFiles(cfg.hostRoot, cfg.dataDir, cfg.filesFill, sink)
+	go api.files.Run(ctx)
 	api.selfLog = selfLog
 	api.Routes(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(static)))

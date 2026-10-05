@@ -289,10 +289,64 @@ source est **désactivée par défaut** : activez-la dans **Réglages > Sources 
   enregistrés dans `/data/audit-state.json` : après un redémarrage, la lecture reprend là ;
   après une rotation par auditd, la fin de `audit.log.1` est lue avant le nouveau fichier.
 
+## Fichiers de logs (Traefik, nginx, applications…)
+
+Logstream peut suivre les fichiers de logs d'autres programmes : Traefik, nginx, Apache, ou
+toute application qui écrit dans un fichier. Déclarez chaque fichier dans **Paramètres > Sources
+de logs > Fichiers de logs** (enregistré dans `/data/files.json`, 50 au plus) : un **nom** (l'**app**
+de ses entrées), le **chemin** tel que monté dans le conteneur, un **format**, un **hôte**
+facultatif (par défaut `/host/etc/hostname`, sinon `localhost`) et un interrupteur.
+
+- **Montage** du dossier en lecture seule, par ex. dans `docker-compose.yml` :
+  `- /var/log/traefik:/logs/traefik:ro`, puis `docker compose up -d`. Les fichiers de `/var/log`
+  sont déjà accessibles sous `/host/var/log/…`. Les fichiers doivent être lisibles par l'UID
+  `10001` ou le groupe de `HOST_LOGS_GID` (`adm` par défaut) ; Paramètres > Sources de logs
+  indique quand aucun fichier ne correspond ou que l'accès est refusé.
+- **Chemin** : un fichier, ou un motif avec `*`, `?` ou `[…]` : `/logs/traefik/*.log` suit tous
+  les fichiers `.log` du dossier, y compris ceux créés plus tard (200 fichiers au plus par
+  motif). Les copies de rotation (`.1`, `.2.gz`…) sont ignorées.
+- **Formats** :
+  - *Texte brut* : une entrée par ligne ; le niveau est détecté comme pour les logs Docker, un
+    horodatage en début de ligne (ISO 8601, `2006/01/02 15:04:05`, `[02/Jan/2006:15:04:05 +0200]`,
+    `Jan  2 15:04:05`) devient l'heure du message et est retiré du message. Les lignes indentées
+    (stack traces) sont rattachées à l'entrée précédente.
+  - *JSON lines* : `msg` / `message`, `time` / `ts` / `@timestamp` (texte ou heure Unix) et
+    `level` (mot ou nombre, pino/bunyan compris) sont reconnus ; les autres clés deviennent des
+    champs, les objets imbriqués avec des noms pointés (`req.id`).
+  - *logfmt* : paires `clé=valeur`, comme les logs par défaut de Traefik ou des programmes Go ;
+    mêmes clés que le JSON.
+  - *Journal d'accès (CLF)* : Common / Combined Log Format de nginx et Apache, et le journal
+    d'accès de Traefik dans ce format (routeur, URL du serveur et durée compris). Champs
+    `client_ip`, `http_method`, `http_path`, `http_status`, `http_size`, `user_agent`,
+    `http_referer`, `router`, `backend`, `duration_ms`.
+  - *Accès Traefik (JSON)* : le journal d'accès JSON de Traefik (`accessLog.format: json`),
+    résumé en `GET app.example.com/ 200 · 12.5 ms · app@docker · 203.0.113.9`, toutes les clés
+    dans les champs. Les logs de Traefik lui-même dans le même fichier sont lus comme du JSON.
+  - *Expression régulière* (syntaxe RE2 / Go) : les groupes nommés `time`, `level`, `msg`,
+    `host` et `app` remplissent ces champs, `status` donne le niveau d'un journal d'accès, les
+    autres groupes deviennent des champs, par ex.
+    `^(?P<time>\S+ \S+) \[(?P<level>\w+)\] (?P<module>\S+): (?P<msg>.*)$`. Une ligne qui ne
+    correspond pas est rattachée à l'entrée précédente.
+
+  Pour les journaux d'accès, les statuts 5xx sont en `err`, les 4xx en `warning`, les autres en
+  `info`. Une ligne qui ne suit pas le format choisi est gardée comme du texte brut. Les champs
+  qui portent le nom d'un champ de LogStream (`host`, `app`…) sont renommés `field_host`,
+  `field_app`…
+- **Affichage** : source `file`, le chemin dans `log_file`. Dans la liste, ces lignes ont un
+  liseré gauche vert, une légère teinte et un badge **FILE** avant l'app ; le filtre **Source**
+  les affiche seules.
+- À l'activation d'un fichier, les lignes de la dernière heure déjà présentes sont lues d'abord
+  (`FILES_BACKFILL`, `0` = seulement les nouvelles lignes ; les lignes sans horodatage sont alors
+  ignorées). Les fichiers qui apparaissent ensuite sont lus depuis leur début. L'inode et une
+  position sont enregistrés par fichier dans `/data/files-state.json` : après un redémarrage la
+  lecture reprend là ; après une rotation (`access.log` renommé `access.log.1`), la fin de
+  l'ancien fichier est lue avant le nouveau ; un fichier vidé sur place (`copytruncate`) est
+  relu depuis son début.
+
 ## Logs internes de LogStream
 
 Logstream enregistre ses propres événements comme des logs, avec l'**hôte** `logstream`,
-l'**app** du composant (`store`, `syslog`, `docker`, `host`, `dmesg`, `audit`, `main`) et la
+l'**app** du composant (`store`, `syslog`, `docker`, `host`, `dmesg`, `audit`, `files`, `main`) et la
 source `logstream` : VictoriaLogs injoignable puis de retour, lots perdus, lots refusés depuis
 le tampon disque, erreurs du listener syslog, API Docker ou flux d'un conteneur décrochés,
 sources qui ne peuvent pas lire, démarrage et arrêt. Ils sont actifs par défaut à partir du
@@ -503,6 +557,7 @@ résolutions.
 | `AUDIT_LOG` | `/var/log/audit/audit.log` | chemin par défaut du journal d'audit Linux (modifiable dans Réglages > Sources) |
 | `AUDIT_BACKFILL` | `1h` | historique lu à l'activation de la source « audit Linux » |
 | `AUDIT_HOST` | vide | nom d'hôte des événements d'audit quand les enregistrements n'ont pas de `node=` |
+| `FILES_BACKFILL` | `1h` | historique lu à l'activation d'un fichier de logs (Paramètres > Sources de logs > Fichiers de logs) |
 | `TZ` | `Europe/Paris` | fuseau horaire des horodatages RFC 3164 (qui n'en portent pas) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | réglage de l'ingestion |
 | `SPOOL_MAX_MB` | `1024` | taille du tampon disque des lots refusés par VictoriaLogs (`0` = pas de tampon : 15 s de tentatives, puis perte) |
@@ -565,6 +620,7 @@ Pour mettre à jour l'une d'elles :
 | `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
 | `dmesg.go` | messages du noyau : lecture de `/dev/kmsg`, analyse des enregistrements, position par identifiant de démarrage et numéro de séquence |
 | `audit.go` | audit Linux : suivi de `audit.log` (rotation, position enregistrée), analyse des enregistrements, regroupement par événement, résumé |
+| `filesource.go`, `fileformats.go` | fichiers de logs : suivi (motifs, rotation, positions enregistrées, lignes de suite) et formats (texte, JSON, logfmt, CLF, Traefik, expression régulière) |
 | `selflog.go` | logs internes de LogStream : `logEvent`, niveau minimal, limitation des répétitions, file bornée |
 | `tags.go` | stockage des tags de couleur |
 | `presets.go`, `presets.json` | préréglages de tags (`/api/presets`), liste intégrée |

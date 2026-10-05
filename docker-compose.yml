@@ -39,6 +39,7 @@ services:
       HOST_LOGS_BACKFILL: ${HOST_LOGS_BACKFILL:-1h}   # historique lu a l'activation des logs systeme de l'hote
       DMESG_BACKFILL: ${DMESG_BACKFILL:-1h}   # historique lu a l'activation des messages du noyau (dmesg)
       AUDIT_BACKFILL: ${AUDIT_BACKFILL:-1h}   # historique lu a l'activation de l'audit Linux (auditd)
+      FILES_BACKFILL: ${FILES_BACKFILL:-1h}   # historique lu a l'activation d'un fichier de logs (Reglages > Sources)
       AUDIT_HOST: ${AUDIT_HOST:-}             # nom d'hote des evenements d'audit (vide : node= des enregistrements, sinon /host/etc/hostname)
     group_add:
       - "${HOST_LOGS_GID:-4}"        # groupe autorise a lire les logs de l'hote (4 = adm sur Debian/Ubuntu)
@@ -63,6 +64,8 @@ services:
       # noms des utilisateurs et de l'hote pour les evenements d'audit (optionnel)
       # - /etc/passwd:/host/etc/passwd:ro
       # - /etc/hostname:/host/etc/hostname:ro
+      # fichiers de logs d'autres programmes (Traefik, nginx...), a declarer dans Reglages > Sources > Fichiers de logs
+      # - /var/log/traefik:/logs/traefik:ro
       # logo de la page de connexion, avec LOGIN_LOGO=/config/logo.png dans .env
       # - ./logo.png:/config/logo.png:ro
       # prereglages de tags personnalises, avec PRESETS_FILE=/config/presets.json dans .env

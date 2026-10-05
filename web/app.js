@@ -78,6 +78,28 @@ const I18N = {
     sourceAria: 'Source', srcAll: 'All sources', tabSources: 'Log sources',
     srcHost: 'Host system',
     srcKernel: 'Kernel (dmesg)',
+    srcFile: 'Files',
+    filesTitle: 'Log files',
+    addFile: '+ Add a file',
+    filesNone: 'No file yet: add one to follow the logs of Traefik, nginx or any other program.',
+    fileName: 'Name (app)',
+    filePath: '/logs/traefik/*.log',
+    fileHost: 'Host',
+    fileRegex: '(?P<time>\\S+ \\S+) \\[(?P<level>\\w+)\\] (?P<msg>.*)',
+    fileEnabledAria: 'Follow this file',
+    fmt_text: 'Plain text',
+    fmt_json: 'JSON lines',
+    fmt_logfmt: 'logfmt (key=value)',
+    fmt_clf: 'Access log (CLF)',
+    fmt_traefik: 'Traefik access (JSON)',
+    fmt_regex: 'Regular expression',
+    fileOff: 'Off.',
+    fileDraft: 'Fill in the name and the path to save this file.',
+    fileOk: ({ f, r }) => `${f} file${f > 1 ? 's' : ''} followed: ${r} entries since startup.`,
+    file_not_found: 'No file at this path: mount its directory in the container (see docker-compose.yml) and check the path. ',
+    file_permission: 'Permission denied: the file must be readable by UID 10001 or the adm group (see the README). ',
+    file_read: 'Cannot read the file: ',
+    filesHelp: 'Follows the log files of other programs, mounted read-only in the container (e.g. /var/log/traefik:/logs/traefik:ro). The path can use wildcards (/logs/traefik/*.log follows every .log file of the directory, also those created later); rotated copies (.1, .gz) are left out. Each line gives an entry (badge FILE, app = the name): plain text (level and leading timestamp detected, indented lines added to the previous entry), JSON lines, logfmt, access logs of nginx, Apache or Traefik (5xx are errors, 4xx warnings) or a regular expression whose named groups time, level, msg, host and app fill these fields, the other groups giving extra fields. When turned on, the last hour of dated lines is read first (FILES_BACKFILL); rotations are followed and reading resumes where it stopped.',
     auditTitle: 'Linux audit (auditd)',
     auditEnabled: 'Collect the audit events of this machine',
     auditPath: 'File',
@@ -278,6 +300,28 @@ const I18N = {
     sourceAria: 'Source', srcAll: 'Toutes les sources', tabSources: 'Sources de logs',
     srcHost: 'Système hôte',
     srcKernel: 'Noyau (dmesg)',
+    srcFile: 'Fichiers',
+    filesTitle: 'Fichiers de logs',
+    addFile: '+ Ajouter un fichier',
+    filesNone: 'Aucun fichier pour l\'instant : ajoutez-en un pour suivre les logs de Traefik, nginx ou de tout autre programme.',
+    fileName: 'Nom (app)',
+    filePath: '/logs/traefik/*.log',
+    fileHost: 'Hôte',
+    fileRegex: '(?P<time>\\S+ \\S+) \\[(?P<level>\\w+)\\] (?P<msg>.*)',
+    fileEnabledAria: 'Suivre ce fichier',
+    fmt_text: 'Texte brut',
+    fmt_json: 'JSON lines',
+    fmt_logfmt: 'logfmt (clé=valeur)',
+    fmt_clf: 'Journal d\'accès (CLF)',
+    fmt_traefik: 'Accès Traefik (JSON)',
+    fmt_regex: 'Expression régulière',
+    fileOff: 'Désactivé.',
+    fileDraft: 'Renseignez le nom et le chemin pour enregistrer ce fichier.',
+    fileOk: ({ f, r }) => `${f} fichier${f > 1 ? 's' : ''} suivi${f > 1 ? 's' : ''} : ${r} entrées depuis le démarrage.`,
+    file_not_found: 'Aucun fichier à ce chemin : montez son dossier dans le conteneur (voir docker-compose.yml) et vérifiez le chemin. ',
+    file_permission: 'Accès refusé : le fichier doit être lisible par l\'UID 10001 ou le groupe adm (voir le README). ',
+    file_read: 'Lecture du fichier impossible : ',
+    filesHelp: 'Suit les fichiers de logs d\'autres programmes, montés en lecture seule dans le conteneur (par ex. /var/log/traefik:/logs/traefik:ro). Le chemin accepte les jokers (/logs/traefik/*.log suit tous les fichiers .log du dossier, y compris ceux créés plus tard) ; les copies de rotation (.1, .gz) sont ignorées. Chaque ligne donne une entrée (badge FILE, app = le nom) : texte brut (niveau et horodatage de début de ligne détectés, lignes indentées rattachées à l\'entrée précédente), JSON lines, logfmt, journaux d\'accès de nginx, Apache ou Traefik (5xx en erreur, 4xx en warning) ou expression régulière dont les groupes nommés time, level, msg, host et app remplissent ces champs, les autres groupes donnant des champs supplémentaires. À l\'activation, la dernière heure de lignes datées est lue d\'abord (FILES_BACKFILL) ; les rotations sont suivies et la lecture reprend où elle s\'était arrêtée.',
     auditTitle: 'Audit Linux (auditd)',
     auditEnabled: 'Collecter les événements d\'audit de cette machine',
     auditPath: 'Fichier',
@@ -598,6 +642,7 @@ function setLang(next) {
   renderDmesg();
   renderAudit();
   renderSelfLog();
+  renderFiles(true);
   renderDocker();
 }
 
@@ -907,7 +952,7 @@ function fmtTime(s) {
 
 // Sources with their own look in the list: a colored edge and a badge
 // before the app name (the severity badge stays the same).
-const SRC_BADGE = { audit: 'AUDIT', logstream: 'LS' };
+const SRC_BADGE = { audit: 'AUDIT', logstream: 'LS', file: 'FILE' };
 
 function rowHTML(r, isNew) {
   const sev = r.severity || '';
@@ -1025,7 +1070,7 @@ function updateCount(tookMs) {
 }
 
 function detailsHTML(r) {
-  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'audit_type', 'audit_serial', 'auid', 'user', 'exe', 'res', 'key', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'unit', 'log_file', 'subsystem', 'device', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
+  const order = ['received', 'msg_time', '_time', 'host', 'host_name', 'host_ip', 'source_type', 'audit_type', 'audit_serial', 'auid', 'user', 'exe', 'res', 'key', 'container', 'image', 'compose_project', 'compose_service', 'stream', 'unit', 'log_file', 'client_ip', 'http_method', 'http_host', 'http_path', 'http_status', 'duration_ms', 'router', 'subsystem', 'device', 'app', 'procid', 'severity', 'facility', 'source', 'proto', 'sd', '_msg'];
   const hidden = new Set(['_stream_id', '_stream', 'sevnum', 'audit_raw']); // audit_raw: shown under the message
   if (r.msg_time) hidden.add('_time'); // same as the reception time
   const keys = order.filter((k) => r[k] != null && r[k] !== '' && !hidden.has(k))
@@ -2182,6 +2227,115 @@ async function configureSelfLog(change) {
 $('#selfEnabled').addEventListener('change', (ev) => configureSelfLog({ enabled: ev.target.checked }));
 $('#selfLevel').addEventListener('change', (ev) => configureSelfLog({ min_level: ev.target.value }));
 
+/* ================= Log files ================= */
+
+const FILE_FORMATS = ['text', 'json', 'logfmt', 'clf', 'traefik', 'regex'];
+let filesState = null; // {sources, defaultHost} from the server
+let fileDrafts = [];   // rows added here, saved once they have a name and a path
+let fileSeq = 0;
+
+async function loadFiles() {
+  try { filesState = await api('/api/files'); } catch { filesState = null; }
+  renderFiles();
+}
+
+function fileStatus(s) {
+  if (s.draft) return [t('fileDraft'), 'muted'];
+  if (!s.enabled) return [t('fileOff'), 'muted'];
+  if (s.code) return [t('file_' + s.code) + (s.code === 'not_found' ? '' : s.error || ''), 'bad'];
+  if (s.files > 0) return [t('fileOk', { f: s.files, r: fmtNum(s.read) }), 'good'];
+  return [t('hostWaiting'), 'muted'];
+}
+
+function fileRowHTML(s) {
+  const key = s.id || s.draft;
+  const [text, cls] = fileStatus(s);
+  return `<div class="file-row${s.enabled ? '' : ' off'}" data-key="${esc(key)}">
+    <input type="checkbox" class="switch" data-f="enabled"${s.enabled ? ' checked' : ''} aria-label="${esc(t('fileEnabledAria'))}">
+    <input type="text" data-f="name" value="${esc(s.name)}" placeholder="${esc(t('fileName'))}" aria-label="${esc(t('fileName'))}" spellcheck="false" maxlength="64">
+    <input type="text" data-f="path" class="mono" value="${esc(s.path)}" placeholder="${esc(t('filePath'))}" aria-label="${esc(t('filePath'))}" spellcheck="false">
+    <select class="field" data-f="format">${FILE_FORMATS.map((f) => `<option value="${f}"${s.format === f ? ' selected' : ''}>${esc(t('fmt_' + f))}</option>`).join('')}</select>
+    <input type="text" data-f="host" value="${esc(s.host)}" placeholder="${esc(filesState?.defaultHost || t('fileHost'))}" aria-label="${esc(t('fileHost'))}" title="${esc(t('fileHost'))}" spellcheck="false">
+    <button class="icon-btn danger" type="button" data-del title="${esc(t('del'))}" aria-label="${esc(t('del'))}">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+    </button>
+    <input type="text" data-f="regex" class="mono fr-regex" value="${esc(s.regex)}" placeholder="${esc(t('fileRegex'))}" aria-label="${esc(t('fmt_regex'))}" spellcheck="false"${s.format === 'regex' ? '' : ' hidden'}>
+    <p class="fr-status docker-status ${cls}">${esc(text)}</p>
+  </div>`;
+}
+
+// full: rebuild the rows even while one is being edited (language change).
+function renderFiles(full) {
+  const list = $('#fileList');
+  if (!filesState) { list.innerHTML = ''; return; }
+  const rows = filesState.sources.concat(fileDrafts);
+  const keys = rows.map((s) => s.id || s.draft).join(',');
+  if (!full && list.dataset.keys === keys && list.contains(document.activeElement)) {
+    // Being edited: only refresh the status lines.
+    for (const s of rows) {
+      const p = list.querySelector(`.file-row[data-key="${CSS.escape(s.id || s.draft)}"] .fr-status`);
+      if (!p) continue;
+      const [text, cls] = fileStatus(s);
+      p.textContent = text;
+      p.className = 'fr-status docker-status ' + cls;
+    }
+    return;
+  }
+  list.dataset.keys = keys;
+  list.innerHTML = rows.map(fileRowHTML).join('') || `<p class="muted small">${esc(t('filesNone'))}</p>`;
+}
+
+function fileRowOf(key) {
+  return filesState?.sources.find((s) => s.id === key) || fileDrafts.find((s) => s.draft === key);
+}
+
+async function saveFiles() {
+  const ready = fileDrafts.filter((d) => d.name.trim() && d.path.trim());
+  const sources = filesState.sources.concat(ready).map(({ id, name, path, format, regex, host, enabled }) => ({ id: id || '', name, path, format, regex, host, enabled }));
+  try {
+    filesState = await api('/api/files', { method: 'PUT', body: { sources } });
+    fileDrafts = fileDrafts.filter((d) => !ready.includes(d));
+  } catch (e) {
+    toast(e.message);
+    await loadFiles();
+    return;
+  }
+  renderFiles();
+  setTimeout(loadFiles, 1500); // the files are read in the background
+}
+
+$('#fileList').addEventListener('change', (ev) => {
+  const row = ev.target.closest('.file-row');
+  const s = row && fileRowOf(row.dataset.key);
+  const f = ev.target.dataset.f;
+  if (!s || !f) return;
+  s[f] = f === 'enabled' ? ev.target.checked : ev.target.value.trim();
+  if (f === 'format') row.querySelector('.fr-regex').hidden = s.format !== 'regex';
+  if (f === 'format' && s.format === 'regex' && !s.regex) { row.querySelector('.fr-regex').focus(); return; }
+  if (s.draft && !(s.name && s.path)) return;
+  saveFiles();
+});
+
+$('#fileList').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('[data-del]');
+  if (!btn) return;
+  const key = btn.closest('.file-row').dataset.key;
+  if (fileDrafts.some((d) => d.draft === key)) {
+    fileDrafts = fileDrafts.filter((d) => d.draft !== key);
+    renderFiles(true);
+    return;
+  }
+  filesState.sources = filesState.sources.filter((s) => s.id !== key);
+  saveFiles();
+});
+
+$('#addFile').addEventListener('click', () => {
+  if (!filesState) return;
+  fileDrafts.push({ draft: 'new' + (++fileSeq), name: '', path: '', format: 'text', regex: '', host: '', enabled: true });
+  renderFiles(true);
+  $('#fileList').lastElementChild.querySelector('[data-f="name"]').focus();
+});
+
 /* ================= Docker source ================= */
 
 let dockerState = null;
@@ -2301,6 +2455,7 @@ setInterval(() => {
     loadDmesg();
     loadAudit();
     loadSelfLog();
+    loadFiles();
   }
 }, 4000);
 
@@ -2597,6 +2752,7 @@ $('#settingsBtn').addEventListener('click', () => {
   loadDmesg();
   loadAudit();
   loadSelfLog();
+  loadFiles();
   loadDocker();
   renderDbStats();
   loadDbStats();

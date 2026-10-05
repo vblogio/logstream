@@ -36,7 +36,7 @@ type Entry struct {
 	Proto    string // udp or tcp
 	HostIP   string // original host value when it was an IP resolved through DNS
 
-	SourceType string            // "syslog", "docker", "host", "kernel", "audit" or "logstream"
+	SourceType string            // "syslog", "docker", "host", "kernel", "audit", "file" or "logstream"
 	Extra      map[string]string // additional fields (docker: container, image, …)
 
 	// Not stored. Wait: the producer can be slowed down when the queue is full

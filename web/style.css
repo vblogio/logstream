@@ -24,6 +24,7 @@
   --chip-l: 38%;            /* lightness of project-colored text (labels, Docker apps) */
   --src-audit: #7c4dbd;     /* audit events (auditd) */
   --src-ls: #1f9aa3;        /* LogStream internal logs */
+  --src-file: #5f8a1f;      /* log files (Settings > Sources > Log files) */
   --src-tint: 6%;           /* background tint of their rows */
 
   --sev-crit: #be123c;
@@ -75,6 +76,7 @@
   --chip-l: 70%;
   --src-audit: #a983e6;
   --src-ls: #3cc3cc;
+  --src-file: #9ccc54;
   --src-tint: 9%;
   --sev-crit: #fb7185;
   --sev-err: #f87171;
@@ -110,6 +112,8 @@
   --chip-l: 70%;
     --src-audit: #a983e6;
     --src-ls: #3cc3cc;
+    --src-file: #9ccc54;
+  --src-file: #9ccc54;
     --src-tint: 9%;
     --sev-crit: #fb7185;
     --sev-err: #f87171;
@@ -424,8 +428,9 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
    one), light tint, badge before the app name. */
 .row.src-audit { --src: var(--src-audit); }
 .row.src-logstream { --src: var(--src-ls); }
-.row.src-audit, .row.src-logstream { border-left-color: var(--src); background: color-mix(in srgb, var(--src) var(--src-tint), transparent); }
-.row.src-audit:hover, .row.src-logstream:hover { background: color-mix(in srgb, var(--src) 13%, var(--row-hover)); }
+.row.src-file { --src: var(--src-file); }
+.row.src-audit, .row.src-logstream, .row.src-file { border-left-color: var(--src); background: color-mix(in srgb, var(--src) var(--src-tint), transparent); }
+.row.src-audit:hover, .row.src-logstream:hover, .row.src-file:hover { background: color-mix(in srgb, var(--src) 13%, var(--row-hover)); }
 .src-badge {
   display: inline-block; margin-right: 5px; padding: 0 4px; border-radius: 4px; vertical-align: 1px;
   font: 700 9.5px/1.45 var(--sans); letter-spacing: .04em;
@@ -751,11 +756,35 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .tag-row .icon-btn svg { width: 15px; height: 15px; }
 .opt input { display: none; }
 .opt:has(input:checked) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+/* Log files (Settings > Sources) */
+.file-list { display: flex; flex-direction: column; gap: 4px; }
+.file-row {
+  display: grid; align-items: center; gap: 6px;
+  grid-template-columns: auto minmax(7rem, 1fr) minmax(10rem, 2fr) minmax(9rem, 1.4fr) minmax(6rem, .8fr) 26px;
+  padding: 6px 6px 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+}
+.file-row.off > input[type="text"], .file-row.off > select { opacity: .6; }
+.file-row input[type="text"] {
+  height: 28px; padding: 0 8px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-size: 12.5px; outline: 0;
+}
+.file-row input.mono { font-family: var(--mono); }
+.file-row input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.file-row select.field { height: 28px; }
+.file-row .icon-btn { width: 26px; height: 26px; border-radius: 6px; }
+.file-row .icon-btn svg { width: 15px; height: 15px; }
+.file-row .fr-regex, .file-row .fr-status { grid-column: 2 / -1; }
+.file-row .fr-regex[hidden] { display: none; }
+.file-row .fr-status { margin: 0 !important; font-size: 12px; }
+.file-toolbar { margin-top: 10px; }
 .tag-row .err { grid-column: 1 / -1; color: var(--sev-err); font-size: 12px; }
 .tag-row .err:empty { display: none; }
 
 /* ---------- Mobile ---------- */
 @media (max-width: 760px) {
+  .file-row { grid-template-columns: auto minmax(0, 1fr) 26px; }
+  .file-row [data-del] { grid-column: 3; grid-row: 1; }
+  .file-row > [data-f="path"], .file-row > [data-f="format"], .file-row > [data-f="host"] { grid-column: 2 / -1; }
   body { font-size: 13.5px; }
   .topbar { flex-wrap: wrap; padding: 8px 16px; gap: 8px 10px; }
   .search { order: 3; flex-basis: 100%; max-width: none; }

@@ -265,10 +265,59 @@ also be changed (saved in `/data/audit.json`; `AUDIT_LOG` sets the default path)
   `/data/audit-state.json`: after a restart, reading resumes there; after a rotation by auditd,
   the end of `audit.log.1` is read before the new file.
 
+## Log files (Traefik, nginx, applications…)
+
+Logstream can follow the log files of other programs: Traefik, nginx, Apache, or any application
+that writes to a file. Declare each file in **Settings > Log sources > Log files** (saved in
+`/data/files.json`, up to 50): a **name** (the **app** of its entries), the **path** as mounted in
+the container, a **format**, an optional **host** (default: `/host/etc/hostname`, else
+`localhost`) and a switch.
+
+- **Mount** the directory read-only, e.g. in `docker-compose.yml`:
+  `- /var/log/traefik:/logs/traefik:ro`, then `docker compose up -d`. Files under `/var/log`
+  are already reachable as `/host/var/log/…`. The files must be readable by UID `10001` or the
+  group of `HOST_LOGS_GID` (`adm` by default); Settings > Log sources says when no file matches
+  or access is denied.
+- **Path**: a file, or a pattern with `*`, `?` or `[…]`: `/logs/traefik/*.log` follows every
+  `.log` file of the directory, also those created later (200 files at most per pattern).
+  Rotated copies (`.1`, `.2.gz`…) are left out.
+- **Formats**:
+  - *Plain text*: one entry per line; the level is detected as for Docker logs, a timestamp at
+    the start of the line (ISO 8601, `2006/01/02 15:04:05`, `[02/Jan/2006:15:04:05 +0200]`,
+    `Jan  2 15:04:05`) becomes the message time and is removed from the message. Indented
+    lines (stack traces) are added to the previous entry.
+  - *JSON lines*: `msg` / `message`, `time` / `ts` / `@timestamp` (text or Unix time) and
+    `level` (word or number, pino/bunyan included) are recognized; the other keys become
+    fields, nested objects with dotted names (`req.id`).
+  - *logfmt*: `key=value` pairs, as in Traefik's default logs or Go programs; same keys as JSON.
+  - *Access log (CLF)*: Common / Combined Log Format of nginx and Apache, and Traefik's access
+    log in this format (router, server URL and duration included). Fields `client_ip`,
+    `http_method`, `http_path`, `http_status`, `http_size`, `user_agent`, `http_referer`,
+    `router`, `backend`, `duration_ms`.
+  - *Traefik access (JSON)*: the JSON access log of Traefik (`accessLog.format: json`),
+    summarized as `GET app.example.com/ 200 · 12.5 ms · app@docker · 203.0.113.9`, every key in
+    the fields. Traefik's own logs in the same file are read as JSON lines.
+  - *Regular expression* (RE2 / Go syntax): the named groups `time`, `level`, `msg`, `host`
+    and `app` fill these fields, `status` gives the level of an access log, the other groups
+    become fields, e.g. `^(?P<time>\S+ \S+) \[(?P<level>\w+)\] (?P<module>\S+): (?P<msg>.*)$`.
+    A line that does not match is added to the previous entry.
+
+  For access logs, 5xx statuses are `err`, 4xx `warning`, the others `info`. A line that does
+  not fit the chosen format is kept as plain text. Fields named like LogStream's own ones
+  (`host`, `app`…) are renamed `field_host`, `field_app`…
+- **Display**: source `file`, the path in `log_file`. In the list these lines have a green left
+  edge, a light tint and a **FILE** badge before the app; the **Source** filter shows them alone.
+- When a file is turned on, the lines of the last hour already in it are read first
+  (`FILES_BACKFILL`, `0` = only new lines; lines without a timestamp are then left out). Files
+  that appear later are read from their start. The inode and an offset are saved per file in
+  `/data/files-state.json`: after a restart reading resumes there; after a rotation
+  (`access.log` renamed `access.log.1`), the end of the old file is read before the new one;
+  a file truncated in place (`copytruncate`) is read again from its start.
+
 ## LogStream internal logs
 
 Logstream records its own events as logs, with **host** `logstream`, **app** the component
-(`store`, `syslog`, `docker`, `host`, `dmesg`, `audit`, `main`) and the `logstream` source:
+(`store`, `syslog`, `docker`, `host`, `dmesg`, `audit`, `files`, `main`) and the `logstream` source:
 VictoriaLogs unreachable and back, lost batches, batches refused from the disk buffer, syslog
 listener errors, Docker API or container streams lost, sources that cannot read, start and
 stop. They are on by default from level **warning**; **Settings > Log sources > LogStream internal
@@ -460,6 +509,7 @@ are only known by your router or a local DNS (Pi-hole, AdGuard, Unbound…), set
 | `AUDIT_LOG` | `/var/log/audit/audit.log` | default path of the Linux audit log (can be changed in Settings > Log sources) |
 | `AUDIT_BACKFILL` | `1h` | history read when the Linux audit source is turned on |
 | `AUDIT_HOST` | empty | host name of the audit events when the records carry no `node=` |
+| `FILES_BACKFILL` | `1h` | history read when a log file is turned on (Settings > Log sources > Log files) |
 | `TZ` | `Europe/Paris` | time zone for RFC 3164 timestamps (which carry none) |
 | `BATCH_SIZE`, `FLUSH_MS`, `QUEUE_SIZE` | `1000`, `1000`, `100000` | ingestion tuning |
 | `SPOOL_MAX_MB` | `1024` | disk buffer size for batches VictoriaLogs could not take (`0` = no buffer: retried for 15 s, then dropped) |
@@ -520,6 +570,7 @@ To update one of them:
 | `hostlogs.go`, `journal.go` | host system logs: systemd journal reader (no `journalctl`) and `/var/log` follower |
 | `dmesg.go` | kernel messages: `/dev/kmsg` reader, record parsing, position by boot ID and sequence number |
 | `audit.go` | Linux audit: `audit.log` follower (rotation, saved offset), record parsing, grouping by event, summary |
+| `filesource.go`, `fileformats.go` | log files: follower (patterns, rotation, saved offsets, continuation lines) and formats (text, JSON, logfmt, CLF, Traefik, regular expression) |
 | `selflog.go` | LogStream internal logs: `logEvent`, minimum level, throttling, bounded queue |
 | `tags.go` | color tag storage |
 | `presets.go`, `presets.json` | color tag presets (`/api/presets`), built-in list |
