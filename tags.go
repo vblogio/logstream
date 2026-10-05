@@ -217,6 +217,51 @@ func (s *TagStore) Delete(id string) error {
 	return errTagNotFound
 }
 
+// tagListError tells which tag of a list (PUT /api/tags) is invalid.
+type tagListError struct {
+	index int
+	err   error
+}
+
+func (e *tagListError) Error() string { return e.err.Error() }
+func (e *tagListError) Unwrap() error { return e.err }
+
+// Replace saves a whole list at once (the Save button of the settings). A tag
+// whose id is known keeps its code; the others get a new id and a free code.
+// Nothing is saved when a tag is invalid: the error gives its position.
+func (s *TagStore) Replace(in []Tag) ([]Tag, error) {
+	if len(in) > 99 {
+		return nil, errTooManyTags
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	codes := map[string]string{}
+	for _, t := range s.tags {
+		codes[t.ID] = t.Code
+	}
+	out := make([]Tag, len(in))
+	seen := map[string]bool{}
+	for i, t := range in {
+		if err := t.validate(); err != nil {
+			return nil, &tagListError{index: i, err: err}
+		}
+		if c, ok := codes[t.ID]; ok && !seen[t.ID] {
+			t.Code = c
+		} else {
+			t.ID, t.Code = newID(), ""
+		}
+		seen[t.ID] = true
+		out[i] = t
+	}
+	for i := range out {
+		if out[i].Code == "" {
+			out[i].Code = freeCode(out)
+		}
+	}
+	s.tags = out
+	return append([]Tag(nil), out...), s.save()
+}
+
 func (s *TagStore) Reset() ([]Tag, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

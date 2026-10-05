@@ -544,11 +544,24 @@ dialog.settings {
 dialog.settings .dlg { display: flex; flex-direction: column; height: 100%; padding: 0; }
 dialog.settings .dlg > header { padding: 14px 16px 14px 22px; border-bottom: 1px solid var(--border); }
 .set-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(176px, max-content) minmax(0, 1fr); }
-.set-nav {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 12px 10px; border-right: 1px solid var(--border);
+.set-side {
+  display: flex; flex-direction: column; min-height: 0; overflow-y: auto;
+  border-right: 1px solid var(--border);
   background: color-mix(in srgb, var(--panel-2) 50%, transparent);
 }
+.set-nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; }
+/* Save / Cancel, under the section labels: Save takes the accent color while changes wait. */
+.set-actions {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 10px 12px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.set-actions .btn { flex: 1; justify-content: center; }
+.set-actions .btn.save { color: var(--muted); }
+.set-actions .btn svg { width: 16px; height: 16px; }
+.set-actions.dirty .btn.save { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 3px var(--accent-soft); }
+.set-actions.dirty .btn.save:hover { filter: brightness(1.08); }
+.set-state { flex-basis: 100%; margin: 2px 2px 0; font-size: 12px; color: var(--muted); }
+.set-actions.dirty .set-state { color: var(--accent); font-weight: 550; }
 .set-nav button {
   display: flex; align-items: center; gap: 10px;
   height: 38px; padding: 0 12px; border: 0; border-radius: 9px;
@@ -831,10 +844,11 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   .field-grid { grid-template-columns: 1fr; gap: 4px; }
   dialog.settings { height: calc(100vh - 24px); width: calc(100vw - 16px); }
   .set-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .set-nav {
-    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px;
-    border-right: 0; border-bottom: 1px solid var(--border);
-  }
+  .set-side { border-right: 0; border-bottom: 1px solid var(--border); overflow: visible; }
+  .set-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px; }
+  .set-actions { margin: 0 6px 6px; padding-top: 6px; align-items: center; }
+  .set-actions .btn { flex: 0 0 auto; height: 30px; }
+  .set-state { flex: 1; flex-basis: auto; margin: 0; text-align: right; }
   .set-nav button {
     flex-direction: column; justify-content: center; height: auto; padding: 6px 2px; gap: 3px;
     font-size: 11.5px; text-align: center;

@@ -174,6 +174,7 @@
       </header>
 
       <div class="set-body">
+        <div class="set-side">
         <nav id="setNav" class="set-nav" role="tablist" aria-orientation="vertical">
           <button type="button" role="tab" data-tab="locale">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
@@ -196,6 +197,15 @@
             <span data-i18n="tabData">Database</span>
           </button>
         </nav>
+        <div id="setActions" class="set-actions">
+          <button id="setSave" class="btn save" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg>
+            <span data-i18n="saveSettings">Save</span>
+          </button>
+          <button id="setCancel" class="btn ghost" type="button" disabled data-i18n="cancelSettings">Cancel</button>
+          <p id="setState" class="set-state" role="status"></p>
+        </div>
+        </div>
 
         <div class="set-panels">
           <!-- Localization -->

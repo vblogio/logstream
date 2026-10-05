@@ -40,6 +40,8 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/dbstats", a.dbStats)
 	mux.HandleFunc("GET /api/tags", a.listTags)
 	mux.HandleFunc("POST /api/tags", a.createTag)
+	mux.HandleFunc("PUT /api/tags", a.replaceTags)
+	mux.HandleFunc("GET /api/tags/defaults", a.defaultTags)
 	mux.HandleFunc("POST /api/tags/reset", a.resetTags)
 	mux.HandleFunc("GET /api/presets", a.listPresets)
 	mux.HandleFunc("PUT /api/tags/{id}", a.updateTag)
@@ -529,6 +531,41 @@ func (a *API) purge(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("purge of all logs requested from %s (task %s)", r.RemoteAddr, id)
 	writeJSON(w, http.StatusOK, map[string]string{"task_id": id})
+}
+
+// PUT /api/tags [tags]: replaces the whole list. On an invalid tag, "index"
+// gives its position and nothing is saved.
+func (a *API) replaceTags(w http.ResponseWriter, r *http.Request) {
+	var in []Tag
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	tags, err := a.tags.Replace(in)
+	var le *tagListError
+	switch {
+	case errors.As(err, &le):
+		body := map[string]any{"error": err.Error(), "index": le.index}
+		var ce *codedError
+		if errors.As(err, &ce) {
+			body["code"] = ce.code
+			if ce.detail != "" {
+				body["detail"] = ce.detail
+			}
+		}
+		writeJSON(w, http.StatusBadRequest, body)
+	case errors.Is(err, errTooManyTags):
+		writeErr(w, http.StatusBadRequest, err)
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, err)
+	default:
+		writeJSON(w, http.StatusOK, tags)
+	}
+}
+
+// GET /api/tags/defaults: the tags "Restore default tags" shows before saving.
+func (a *API) defaultTags(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, defaultTags())
 }
 
 func (a *API) resetTags(w http.ResponseWriter, r *http.Request) {

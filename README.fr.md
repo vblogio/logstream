@@ -386,8 +386,13 @@ En ligne de commande : `curl -o logs.csv 'localhost:8080/api/export.csv?q=error&
 
 ## Paramètres
 
-L'icône en forme d'engrenage ouvre les paramètres, organisés en onglets. Tout, sauf les tags de
-couleur, est mémorisé par navigateur.
+L'icône en forme d'engrenage ouvre les paramètres, organisés en onglets. Les modifications
+s'affichent tout de suite mais ne sont conservées qu'avec le bouton **Valider**, sous les libellés
+des onglets : il prend la couleur d'accent tant que des modifications sont en attente. **Annuler**
+revient aux paramètres enregistrés, et fermer la fenêtre avec des modifications non validées
+demande confirmation avant de les abandonner. Localisation et Affichage sont mémorisés par
+navigateur ; les tags de couleur et les sources de logs sont enregistrés sur le serveur. La purge
+et la réinitialisation des colonnes agissent immédiatement.
 
 - **Localisation et langue**
   - *Langue* : anglais ou français.

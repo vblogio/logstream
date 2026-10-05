@@ -40,13 +40,16 @@ const I18N = {
     copyMsg: 'Copy message', copyJson: 'Copy as JSON', copied: 'Copied',
     language: 'Language',
     tagsTitle: 'Color tags',
-    tagsHelp: 'Keywords are highlighted in messages. Changes are saved automatically. When tags overlap, the one highest in the list wins.',
+    tagsHelp: 'Keywords are highlighted in messages. Changes apply with the Save button. When tags overlap, the one highest in the list wins.',
     addTag: '+ Add tag', resetTags: 'Restore default tags',
     optWhole: 'whole word', optWholeTitle: 'Only color whole words (avoids "ok" in "token")',
     optCaseTitle: 'Match case', optRegexTitle: 'Regular expression',
     optActive: 'active', optActiveTitle: 'Enable this tag',
     colorAria: 'Color', keyword: 'keyword', preview: 'preview', del: 'Delete', noTags: 'No tags.',
     newTag: 'new',
+    saveSettings: 'Save', cancelSettings: 'Cancel',
+    settingsClean: 'No pending changes', settingsDirty: 'Unsaved changes', settingsSaved: 'Settings saved',
+    unsavedConfirm: 'Some changes have not been saved. Discard them?',
     confirmDelete: (p) => `Delete tag "${p}"?`,
     confirmReset: 'Replace all tags with the defaults (warning, error)?',
     presetAria: 'Add a preset', presetPick: '+ Preset…',
@@ -268,13 +271,16 @@ const I18N = {
     copyMsg: 'Copier le message', copyJson: 'Copier en JSON', copied: 'Copié',
     language: 'Langue',
     tagsTitle: 'Tags de couleur',
-    tagsHelp: 'Les mots-clés sont surlignés dans les messages. Les modifications sont enregistrées automatiquement. En cas de chevauchement, le tag le plus haut dans la liste l\'emporte.',
+    tagsHelp: 'Les mots-clés sont surlignés dans les messages. Les modifications s\'appliquent avec le bouton Valider. En cas de chevauchement, le tag le plus haut dans la liste l\'emporte.',
     addTag: '+ Ajouter un tag', resetTags: 'Rétablir les tags par défaut',
     optWhole: 'mot entier', optWholeTitle: 'Ne colorer que les mots entiers (évite « ok » dans « token »)',
     optCaseTitle: 'Respecter la casse', optRegexTitle: 'Expression régulière',
     optActive: 'actif', optActiveTitle: 'Activer ce tag',
     colorAria: 'Couleur', keyword: 'mot-clé', preview: 'aperçu', del: 'Supprimer', noTags: 'Aucun tag.',
     newTag: 'nouveau',
+    saveSettings: 'Valider', cancelSettings: 'Annuler',
+    settingsClean: 'Aucune modification en attente', settingsDirty: 'Modifications non validées', settingsSaved: 'Paramètres enregistrés',
+    unsavedConfirm: 'Des modifications n\'ont pas été validées. Les abandonner ?',
     confirmDelete: (p) => `Supprimer le tag « ${p} » ?`,
     confirmReset: 'Remplacer tous les tags par les tags par défaut (warning, error) ?',
     presetAria: 'Ajouter un préréglage', presetPick: '+ Préréglage…',
@@ -585,7 +591,7 @@ function apiError(res, text, data) {
   if (data && data.code && I18N[lang]['err_' + data.code]) {
     msg = t('err_' + data.code) + (data.detail ? (lang === 'fr' ? ' : ' : ': ') + data.detail : '');
   }
-  return new Error(msg);
+  return Object.assign(new Error(msg), { data });
 }
 
 function toast(msg) {
@@ -618,6 +624,26 @@ const state = {
 };
 const recOf = new WeakMap(); // .row element -> record
 
+// Settings window: changes are shown at once but only saved by the Save button.
+const settings = {
+  saved: null,  // browser preferences as saved (see localPrefs)
+  tags: null,   // tags as saved on the server
+  pending: {},  // source changes waiting for Save, by source
+  orig: {},     // server values of the pending fields, to drop a change set back
+  saving: false,
+};
+
+// Records a source change for Save; a field set back to its saved value is dropped.
+function pend(key, change, current) {
+  const orig = settings.orig[key] ??= { ...current };
+  const p = { ...settings.pending[key], ...change };
+  for (const k of Object.keys(p)) if (p[k] === orig[k]) delete p[k];
+  if (Object.keys(p).length) settings.pending[key] = p;
+  else { delete settings.pending[key]; delete settings.orig[key]; }
+}
+// A source state refreshed from the server, with the unsaved changes over it.
+const withPending = (key, s) => (s && settings.pending[key] ? { ...s, ...settings.pending[key] } : s);
+
 const list = $('#list');
 
 /* ================= Language ================= */
@@ -634,7 +660,6 @@ function applyLang() {
 function setLang(next) {
   if (next === lang || !I18N[next]) return;
   lang = next;
-  store.set('lang', lang);
   applyLang();
   syncControls();
   setConn(...state.conn);
@@ -670,11 +695,12 @@ function effectiveTheme() {
   if (th) return th;
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
-// mode: 'system' (follow the OS), 'light' or 'dark'.
-function setTheme(mode) {
+// mode: 'system' (follow the OS), 'light' or 'dark'. In Settings the theme is
+// only stored by the Save button (persist = false).
+function setTheme(mode, persist = true) {
   if (mode === 'light' || mode === 'dark') document.documentElement.dataset.theme = mode;
   else { delete document.documentElement.dataset.theme; mode = 'system'; }
-  store.set('theme', mode);
+  if (persist) store.set('theme', mode);
   renderThemeSwitch();
 }
 
@@ -689,7 +715,7 @@ function renderThemeSwitch() {
 $('#themeBtn').addEventListener('click', () => setTheme(effectiveTheme() === 'dark' ? 'light' : 'dark'));
 $('#themeSwitch').addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-theme-opt]');
-  if (b) setTheme(b.dataset.themeOpt);
+  if (b) setTheme(b.dataset.themeOpt, false);
 });
 
 /* ================= Log font and size ================= */
@@ -780,20 +806,15 @@ $('#sizeSwitch').addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-size]');
   if (!b) return;
   applyLogSize(b.dataset.size);
-  store.set('logSize', ui.size);
   renderInterface();
 });
 $('#densitySwitch').addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-density]');
   if (!b) return;
   applyLogDensity(b.dataset.density);
-  store.set('logDensity', ui.density);
   renderInterface();
 });
-$('#fontSelect').addEventListener('change', (ev) => {
-  applyLogFont(ev.target.value);
-  store.set('logFont', ui.font);
-});
+$('#fontSelect').addEventListener('change', (ev) => applyLogFont(ev.target.value));
 
 /* ================= Settings tabs ================= */
 
@@ -1747,7 +1768,6 @@ function renderHistoSettings() {
 function setHistoPref(k, v) {
   if (!HISTO_OPTS[k] || !HISTO_OPTS[k].includes(v)) return;
   histoPrefs[k] = v;
-  store.set('histo.' + k, v);
   renderHistoSettings();
   if (k === 'step') refreshHisto();
   else if (k === 'refresh') { scheduleHisto(); if (v !== 'off') refreshHisto(); }
@@ -1958,8 +1978,6 @@ function updateTimePreview() {
 function onTimePrefsChange() {
   timePrefs.tz = $('#tzSelect').value;
   timePrefs.fmt = $('#fmtSelect').value;
-  store.set('tz', timePrefs.tz);
-  store.set('timefmt', timePrefs.fmt);
   updateTimePreview();
   renderList();
   renderPeriod();
@@ -2027,7 +2045,7 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setExpor
 let syslogState = null;
 
 async function loadSyslog() {
-  try { syslogState = await api('/api/syslog'); } catch { syslogState = null; }
+  try { syslogState = withPending('syslog', await api('/api/syslog')); } catch { syslogState = null; }
   renderSyslog();
 }
 
@@ -2066,12 +2084,10 @@ function renderSyslog() {
   }
 }
 
-async function configureSyslog(change) {
+function configureSyslog(change) {
   const s = syslogState || { enabled: true, udp: true, tcp: true };
-  const body = { enabled: s.enabled, udp: s.udp, tcp: s.tcp, ...change };
-  syslogState = { ...s, ...body };
-  renderSyslog();
-  try { syslogState = await api('/api/syslog', { method: 'PUT', body }); } catch (e) { toast(e.message); }
+  pend('syslog', change, s);
+  syslogState = { ...s, ...change };
   renderSyslog();
 }
 
@@ -2087,7 +2103,7 @@ $('#syslogProtos').addEventListener('click', (ev) => {
 let hostState = null;
 
 async function loadHost() {
-  try { hostState = await api('/api/hostlogs'); } catch { hostState = null; }
+  try { hostState = withPending('host', await api('/api/hostlogs')); } catch { hostState = null; }
   renderHost();
 }
 
@@ -2114,12 +2130,10 @@ function renderHost() {
   status.className = 'docker-status ' + cls;
 }
 
-async function configureHost(enabled) {
+function configureHost(enabled) {
+  pend('host', { enabled }, hostState || {});
   hostState = { ...(hostState || {}), enabled };
   renderHost();
-  try { hostState = await api('/api/hostlogs', { method: 'PUT', body: { enabled } }); } catch (e) { toast(e.message); }
-  renderHost();
-  setTimeout(loadHost, 1500); // the first scan runs in the background
 }
 
 $('#hostEnabled').addEventListener('change', (ev) => configureHost(ev.target.checked));
@@ -2129,7 +2143,7 @@ $('#hostEnabled').addEventListener('change', (ev) => configureHost(ev.target.che
 let dmesgState = null;
 
 async function loadDmesg() {
-  try { dmesgState = await api('/api/dmesg'); } catch { dmesgState = null; }
+  try { dmesgState = withPending('dmesg', await api('/api/dmesg')); } catch { dmesgState = null; }
   renderDmesg();
 }
 
@@ -2153,12 +2167,10 @@ function renderDmesg() {
   status.className = 'docker-status ' + cls;
 }
 
-async function configureDmesg(enabled) {
+function configureDmesg(enabled) {
+  pend('dmesg', { enabled }, dmesgState || {});
   dmesgState = { ...(dmesgState || {}), enabled };
   renderDmesg();
-  try { dmesgState = await api('/api/dmesg', { method: 'PUT', body: { enabled } }); } catch (e) { toast(e.message); }
-  renderDmesg();
-  setTimeout(loadDmesg, 1500); // the device is opened in the background
 }
 
 $('#dmesgEnabled').addEventListener('change', (ev) => configureDmesg(ev.target.checked));
@@ -2168,7 +2180,7 @@ $('#dmesgEnabled').addEventListener('change', (ev) => configureDmesg(ev.target.c
 let auditState = null;
 
 async function loadAudit() {
-  try { auditState = await api('/api/audit'); } catch { auditState = null; }
+  try { auditState = withPending('audit', await api('/api/audit')); } catch { auditState = null; }
   renderAudit();
 }
 
@@ -2195,13 +2207,10 @@ function renderAudit() {
   status.className = 'docker-status ' + cls;
 }
 
-async function configureAudit(change) {
-  const body = { enabled: auditState?.enabled || false, path: auditState?.path || '', ...change };
-  auditState = { ...(auditState || {}), ...body };
+function configureAudit(change) {
+  pend('audit', change, { enabled: false, path: '', ...auditState });
+  auditState = { ...(auditState || {}), ...change };
   renderAudit();
-  try { auditState = await api('/api/audit', { method: 'PUT', body }); } catch (e) { toast(e.message); }
-  renderAudit();
-  setTimeout(loadAudit, 1500); // the file is read in the background
 }
 
 $('#auditEnabled').addEventListener('change', (ev) => configureAudit({ enabled: ev.target.checked }));
@@ -2212,7 +2221,7 @@ $('#auditPath').addEventListener('change', (ev) => configureAudit({ path: ev.tar
 let selfState = null;
 
 async function loadSelfLog() {
-  try { selfState = await api('/api/selflog'); } catch { selfState = null; }
+  try { selfState = withPending('selflog', await api('/api/selflog')); } catch { selfState = null; }
   renderSelfLog();
 }
 
@@ -2228,11 +2237,9 @@ function renderSelfLog() {
   status.className = 'docker-status ' + (s.enabled ? 'good' : 'muted');
 }
 
-async function configureSelfLog(change) {
-  const body = { enabled: selfState?.enabled ?? true, min_level: selfState?.min_level || 'warning', ...change };
-  selfState = { ...(selfState || {}), ...body };
-  renderSelfLog();
-  try { selfState = await api('/api/selflog', { method: 'PUT', body }); } catch (e) { toast(e.message); }
+function configureSelfLog(change) {
+  pend('selflog', change, { enabled: true, min_level: 'warning', ...selfState });
+  selfState = { ...(selfState || {}), ...change };
   renderSelfLog();
 }
 
@@ -2247,9 +2254,18 @@ let fileDrafts = [];   // rows added here, saved once they have a name and a pat
 let fileSeq = 0;
 const fileProbes = new Map(); // path -> result of /api/files/detect (format found, last line)
 
-async function loadFiles() {
-  try { filesState = await api('/api/files'); } catch { filesState = null; }
-  renderFiles();
+const FILE_FIELDS = ['id', 'name', 'path', 'format', 'regex', 'host', 'enabled'];
+
+// full: rebuild the rows (after Save or Cancel).
+async function loadFiles(full) {
+  let fresh;
+  try { fresh = await api('/api/files'); } catch { filesState = null; renderFiles(full); return; }
+  if (settings.pending.files && filesState) {
+    // Unsaved edits: keep the rows as edited, with the server status of each file.
+    const byId = new Map(fresh.sources.map((x) => [x.id, x]));
+    filesState = { ...fresh, sources: filesState.sources.map((x) => ({ ...byId.get(x.id), ...Object.fromEntries(FILE_FIELDS.map((k) => [k, x[k]])) })) };
+  } else filesState = fresh;
+  renderFiles(full);
 }
 
 // Status line of a row: the check of the path just typed, else the state
@@ -2330,18 +2346,10 @@ function fileRowOf(key) {
 
 async function saveFiles() {
   const ready = fileDrafts.filter((d) => d.name.trim() && d.path.trim());
-
   const sources = filesState.sources.concat(ready).map(({ id, name, path, format, regex, host, enabled }) => ({ id: id || '', name, path, format, regex, host, enabled }));
-  try {
-    filesState = await api('/api/files', { method: 'PUT', body: { sources } });
-    fileDrafts = fileDrafts.filter((d) => !ready.includes(d));
-
-  } catch (e) {
-    toast(e.message);
-    await loadFiles();
-    return;
-  }
-  renderFiles();
+  filesState = await api('/api/files', { method: 'PUT', body: { sources } });
+  fileDrafts = fileDrafts.filter((d) => !ready.includes(d));
+  renderFiles(true);
   setTimeout(loadFiles, 1500); // the files are read in the background
 }
 
@@ -2362,7 +2370,7 @@ $('#fileList').addEventListener('change', (ev) => {
   if (f === 'format') row.querySelector('.fr-regex').hidden = s.format !== 'regex';
   if (f === 'format' && s.format === 'regex' && !s.regex) { row.querySelector('.fr-regex').focus(); return; }
   if (s.draft && !(s.name && s.path)) return;
-  saveFiles();
+  settings.pending.files = true;
 });
 
 $('#fileList').addEventListener('click', (ev) => {
@@ -2375,7 +2383,8 @@ $('#fileList').addEventListener('click', (ev) => {
     return;
   }
   filesState.sources = filesState.sources.filter((s) => s.id !== key);
-  saveFiles();
+  settings.pending.files = true;
+  renderFiles(true);
 });
 
 $('#addFile').addEventListener('click', () => {
@@ -2393,7 +2402,16 @@ const LOCK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11
 
 async function loadDocker() {
   try { dockerState = await api('/api/docker'); } catch (e) { dockerState = { enabled: true, connected: false, error: e.message }; }
+  applyDockerPending();
   renderDocker();
+}
+
+// Unsaved choices stay shown over the state refreshed from the server.
+function applyDockerPending() {
+  const p = settings.pending.docker;
+  if (!p || !dockerState) return;
+  if ('defaultEnabled' in p) dockerState.defaultEnabled = p.defaultEnabled;
+  for (const c of dockerState.containers || []) if (c.key in p.containers) c.enabled = p.containers[c.key];
 }
 
 // One label per choice key ("project/service"): replicas of a service share it.
@@ -2458,12 +2476,28 @@ function renderDocker() {
     : `<span class="chip-empty">${esc(t('dockerNoMatch'))}</span>`;
 }
 
-async function configureDocker(body) {
-  try {
-    dockerState = await api('/api/docker', { method: 'PUT', body });
-    renderDocker();
-    setTimeout(loadDocker, 1500); // followers start or stop in the background
-  } catch (e) { toast(e.message); loadDocker(); }
+// Kept until Save; a choice set back to its saved value is dropped.
+function configureDocker(change) {
+  if (!dockerState) return;
+  const orig = settings.orig.docker ??= {
+    defaultEnabled: !!dockerState.defaultEnabled,
+    containers: Object.fromEntries(dockerChips().map((c) => [c.key, !!c.enabled])),
+  };
+  const p = settings.pending.docker || { containers: {} };
+  if ('defaultEnabled' in change) {
+    if (change.defaultEnabled === orig.defaultEnabled) delete p.defaultEnabled;
+    else p.defaultEnabled = change.defaultEnabled;
+  }
+  for (const [k, on] of Object.entries(change.containers || {})) {
+    if (orig.containers[k] === on) delete p.containers[k];
+    else p.containers[k] = on;
+  }
+  if ('defaultEnabled' in p || Object.keys(p.containers).length) settings.pending.docker = p;
+  else { delete settings.pending.docker; delete settings.orig.docker; }
+  // Shown at once: the change itself, even when it brings back the saved value.
+  if ('defaultEnabled' in change) dockerState.defaultEnabled = change.defaultEnabled;
+  for (const c of dockerState.containers || []) if (c.key in (change.containers || {})) c.enabled = change.containers[c.key];
+  renderDocker();
 }
 
 $('#dockerDefault').addEventListener('change', (ev) => configureDocker({ defaultEnabled: ev.target.checked }));
@@ -2476,12 +2510,7 @@ $('#dockerFilter').addEventListener('input', (ev) => { dockerView.filter = ev.ta
 $('#dockerList').addEventListener('click', (ev) => {
   const chip = ev.target.closest('.chip[data-key]');
   if (!chip || chip.disabled) return;
-  const key = chip.dataset.key;
-  const on = !chip.classList.contains('on');
-  // Immediate feedback, confirmed by the server answer.
-  for (const c of (dockerState && dockerState.containers) || []) if (c.key === key) c.enabled = on;
-  renderDocker();
-  configureDocker({ containers: { [key]: on } });
+  configureDocker({ containers: { [chip.dataset.key]: !chip.classList.contains('on') } });
 });
 for (const [id, on] of [['#dockerAll', true], ['#dockerNone', false]]) {
   $(id).addEventListener('click', () => {
@@ -2507,6 +2536,7 @@ setInterval(() => {
     loadFiles();
   }
 }, 4000);
+
 
 /* ================= Database statistics ================= */
 
@@ -2703,19 +2733,10 @@ function filterTagList() {
 }
 $('#tagFilter').addEventListener('input', filterTagList);
 
-const saveTimers = {};
-function scheduleSave(tag, rowEl) {
-  clearTimeout(saveTimers[tag.id]);
-  saveTimers[tag.id] = setTimeout(async () => {
-    const errEl = rowEl.querySelector('.err');
-    try {
-      await api('/api/tags/' + encodeURIComponent(tag.id), { method: 'PUT', body: tag });
-      errEl.textContent = '';
-    } catch (e) {
-      errEl.textContent = e.message;
-    }
-  }, 400);
-}
+// Tags are edited here and sent as a whole list by Save (PUT /api/tags); a new
+// tag gets its id and code from the server then.
+let tagSeq = 0;
+const newTag = (fields) => ({ code: '', label: '', wholeWord: false, caseSensitive: false, regex: false, enabled: true, ...fields, id: 'new-' + (++tagSeq) });
 
 const applyTags = debounce(() => { compileMatchers(); rehighlight(); }, 150);
 
@@ -2730,52 +2751,43 @@ $('#tagList').addEventListener('input', (ev) => {
   const mark = rowEl.querySelector('.preview mark');
   mark.textContent = tag.label || tag.pattern || t('preview');
   mark.setAttribute('style', tagStyle(tag.color));
-  scheduleSave(tag, rowEl);
+  rowEl.querySelector('.err').textContent = '';
   applyTags();
 });
 
-$('#tagList').addEventListener('click', async (ev) => {
+$('#tagList').addEventListener('click', (ev) => {
   const del = ev.target.closest('[data-del]');
   if (!del) return;
   const rowEl = del.closest('.tag-row');
   const tag = state.tags.find((x) => x.id === rowEl.dataset.id);
   if (!tag || !confirm(t('confirmDelete', tag.pattern))) return;
-  try {
-    await api('/api/tags/' + encodeURIComponent(tag.id), { method: 'DELETE' });
-    state.tags = state.tags.filter((x) => x !== tag);
-    renderTagList();
-    applyTags();
-  } catch (e) { toast(e.message); }
+  state.tags = state.tags.filter((x) => x !== tag);
+  renderTagList();
+  applyTags();
+  renderSaveState();
 });
 
-$('#addTag').addEventListener('click', async () => {
-  const color = PALETTE[state.tags.length % PALETTE.length];
-  try {
-    const tag = await api('/api/tags', { method: 'POST', body: { pattern: t('newTag'), color, wholeWord: true, enabled: true } });
-    state.tags.push(tag);
-    $('#tagFilter').value = '';
-    renderTagList();
-    applyTags();
-    const input = $('#tagList').lastElementChild.querySelector('input[type="text"]');
-    input.focus();
-    input.select();
-  } catch (e) { toast(e.message); }
+$('#addTag').addEventListener('click', () => {
+  state.tags.push(newTag({ pattern: t('newTag'), color: PALETTE[state.tags.length % PALETTE.length], wholeWord: true }));
+  $('#tagFilter').value = '';
+  renderTagList();
+  applyTags();
+  const input = $('#tagList').lastElementChild.querySelector('input[type="text"]');
+  input.focus();
+  input.select();
 });
 
 // Adds a preset group, skipping tags whose pattern is already in the list.
-$('#presetTags').addEventListener('change', async (ev) => {
+$('#presetTags').addEventListener('change', (ev) => {
   const preset = state.presets.flatMap((g) => g.presets).find((p) => p.id === ev.target.value);
   ev.target.value = '';
   if (!preset) return;
   let added = 0;
-  try {
-    for (const p of preset.tags) {
-      if (state.tags.some((x) => x.pattern === p.pattern)) continue;
-      const tag = { ...p, label: pickText(p.label), regex: p.regex ?? true, enabled: true };
-      state.tags.push(await api('/api/tags', { method: 'POST', body: tag }));
-      added++;
-    }
-  } catch (e) { toast(e.message); }
+  for (const p of preset.tags) {
+    if (state.tags.some((x) => x.pattern === p.pattern)) continue;
+    state.tags.push(newTag({ ...p, label: pickText(p.label), regex: p.regex ?? true, enabled: true }));
+    added++;
+  }
   renderTagList();
   applyTags();
   toast(t('presetAdded', added));
@@ -2784,13 +2796,16 @@ $('#presetTags').addEventListener('change', async (ev) => {
 $('#resetTags').addEventListener('click', async () => {
   if (!confirm(t('confirmReset'))) return;
   try {
-    state.tags = await api('/api/tags/reset', { method: 'POST' });
+    state.tags = await api('/api/tags/defaults');
     renderTagList();
     applyTags();
   } catch (e) { toast(e.message); }
+  renderSaveState();
 });
 
 $('#settingsBtn').addEventListener('click', () => {
+  settingsBaseline();
+  renderSaveState();
   renderTimeSettings();
   renderTagList();
   loadPresets();
@@ -2808,8 +2823,156 @@ $('#settingsBtn').addEventListener('click', () => {
   showSettingsTab(store.get('settingsTab', 'locale'));
   $('#settingsDlg').showModal();
 });
-$('#closeSettings').addEventListener('click', () => $('#settingsDlg').close());
-$('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });
+/* ================= Settings: Save / Cancel ================= */
+
+// Browser preferences of the Settings window (stored in localStorage by Save).
+function localPrefs() {
+  return {
+    lang, theme: document.documentElement.dataset.theme || 'system',
+    font: ui.font, size: ui.size, density: ui.density, tz: timePrefs.tz, fmt: timePrefs.fmt, histo: { ...histoPrefs },
+  };
+}
+
+const tagFields = ({ id, pattern, label, color, wholeWord, caseSensitive, regex, enabled }) =>
+  ({ id, pattern, label: label || '', color, wholeWord: !!wholeWord, caseSensitive: !!caseSensitive, regex: !!regex, enabled: !!enabled });
+const tagsJSON = (tags) => JSON.stringify(tags.map(tagFields));
+
+// What Cancel goes back to: the state when the window was opened or last saved.
+function settingsBaseline() {
+  settings.saved = localPrefs();
+  settings.tags = structuredClone(state.tags);
+  settings.pending = {};
+  settings.orig = {};
+}
+
+function settingsDirty() {
+  return JSON.stringify(localPrefs()) !== JSON.stringify(settings.saved)
+    || tagsJSON(state.tags) !== tagsJSON(settings.tags)
+    || Object.keys(settings.pending).length > 0;
+}
+
+function renderSaveState() {
+  if (!settings.saved) return;
+  const dirty = settingsDirty();
+  $('#setActions').classList.toggle('dirty', dirty);
+  $('#setSave').disabled = !dirty || settings.saving;
+  $('#setCancel').disabled = !dirty || settings.saving;
+  $('#setState').textContent = t(dirty ? 'settingsDirty' : 'settingsClean');
+}
+
+// Each source sends its whole setting, as edited.
+const SOURCE_SAVE = {
+  syslog: async () => { syslogState = await api('/api/syslog', { method: 'PUT', body: { enabled: syslogState.enabled, udp: syslogState.udp, tcp: syslogState.tcp } }); },
+  host: async () => { hostState = await api('/api/hostlogs', { method: 'PUT', body: { enabled: hostState.enabled } }); },
+  dmesg: async () => { dmesgState = await api('/api/dmesg', { method: 'PUT', body: { enabled: dmesgState.enabled } }); },
+  audit: async () => { auditState = await api('/api/audit', { method: 'PUT', body: { enabled: !!auditState.enabled, path: auditState.path || '' } }); },
+  selflog: async () => { selfState = await api('/api/selflog', { method: 'PUT', body: { enabled: selfState.enabled, min_level: selfState.min_level || 'warning' } }); },
+  docker: async () => { dockerState = await api('/api/docker', { method: 'PUT', body: settings.pending.docker }); },
+  files: saveFiles,
+};
+
+async function saveSettings() {
+  settings.saving = true;
+  renderSaveState();
+  const p = localPrefs();
+  for (const [k, v] of [['lang', p.lang], ['theme', p.theme], ['logFont', p.font], ['logSize', p.size], ['logDensity', p.density], ['tz', p.tz], ['timefmt', p.fmt]]) store.set(k, v);
+  for (const [k, v] of Object.entries(p.histo)) store.set('histo.' + k, v);
+  settings.saved = p;
+
+  const errors = [];
+  if (tagsJSON(state.tags) !== tagsJSON(settings.tags)) {
+    try {
+      state.tags = await api('/api/tags', { method: 'PUT', body: state.tags.map(tagFields) });
+      settings.tags = structuredClone(state.tags);
+      renderTagList();
+      applyTags();
+    } catch (e) {
+      errors.push(e.message);
+      const row = $('#tagList').querySelectorAll('.tag-row')[e.data?.index];
+      if (row) {
+        showSettingsTab('filters');
+        row.hidden = false;
+        row.querySelector('.err').textContent = e.message;
+        row.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }
+  for (const key of Object.keys(settings.pending)) {
+    try {
+      await SOURCE_SAVE[key]();
+      delete settings.pending[key];
+      delete settings.orig[key];
+    } catch (e) { errors.push(e.message); }
+  }
+  // Sources start or stop in the background: show their state a bit later.
+  setTimeout(reloadSources, 1500);
+  reloadSources();
+  settings.saving = false;
+  renderSaveState();
+  toast(errors.length ? errors.join(' · ') : t('settingsSaved'));
+}
+
+function reloadSources() {
+  loadSyslog();
+  loadHost();
+  loadDmesg();
+  loadAudit();
+  loadSelfLog();
+  loadFiles(true);
+  loadDocker();
+}
+
+function cancelSettings() {
+  const p = settings.saved;
+  setLang(p.lang);
+  setTheme(p.theme, false);
+  applyLogFont(p.font);
+  applyLogSize(p.size);
+  applyLogDensity(p.density);
+  if (p.tz !== timePrefs.tz || p.fmt !== timePrefs.fmt) {
+    Object.assign(timePrefs, { tz: p.tz, fmt: p.fmt });
+    renderList();
+    renderPeriod();
+    refreshHisto();
+  }
+  for (const [k, v] of Object.entries(p.histo)) if (histoPrefs[k] !== v) setHistoPref(k, v);
+  renderInterface();
+  renderTimeSettings();
+
+  state.tags = structuredClone(settings.tags);
+  renderTagList();
+  applyTags();
+
+  settings.pending = {};
+  settings.orig = {};
+  fileDrafts = [];
+  reloadSources();
+  renderSaveState();
+}
+
+// Closing with unsaved changes asks first, then drops them.
+function closeSettings() {
+  if (settingsDirty()) {
+    if (!confirm(t('unsavedConfirm'))) return;
+    cancelSettings();
+  }
+  $('#settingsDlg').close();
+}
+
+$('#setSave').addEventListener('click', saveSettings);
+$('#setCancel').addEventListener('click', cancelSettings);
+$('#closeSettings').addEventListener('click', closeSettings);
+$('#settingsDlg').addEventListener('click', (ev) => { if (ev.target === ev.currentTarget) closeSettings(); });
+$('#settingsDlg').addEventListener('cancel', (ev) => { ev.preventDefault(); closeSettings(); }); // Escape
+// Closed anyway (a second Escape in some browsers): the changes are not kept.
+$('#settingsDlg').addEventListener('close', (ev) => { if (!ev.currentTarget.open && settingsDirty()) cancelSettings(); });
+// Every control of the window: refresh the Save button once the change is applied.
+for (const type of ['input', 'change', 'click']) {
+  $('#settingsDlg').addEventListener(type, () => setTimeout(renderSaveState));
+}
+addEventListener('beforeunload', (ev) => {
+  if ($('#settingsDlg').open && settingsDirty()) ev.preventDefault();
+});
 
 /* ================= Startup ================= */
 

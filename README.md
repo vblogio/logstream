@@ -351,8 +351,11 @@ From the command line: `curl -o logs.csv 'localhost:8080/api/export.csv?q=error&
 
 ## Settings
 
-The gear icon opens the settings, organized in tabs. Everything except color tags is
-remembered per browser.
+The gear icon opens the settings, organized in tabs. Changes show at once but are only kept
+with the **Save** button, under the tab labels: it takes the accent color while changes are
+waiting. **Cancel** goes back to the saved settings, and closing the window with unsaved changes
+asks before dropping them. Localization and Appearance are remembered per browser; color tags
+and log sources are saved on the server. Purging and resetting column widths act at once.
 
 - **Localization**
   - *Language*: English or French.
