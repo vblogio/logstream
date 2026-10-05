@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -380,5 +381,47 @@ func TestFilesAutoAndErrors(t *testing.T) {
 	f.poll(now.Add(11 * time.Second))
 	if got = sink.take(); strings.Join(msgs(got), "|") != "three" {
 		t.Fatalf("re-enabled: got %q", msgs(got))
+	}
+}
+
+// A large access log: the last hour is found by date, not read from the
+// start, and every entry is counted from the first poll.
+func TestFilesBackfillLargeFile(t *testing.T) {
+	dir, data := t.TempDir(), t.TempDir()
+	path := filepath.Join(dir, "access.log")
+	now := time.Now()
+	line := func(at time.Time, n int) string {
+		return fmt.Sprintf(`86.246.223.62 - - [%s] "GET /wp-content/x.png HTTP/2.0" 200 640365 "-" "-" %d "vblog-io-router@file" "http://wordpress" 3ms`+"\n",
+			at.UTC().Format("02/Jan/2006:15:04:05 -0700"), n)
+	}
+	var b strings.Builder
+	const n = 200000 // one line every 3 s for a week: ~32 MB
+	for i := 0; i < n; i++ {
+		b.WriteString(line(now.Add(-time.Duration(n-i)*3*time.Second), i))
+	}
+	appendFile(t, path, b.String())
+	sink := &fileSink{}
+	f := NewFiles(dir, data, time.Hour, sink.add)
+	f.Configure(filesConfig{Sources: []fileSourceDef{{ID: "a1", Name: "traefik-log", Path: path, Enabled: true}}})
+	f.poll(now)
+	if pos := f.st.Pos["a1"]; pos.Off < int64(b.Len())*99/100 {
+		t.Errorf("history read from offset %d of %d", pos.Off, b.Len())
+	}
+	appendFile(t, path, line(now, n))
+	f.poll(now.Add(time.Second))
+	got := sink.take()
+	// The last hour (1200 lines, the oldest one on the edge) and the new line.
+	if len(got) < 1200 || len(got) > 1201 || got[0].App != "traefik-log" || got[len(got)-1].Extra["http_status"] != "200" {
+		t.Fatalf("got %d entries", len(got))
+	}
+	if st := f.Status()["sources"].([]map[string]any)[0]; st["read"] != uint64(len(got)) || st["behind"] != int64(0) || st["detected"] != fmtCLF {
+		t.Errorf("status %+v", st)
+	}
+	// Undated plain text: only new lines.
+	txt := filepath.Join(dir, "app.log")
+	appendFile(t, txt, strings.Repeat("no date here\n", 1000))
+	p := mustParser(t, fmtText, "")
+	if off := backfillStart(txt, p, 13000, now.Add(-time.Hour), now); off != 13000 {
+		t.Errorf("undated: %d", off)
 	}
 }

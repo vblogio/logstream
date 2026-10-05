@@ -53,6 +53,7 @@ type fileSourceStatus struct {
 	Open     bool
 	Read     uint64
 	Detected string // format found when the source is in auto
+	Behind   int64  // bytes left to read (history being read)
 	Code     string
 	Error    string
 }
@@ -79,6 +80,7 @@ type fileTail struct {
 	known   bool  // readOff is set
 	pending *pendingEntry
 	auto    *fileParser // format detected from the file, in auto
+	behind  int64       // bytes left to read after the last poll
 }
 
 // Files follows log files of other programs (Traefik, nginx, applications…)
@@ -265,10 +267,11 @@ func (f *Files) Status() map[string]any {
 	for _, s := range f.cfg {
 		m := map[string]any{
 			"id": s.ID, "name": s.Name, "path": s.Path, "format": s.Format, "regex": s.Regex,
-			"host": s.Host, "enabled": s.Enabled, "open": false, "read": 0, "detected": "", "code": "", "error": "",
+			"host": s.Host, "enabled": s.Enabled, "open": false, "read": 0, "detected": "", "behind": 0, "code": "", "error": "",
 		}
 		if st := f.status[s.ID]; st != nil && s.Enabled {
 			m["open"], m["read"], m["detected"], m["code"], m["error"] = st.Open, st.Read, st.Detected, st.Code, st.Error
+			m["behind"] = st.Behind
 		}
 		list = append(list, m)
 	}
@@ -346,7 +349,8 @@ func (f *Files) poll(now time.Time) {
 }
 
 const (
-	maxFileRead       = 4 << 20         // per file and per poll
+	maxFileRead       = 4 << 20         // per read
+	maxFileReads      = 16              // reads per file and per poll (64 MB)
 	fileContinueDelay = 2 * time.Second // an entry waits this long for continuation lines
 )
 
@@ -370,6 +374,10 @@ func (f *Files) setStatus(id string, err error) {
 	}
 	changed := code != st.Code
 	st.Open, st.Detected, st.Code, st.Error = err == nil, detected, code, detail
+	st.Behind = 0
+	if tl := f.tails[id]; tl != nil && err == nil {
+		st.Behind = tl.behind
+	}
 	name := id
 	for _, s := range f.cfg {
 		if s.ID == id {
@@ -384,9 +392,12 @@ func (f *Files) setStatus(id string, err error) {
 
 func (f *Files) count(id string) {
 	f.mu.Lock()
-	if st := f.status[id]; st != nil {
-		st.Read++
+	st := f.status[id]
+	if st == nil { // first poll of the file: its status comes after
+		st = &fileSourceStatus{}
+		f.status[id] = st
 	}
+	st.Read++
 	f.mu.Unlock()
 }
 
@@ -430,11 +441,12 @@ func (f *Files) pollFile(s *fileSource, now time.Time) error {
 		pos = filePos{Ino: ino}
 		if first {
 			// Turned on: the last FILES_BACKFILL of what is already there
-			// (0: only new lines).
-			if f.backfill > 0 {
+			// (0: only new lines), found by date rather than read from the
+			// start of a file that can hold months of logs.
+			pos.Off = fi.Size()
+			if p := f.parserOf(s, tl, path); f.backfill > 0 && p != nil {
+				pos.Off = backfillStart(path, p, fi.Size(), f.st.Started[s.ID].Add(-f.backfill), now)
 				pos.Until = fi.Size()
-			} else {
-				pos.Off = fi.Size()
 			}
 		}
 		f.st.Pos[s.ID], f.dirty = pos, true
@@ -469,16 +481,76 @@ func (f *Files) pollFile(s *fileSource, now time.Time) error {
 		if p == nil {
 			return nil // nothing complete to detect the format from yet
 		}
-		next, _, err := f.readFrom(s, tl, p, path, tl.readOff, pos.Until, now)
-		if err != nil {
-			return err
+		for i := 0; i < maxFileReads; i++ {
+			next, more, err := f.readFrom(s, tl, p, path, tl.readOff, pos.Until, now)
+			if err != nil {
+				return err
+			}
+			tl.readOff = next
+			if !more {
+				break
+			}
 		}
-		tl.readOff = next
 	}
+	tl.behind = max(fi.Size()-tl.readOff, 0)
 	if pe := tl.pending; pe != nil && now.Sub(pe.seen) >= fileContinueDelay {
 		f.flushPending(s.ID, now)
 	}
 	return nil
+}
+
+// backfillStart finds where the lines dated notBefore or later start, by
+// bisection on the dates of the lines (logs are written in order). Undated
+// lines are left out of the history anyway: then only new lines are read.
+func backfillStart(path string, p *fileParser, size int64, notBefore, now time.Time) int64 {
+	fh, err := os.Open(path)
+	if err != nil {
+		return size
+	}
+	defer fh.Close()
+	buf := make([]byte, 64<<10)
+	// lineAt reads the first line starting at or after off (off itself when
+	// it is 0): its start and its date.
+	lineAt := func(off int64) (int64, time.Time, bool) {
+		n, _ := fh.ReadAt(buf, off)
+		b := buf[:n]
+		start := off
+		if off > 0 {
+			nl := bytes.IndexByte(b, '\n')
+			if nl < 0 {
+				return size, time.Time{}, false
+			}
+			b, start = b[nl+1:], off+int64(nl)+1
+		}
+		end := bytes.IndexByte(b, '\n')
+		if end < 0 {
+			return size, time.Time{}, false
+		}
+		r := p.parse(string(b[:end]), now)
+		return start, r.t, r.dated
+	}
+	if _, t, ok := lineAt(0); !ok || !t.Before(notBefore) {
+		if !ok {
+			// No date on the first line: try the last ones.
+			if _, _, ok := lineAt(max(size-int64(len(buf)), 0)); !ok {
+				return size
+			}
+		} else {
+			return 0 // all of it is recent
+		}
+	}
+	lo, hi := int64(0), size // line at lo: before notBefore; at hi: not
+	for hi-lo > int64(len(buf)) {
+		mid := lo + (hi-lo)/2
+		_, t, ok := lineAt(mid)
+		if ok && t.Before(notBefore) {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	start, _, _ := lineAt(lo)
+	return min(start, size)
 }
 
 // readFrom parses the complete lines written after off and returns the new

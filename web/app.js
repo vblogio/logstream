@@ -101,6 +101,7 @@ const I18N = {
     fileDraft: 'Fill in the name and the path to save this file.',
     fileOk: (r) => `Followed: ${r} entries since startup.`,
     fileDetected: (f) => ` Format detected: ${f}.`,
+    fileBehind: (mb) => ` Reading the history: ${mb} MB left.`,
     probeFound: (f) => `File found, format detected: ${f}.`,
     probeSample: 'Last line: ',
     file_empty: 'The file is empty for now: its format will be detected from its first lines.',
@@ -332,6 +333,7 @@ const I18N = {
     fileDraft: 'Renseignez le nom et le chemin pour enregistrer ce fichier.',
     fileOk: (r) => `Suivi : ${r} entrées depuis le démarrage.`,
     fileDetected: (f) => ` Format détecté : ${f}.`,
+    fileBehind: (mb) => ` Lecture de l\'historique : ${mb} Mo restants.`,
     probeFound: (f) => `Fichier trouvé, format détecté : ${f}.`,
     probeSample: 'Dernière ligne : ',
     file_empty: 'Le fichier est vide pour l\'instant : son format sera détecté à partir de ses premières lignes.',
@@ -2279,7 +2281,10 @@ function fileStatus(s) {
   if (s.draft) return [t('fileDraft'), 'muted'];
   if (!s.enabled) return [t('fileOff'), 'muted'];
   if (s.code) return [t('file_' + s.code) + (s.code === 'not_found' ? '' : s.error || ''), 'bad'];
-  if (s.open) return [t('fileOk', fmtNum(s.read)) + (s.format === 'auto' && s.detected ? t('fileDetected', t('fmt_' + s.detected)) : ''), 'good'];
+  if (s.open) {
+    return [t('fileOk', fmtNum(s.read)) + (s.format === 'auto' && s.detected ? t('fileDetected', t('fmt_' + s.detected)) : '')
+      + (s.behind > 1 << 20 ? t('fileBehind', fmtNum(Math.round(s.behind / (1 << 20)))) : ''), 'good'];
+  }
   return [t('hostWaiting'), 'muted'];
 }
 

@@ -342,7 +342,9 @@ conteneur, un **format** (*Automatique* par défaut), un **hôte** facultatif (p
   les affiche seules.
 - À l'activation d'un fichier, les lignes de la dernière heure déjà présentes sont lues d'abord
   (`FILES_BACKFILL`, `0` = seulement les nouvelles lignes ; les lignes sans horodatage sont alors
-  ignorées) ; un fichier créé ensuite est lu depuis son début. L'inode et une
+  ignorées). Le début de cette heure est trouvé par dichotomie sur les dates des lignes : un gros
+  fichier qui contient des mois de logs n'est pas relu depuis son début ; un fichier créé ensuite
+  est lu depuis son début, jusqu'à 64 Mo par seconde, l'état indiquant ce qu'il reste à lire. L'inode et une
   position sont enregistrés par fichier dans `/data/files-state.json` : après un redémarrage la
   lecture reprend là ; après une rotation (`access.log` renommé `access.log.1`), la fin de
   l'ancien fichier est lue avant le nouveau ; un fichier vidé sur place (`copytruncate`) est

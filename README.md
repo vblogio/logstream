@@ -312,8 +312,10 @@ optional **host** (default: `/host/etc/hostname`, else `localhost`) and a switch
 - **Display**: source `file`, the path in `log_file`. In the list these lines have a green left
   edge, a light tint and a **FILE** badge before the app; the **Source** filter shows them alone.
 - When a file is turned on, the lines of the last hour already in it are read first
-  (`FILES_BACKFILL`, `0` = only new lines; lines without a timestamp are then left out); a file
-  created later is read from its start. The inode and an offset are saved per file in
+  (`FILES_BACKFILL`, `0` = only new lines; lines without a timestamp are then left out). The
+  start of that hour is found by bisection on the dates of the lines, so a large file that holds
+  months of logs is not read from its start; a file created later is read from its start, up to
+  64 MB per second, the status showing what is left to read. The inode and an offset are saved per file in
   `/data/files-state.json`: after a restart reading resumes there; after a rotation
   (`access.log` renamed `access.log.1`), the end of the old file is read before the new one;
   a file truncated in place (`copytruncate`) is read again from its start.
