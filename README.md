@@ -83,6 +83,9 @@ versions before this change are indexed by their message timestamp; purge them f
 Settings to start clean.
 
 Severity badges `err`/`crit` and `warning` use the colors of the `error` and `warning` tags.
+Each row starts with a fixed-width badge naming its source, one color per source: **SYSLOG**,
+**DOCKER**, **KERNEL** (dmesg), **HOST** (files of `/var/log`), **AUDIT**, **FILE** and **LS**
+(LogStream's own logs).
 
 Shortcuts: `/` focuses the search box, `Esc` clears it. Clicking a row shows all its fields.
 
@@ -254,7 +257,7 @@ also be changed (saved in `/data/audit.json`; `AUDIT_LOG` sets the default path)
   `auid` (login user ID), `user` (its name, or the uid when it cannot be resolved), `exe`, `res`
   (`success` / `failed`, from `res=` or `success=`) and `key` (rule key). Severity is `warning`
   when the result is a failure, `info` otherwise; facility `authpriv`; source `audit`. In the
-  list, audit lines have a violet left edge, a light tint and an **AUDIT** badge before the app;
+  list, audit lines have a violet left edge, a light tint and the **AUDIT** source badge;
   the **Source** filter shows them alone.
 - **Names**: `user` comes from the enriched format (`log_format = ENRICHED`, the default of
   recent auditd versions), else from the host's `/etc/passwd` when it is mounted as
@@ -310,7 +313,7 @@ optional **host** (default: `/host/etc/hostname`, else `localhost`) and a switch
   not fit the chosen format is kept as plain text. Fields named like LogStream's own ones
   (`host`, `app`…) are renamed `field_host`, `field_app`…
 - **Display**: source `file`, the path in `log_file`. In the list these lines have a green left
-  edge, a light tint and a **FILE** badge before the app; the **Source** filter shows them alone.
+  edge, a light tint and the **FILE** source badge; the **Source** filter shows them alone.
 - When a file is turned on, the lines of the last hour already in it are read first
   (`FILES_BACKFILL`, `0` = only new lines; lines without a timestamp are then left out). The
   start of that hour is found by bisection on the dates of the lines, so a large file that holds
