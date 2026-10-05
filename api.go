@@ -59,6 +59,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/audit", a.auditConfigure)
 	mux.HandleFunc("GET /api/files", a.filesStatus)
 	mux.HandleFunc("PUT /api/files", a.filesConfigure)
+	mux.HandleFunc("POST /api/files/detect", a.filesDetect)
 	mux.HandleFunc("GET /api/selflog", a.selfLogStatus)
 	mux.HandleFunc("PUT /api/selflog", a.selfLogConfigure)
 }
@@ -88,7 +89,7 @@ func (a *API) filesStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, a.files.Status())
 }
 
-// PUT /api/files {"sources": [{"id", "name", "path", "format", "regex", "host", "enabled"}]}
+// PUT /api/files {"sources": [{"id", "name", "path", "format" (auto or a format), "regex", "host", "enabled"}]}
 // (no id: a new file).
 func (a *API) filesConfigure(w http.ResponseWriter, r *http.Request) {
 	var cfg filesConfig
@@ -102,6 +103,20 @@ func (a *API) filesConfigure(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("file sources changed from %s: %d files", r.RemoteAddr, len(cfg.Sources))
 	writeJSON(w, http.StatusOK, a.files.Status())
+}
+
+// POST /api/files/detect {"path": "/logs/traefik/access.log"}: whether the file
+// can be read, its detected format and its last line (Settings > Sources). A
+// POST, so that read-only accounts cannot read files through it.
+func (a *API) filesDetect(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, DetectFile(req.Path))
 }
 
 // GET /api/selflog: state of the LogStream internal logs (Settings > Sources).

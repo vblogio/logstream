@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -163,12 +162,58 @@ func TestParseTraefikJSON(t *testing.T) {
 	}
 }
 
+func TestDetectFormat(t *testing.T) {
+	tests := map[string][]string{
+		fmtJSON:    {`{"level":"info","msg":"a"}`, `{"level":"warn","msg":"b"}`},
+		fmtTraefik: {`{"RequestMethod":"GET","DownstreamStatus":200}`, `{"level":"info","msg":"Configuration loaded"}`},
+		fmtCLF:     {`10.0.0.1 - - [05/Oct/2026:10:00:00 +0000] "GET / HTTP/1.1" 200 12 "-" "curl"`},
+		fmtLogfmt:  {`time="2026-10-05T10:00:00Z" level=info msg="Starting provider" providerName=docker`},
+		fmtText:    {`2026-10-05 10:00:00 INFO started`, `user=bob logged in`},
+	}
+	for want, lines := range tests {
+		if got := detectFormat(lines); got != want {
+			t.Errorf("%q: got %s, want %s", lines, got, want)
+		}
+	}
+	// A few lines of another format do not change the answer (80 %).
+	lines := []string{`{"a":1}`, `{"a":2}`, `{"a":3}`, `{"a":4}`, `not json`}
+	if got := detectFormat(lines); got != fmtJSON {
+		t.Errorf("got %s", got)
+	}
+	lines = append(lines, `still not json`)
+	if got := detectFormat(lines); got != fmtText {
+		t.Errorf("got %s", got)
+	}
+}
+
+func TestDetectFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "access.log")
+	appendFile(t, path, `10.0.0.1 - - [05/Oct/2026:10:00:00 +0000] "GET / HTTP/1.1" 200 12 "-" "curl"`+"\n"+`partial`)
+	res := DetectFile(path)
+	if res["format"] != fmtCLF || !strings.HasPrefix(res["sample"].(string), "10.0.0.1 - -") || res["code"] != "" {
+		t.Errorf("got %+v", res)
+	}
+	for p, code := range map[string]string{
+		filepath.Join(dir, "nope.log"): "not_found", "relative.log": "invalid", filepath.Join(dir, "*.log"): "invalid", dir: "read",
+	} {
+		if res := DetectFile(p); res["code"] != code {
+			t.Errorf("%s: got %+v, want %s", p, res, code)
+		}
+	}
+	empty := filepath.Join(dir, "empty.log")
+	appendFile(t, empty, "")
+	if res := DetectFile(empty); res["code"] != "empty" {
+		t.Errorf("got %+v", res)
+	}
+}
+
 func TestFileSourceValidation(t *testing.T) {
 	f := NewFiles(t.TempDir(), t.TempDir(), time.Hour, func(*Entry) {})
 	bad := []fileSourceDef{
 		{Name: "", Path: "/logs/a.log"},
 		{Name: "a", Path: "relative.log"},
-		{Name: "a", Path: "/logs/[.log"},
+		{Name: "a", Path: "/logs/*.log"},
 		{Name: "a", Path: "/logs/a.log", Format: "xml"},
 		{Name: "a", Path: "/logs/a.log", Format: fmtRegex, Regex: "(?P<x"},
 	}
@@ -177,11 +222,11 @@ func TestFileSourceValidation(t *testing.T) {
 			t.Errorf("%+v accepted", d)
 		}
 	}
-	if err := f.Configure(filesConfig{Sources: []fileSourceDef{{Name: " traefik ", Path: "/logs/traefik/*.log", Format: fmtCLF}}}); err != nil {
+	if err := f.Configure(filesConfig{Sources: []fileSourceDef{{Name: " traefik ", Path: "/logs/traefik/access.log"}}}); err != nil {
 		t.Fatal(err)
 	}
 	src := f.Status()["sources"].([]map[string]any)
-	if len(src) != 1 || src[0]["name"] != "traefik" || src[0]["id"] == "" {
+	if len(src) != 1 || src[0]["name"] != "traefik" || src[0]["id"] == "" || src[0]["format"] != fmtAuto {
 		t.Errorf("got %+v", src)
 	}
 }
@@ -222,18 +267,15 @@ func msgs(es []*Entry) []string {
 
 func TestFilesFollow(t *testing.T) {
 	dir, data := t.TempDir(), t.TempDir()
-	logs := filepath.Join(dir, "logs")
-	os.Mkdir(logs, 0o755)
 	now := time.Now()
 	old := now.Add(-3 * time.Hour).UTC().Format(time.RFC3339)
 	recent := now.Add(-10 * time.Minute).UTC().Format(time.RFC3339)
-	app := filepath.Join(logs, "app.log")
+	app := filepath.Join(dir, "app.log")
 	appendFile(t, app, old+" INFO too old\n"+recent+" ERROR recent\n  at line 1\nundated history line\n")
-	appendFile(t, filepath.Join(logs, "app.log.1"), recent+" INFO rotated copy\n")
 
 	sink := &fileSink{}
 	f := NewFiles(dir, data, time.Hour, sink.add)
-	if err := f.Configure(filesConfig{Sources: []fileSourceDef{{Name: "myapp", Path: filepath.Join(logs, "*.log"), Format: fmtText, Host: "web1", Enabled: true}}}); err != nil {
+	if err := f.Configure(filesConfig{Sources: []fileSourceDef{{Name: "myapp", Path: app, Host: "web1", Enabled: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	f.poll(now)
@@ -243,18 +285,16 @@ func TestFilesFollow(t *testing.T) {
 		got[0].Host != "web1" || got[0].SourceType != "file" || got[0].Extra["log_file"] != app {
 		t.Fatalf("history: got %q %+v", msgs(got), got)
 	}
+	if st := f.Status()["sources"].([]map[string]any)[0]; st["detected"] != fmtText || st["open"] != true {
+		t.Errorf("status %+v", st)
+	}
 
-	// New lines, a new file in the glob, then a rotation.
 	appendFile(t, app, "plain new line\n\tcontinued\n")
-	appendFile(t, filepath.Join(logs, "other.log"), "first of other\n")
 	f.poll(now.Add(4 * time.Second))
 	appendFile(t, app, "after\n")
 	f.poll(now.Add(5 * time.Second))
 	f.poll(now.Add(8 * time.Second))
-	got = sink.take()
-	m := msgs(got)
-	sort.Strings(m)
-	if strings.Join(m, "|") != "after|first of other|plain new line\n\tcontinued" {
+	if got = sink.take(); strings.Join(msgs(got), "|") != "plain new line\n\tcontinued|after" {
 		t.Fatalf("new lines: got %q", msgs(got))
 	}
 
@@ -289,27 +329,23 @@ func TestFilesFollow(t *testing.T) {
 	if got = sink.take(); strings.Join(msgs(got), "|") != "x" {
 		t.Fatalf("truncate: got %q", msgs(got))
 	}
-	st := f2.Status()["sources"].([]map[string]any)[0]
-	if st["files"] != 2 || st["code"] != "" {
-		t.Errorf("status %+v", st)
-	}
 }
 
-func TestFilesJSONAndErrors(t *testing.T) {
+func TestFilesAutoAndErrors(t *testing.T) {
 	dir, data := t.TempDir(), t.TempDir()
 	path := filepath.Join(dir, "access.json")
 	sink := &fileSink{}
 	f := NewFiles(dir, data, 0, sink.add) // FILES_BACKFILL=0: only new lines
-	appendFile(t, path, `{"msg":"existing"}`+"\n")
 	cfg := filesConfig{Sources: []fileSourceDef{
-		{ID: "a1", Name: "api", Path: path, Format: fmtJSON, Enabled: true},
-		{ID: "b2", Name: "missing", Path: filepath.Join(dir, "nope.log"), Enabled: true},
+		{ID: "a1", Name: "api", Path: path, Enabled: true}, // auto
+		{ID: "b2", Name: "missing", Path: filepath.Join(dir, "nope.log"), Format: fmtText, Enabled: true},
 	}}
 	if err := f.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	f.poll(now)
+	appendFile(t, path, "")
+	f.poll(now) // empty file: format not known yet
 	appendFile(t, path, `{"msg":"one","level":"error"}`+"\n"+`{"msg":"two"}`+"\n"+`{"msg":"partial`)
 	f.poll(now.Add(time.Second))
 	got := sink.take()
@@ -317,20 +353,31 @@ func TestFilesJSONAndErrors(t *testing.T) {
 		t.Fatalf("got %q", msgs(got))
 	}
 	src := f.Status()["sources"].([]map[string]any)
-	if src[0]["files"] != 1 || src[1]["code"] != "not_found" {
+	if src[0]["detected"] != fmtJSON || src[0]["open"] != true || src[1]["code"] != "not_found" {
 		t.Errorf("status %+v", src)
+	}
+
+	// Forced format: the JSON lines are read as text.
+	cfg.Sources[0].Format = fmtText
+	f.Configure(cfg)
+	appendFile(t, path, `"}`+"\n")
+	f.poll(now.Add(2 * time.Second))
+	f.poll(now.Add(5 * time.Second))
+	if got = sink.take(); strings.Join(msgs(got), "|") != `{"msg":"partial"}` {
+		t.Fatalf("forced: got %q", msgs(got))
 	}
 
 	// Turned off then on: starts over (only new lines here).
 	cfg.Sources[0].Enabled = false
 	f.Configure(cfg)
-	f.poll(now.Add(2 * time.Second))
-	appendFile(t, path, `"}`+"\n")
+	f.poll(now.Add(6 * time.Second))
+	appendFile(t, path, "while off\n")
 	cfg.Sources[0].Enabled = true
 	f.Configure(cfg)
-	f.poll(now.Add(3 * time.Second))
-	appendFile(t, path, `{"msg":"three"}`+"\n")
-	f.poll(now.Add(4 * time.Second))
+	f.poll(now.Add(7 * time.Second))
+	appendFile(t, path, "three\n")
+	f.poll(now.Add(8 * time.Second))
+	f.poll(now.Add(11 * time.Second))
 	if got = sink.take(); strings.Join(msgs(got), "|") != "three" {
 		t.Fatalf("re-enabled: got %q", msgs(got))
 	}

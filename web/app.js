@@ -83,10 +83,11 @@ const I18N = {
     addFile: '+ Add a file',
     filesNone: 'No file yet: add one to follow the logs of Traefik, nginx or any other program.',
     fileName: 'Name (app)',
-    filePath: '/logs/traefik/*.log',
+    filePath: '/logs/traefik/access.log',
     fileHost: 'Host',
     fileRegex: '(?P<time>\\S+ \\S+) \\[(?P<level>\\w+)\\] (?P<msg>.*)',
     fileEnabledAria: 'Follow this file',
+    fmt_auto: 'Automatic',
     fmt_text: 'Plain text',
     fmt_json: 'JSON lines',
     fmt_logfmt: 'logfmt (key=value)',
@@ -95,11 +96,16 @@ const I18N = {
     fmt_regex: 'Regular expression',
     fileOff: 'Off.',
     fileDraft: 'Fill in the name and the path to save this file.',
-    fileOk: ({ f, r }) => `${f} file${f > 1 ? 's' : ''} followed: ${r} entries since startup.`,
-    file_not_found: 'No file at this path: mount its directory in the container (see docker-compose.yml) and check the path. ',
+    fileOk: (r) => `Followed: ${r} entries since startup.`,
+    fileDetected: (f) => ` Format detected: ${f}.`,
+    probeFound: (f) => `File found, format detected: ${f}.`,
+    probeSample: 'Last line: ',
+    file_empty: 'The file is empty for now: its format will be detected from its first lines.',
+    file_invalid: '',
+    file_not_found: 'No file at this path: mount it in the container (see docker-compose.yml) and check the path.',
     file_permission: 'Permission denied: the file must be readable by UID 10001 or the adm group (see the README). ',
     file_read: 'Cannot read the file: ',
-    filesHelp: 'Follows the log files of other programs, mounted read-only in the container (e.g. /var/log/traefik:/logs/traefik:ro). The path can use wildcards (/logs/traefik/*.log follows every .log file of the directory, also those created later); rotated copies (.1, .gz) are left out. Each line gives an entry (badge FILE, app = the name): plain text (level and leading timestamp detected, indented lines added to the previous entry), JSON lines, logfmt, access logs of nginx, Apache or Traefik (5xx are errors, 4xx warnings) or a regular expression whose named groups time, level, msg, host and app fill these fields, the other groups giving extra fields. When turned on, the last hour of dated lines is read first (FILES_BACKFILL); rotations are followed and reading resumes where it stopped.',
+    filesHelp: 'Follows the log file of another program, mounted read-only in the container (e.g. /var/log/traefik:/logs/traefik:ro, then /logs/traefik/access.log here). Once the path is filled in, the file is checked and its format detected from its last lines (JSON lines, logfmt, access logs of nginx, Apache or Traefik, else plain text); choose a format to force it, or a regular expression whose named groups time, level, msg, host and app fill these fields, the other groups giving extra fields. Each line gives an entry (badge FILE, app = the name); indented lines are added to the previous entry; for access logs 5xx are errors and 4xx warnings. When turned on, the last hour of dated lines is read first (FILES_BACKFILL); rotations are followed and reading resumes where it stopped.',
     auditTitle: 'Linux audit (auditd)',
     auditEnabled: 'Collect the audit events of this machine',
     auditPath: 'File',
@@ -305,10 +311,11 @@ const I18N = {
     addFile: '+ Ajouter un fichier',
     filesNone: 'Aucun fichier pour l\'instant : ajoutez-en un pour suivre les logs de Traefik, nginx ou de tout autre programme.',
     fileName: 'Nom (app)',
-    filePath: '/logs/traefik/*.log',
+    filePath: '/logs/traefik/access.log',
     fileHost: 'Hôte',
     fileRegex: '(?P<time>\\S+ \\S+) \\[(?P<level>\\w+)\\] (?P<msg>.*)',
     fileEnabledAria: 'Suivre ce fichier',
+    fmt_auto: 'Automatique',
     fmt_text: 'Texte brut',
     fmt_json: 'JSON lines',
     fmt_logfmt: 'logfmt (clé=valeur)',
@@ -317,11 +324,16 @@ const I18N = {
     fmt_regex: 'Expression régulière',
     fileOff: 'Désactivé.',
     fileDraft: 'Renseignez le nom et le chemin pour enregistrer ce fichier.',
-    fileOk: ({ f, r }) => `${f} fichier${f > 1 ? 's' : ''} suivi${f > 1 ? 's' : ''} : ${r} entrées depuis le démarrage.`,
-    file_not_found: 'Aucun fichier à ce chemin : montez son dossier dans le conteneur (voir docker-compose.yml) et vérifiez le chemin. ',
+    fileOk: (r) => `Suivi : ${r} entrées depuis le démarrage.`,
+    fileDetected: (f) => ` Format détecté : ${f}.`,
+    probeFound: (f) => `Fichier trouvé, format détecté : ${f}.`,
+    probeSample: 'Dernière ligne : ',
+    file_empty: 'Le fichier est vide pour l\'instant : son format sera détecté à partir de ses premières lignes.',
+    file_invalid: '',
+    file_not_found: 'Aucun fichier à ce chemin : montez-le dans le conteneur (voir docker-compose.yml) et vérifiez le chemin.',
     file_permission: 'Accès refusé : le fichier doit être lisible par l\'UID 10001 ou le groupe adm (voir le README). ',
     file_read: 'Lecture du fichier impossible : ',
-    filesHelp: 'Suit les fichiers de logs d\'autres programmes, montés en lecture seule dans le conteneur (par ex. /var/log/traefik:/logs/traefik:ro). Le chemin accepte les jokers (/logs/traefik/*.log suit tous les fichiers .log du dossier, y compris ceux créés plus tard) ; les copies de rotation (.1, .gz) sont ignorées. Chaque ligne donne une entrée (badge FILE, app = le nom) : texte brut (niveau et horodatage de début de ligne détectés, lignes indentées rattachées à l\'entrée précédente), JSON lines, logfmt, journaux d\'accès de nginx, Apache ou Traefik (5xx en erreur, 4xx en warning) ou expression régulière dont les groupes nommés time, level, msg, host et app remplissent ces champs, les autres groupes donnant des champs supplémentaires. À l\'activation, la dernière heure de lignes datées est lue d\'abord (FILES_BACKFILL) ; les rotations sont suivies et la lecture reprend où elle s\'était arrêtée.',
+    filesHelp: 'Suit le fichier de logs d\'un autre programme, monté en lecture seule dans le conteneur (par ex. /var/log/traefik:/logs/traefik:ro, puis /logs/traefik/access.log ici). Une fois le chemin saisi, le fichier est vérifié et son format détecté à partir de ses dernières lignes (JSON lines, logfmt, journaux d\'accès de nginx, Apache ou Traefik, sinon texte brut) ; choisissez un format pour le forcer, ou une expression régulière dont les groupes nommés time, level, msg, host et app remplissent ces champs, les autres groupes donnant des champs supplémentaires. Chaque ligne donne une entrée (badge FILE, app = le nom) ; les lignes indentées sont rattachées à l\'entrée précédente ; pour les journaux d\'accès, 5xx en erreur et 4xx en warning. À l\'activation, la dernière heure de lignes datées est lue d\'abord (FILES_BACKFILL) ; les rotations sont suivies et la lecture reprend où elle s\'était arrêtée.',
     auditTitle: 'Audit Linux (auditd)',
     auditEnabled: 'Collecter les événements d\'audit de cette machine',
     auditPath: 'Fichier',
@@ -2229,22 +2241,44 @@ $('#selfLevel').addEventListener('change', (ev) => configureSelfLog({ min_level:
 
 /* ================= Log files ================= */
 
-const FILE_FORMATS = ['text', 'json', 'logfmt', 'clf', 'traefik', 'regex'];
+const FILE_FORMATS = ['auto', 'text', 'json', 'logfmt', 'clf', 'traefik', 'regex'];
 let filesState = null; // {sources, defaultHost} from the server
 let fileDrafts = [];   // rows added here, saved once they have a name and a path
 let fileSeq = 0;
+const fileProbes = new Map(); // path -> result of /api/files/detect (format found, last line)
 
 async function loadFiles() {
   try { filesState = await api('/api/files'); } catch { filesState = null; }
   renderFiles();
 }
 
+// Status line of a row: the check of the path just typed, else the state
+// of the file once saved.
 function fileStatus(s) {
+  const pr = fileProbes.get(s.path);
+  if (pr && (s.draft || (s.enabled && !s.open && !s.code))) {
+    if (pr.code) return [t('file_' + pr.code) + (pr.code === 'not_found' || pr.code === 'empty' ? '' : (pr.code === 'invalid' ? '' : ' ') + (pr.error || '')), pr.code === 'empty' ? 'muted' : 'bad'];
+    return [t('probeFound', t('fmt_' + pr.format)), 'good'];
+  }
   if (s.draft) return [t('fileDraft'), 'muted'];
   if (!s.enabled) return [t('fileOff'), 'muted'];
   if (s.code) return [t('file_' + s.code) + (s.code === 'not_found' ? '' : s.error || ''), 'bad'];
-  if (s.files > 0) return [t('fileOk', { f: s.files, r: fmtNum(s.read) }), 'good'];
+  if (s.open) return [t('fileOk', fmtNum(s.read)) + (s.format === 'auto' && s.detected ? t('fileDetected', t('fmt_' + s.detected)) : ''), 'good'];
   return [t('hostWaiting'), 'muted'];
+}
+
+function fileSample(s) {
+  const pr = fileProbes.get(s.path);
+  return pr && pr.sample ? t('probeSample') + pr.sample : '';
+}
+
+// Checks the path typed in a row: found or not, detected format, last line.
+async function probeFile(path) {
+  if (!path) return;
+  try {
+    fileProbes.set(path, await api('/api/files/detect', { method: 'POST', body: { path } }));
+  } catch { fileProbes.delete(path); }
+  renderFiles();
 }
 
 function fileRowHTML(s) {
@@ -2261,6 +2295,7 @@ function fileRowHTML(s) {
     </button>
     <input type="text" data-f="regex" class="mono fr-regex" value="${esc(s.regex)}" placeholder="${esc(t('fileRegex'))}" aria-label="${esc(t('fmt_regex'))}" spellcheck="false"${s.format === 'regex' ? '' : ' hidden'}>
     <p class="fr-status docker-status ${cls}">${esc(text)}</p>
+    <p class="fr-sample"${fileSample(s) ? '' : ' hidden'}>${esc(fileSample(s))}</p>
   </div>`;
 }
 
@@ -2273,11 +2308,15 @@ function renderFiles(full) {
   if (!full && list.dataset.keys === keys && list.contains(document.activeElement)) {
     // Being edited: only refresh the status lines.
     for (const s of rows) {
-      const p = list.querySelector(`.file-row[data-key="${CSS.escape(s.id || s.draft)}"] .fr-status`);
-      if (!p) continue;
+      const row = list.querySelector(`.file-row[data-key="${CSS.escape(s.id || s.draft)}"]`);
+      if (!row) continue;
       const [text, cls] = fileStatus(s);
+      const p = row.querySelector('.fr-status');
       p.textContent = text;
       p.className = 'fr-status docker-status ' + cls;
+      const sample = fileSample(s);
+      row.querySelector('.fr-sample').textContent = sample;
+      row.querySelector('.fr-sample').hidden = !sample;
     }
     return;
   }
@@ -2291,10 +2330,12 @@ function fileRowOf(key) {
 
 async function saveFiles() {
   const ready = fileDrafts.filter((d) => d.name.trim() && d.path.trim());
+
   const sources = filesState.sources.concat(ready).map(({ id, name, path, format, regex, host, enabled }) => ({ id: id || '', name, path, format, regex, host, enabled }));
   try {
     filesState = await api('/api/files', { method: 'PUT', body: { sources } });
     fileDrafts = fileDrafts.filter((d) => !ready.includes(d));
+
   } catch (e) {
     toast(e.message);
     await loadFiles();
@@ -2310,6 +2351,14 @@ $('#fileList').addEventListener('change', (ev) => {
   const f = ev.target.dataset.f;
   if (!s || !f) return;
   s[f] = f === 'enabled' ? ev.target.checked : ev.target.value.trim();
+  if (f === 'path') {
+    // A name by default: the file name without its extension.
+    if (!s.name && s.path) {
+      s.name = s.path.split('/').pop().replace(/\.(log|txt|json)$/i, '');
+      row.querySelector('[data-f="name"]').value = s.name;
+    }
+    probeFile(s.path);
+  }
   if (f === 'format') row.querySelector('.fr-regex').hidden = s.format !== 'regex';
   if (f === 'format' && s.format === 'regex' && !s.regex) { row.querySelector('.fr-regex').focus(); return; }
   if (s.draft && !(s.name && s.path)) return;
@@ -2331,9 +2380,9 @@ $('#fileList').addEventListener('click', (ev) => {
 
 $('#addFile').addEventListener('click', () => {
   if (!filesState) return;
-  fileDrafts.push({ draft: 'new' + (++fileSeq), name: '', path: '', format: 'text', regex: '', host: '', enabled: true });
+  fileDrafts.push({ draft: 'new' + (++fileSeq), name: '', path: '', format: 'auto', regex: '', host: '', enabled: true });
   renderFiles(true);
-  $('#fileList').lastElementChild.querySelector('[data-f="name"]').focus();
+  $('#fileList').lastElementChild.querySelector('[data-f="path"]').focus();
 });
 
 /* ================= Docker source ================= */

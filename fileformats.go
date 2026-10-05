@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,6 +15,7 @@ import (
 
 // Formats of the "Files" source (Settings > Sources), one per declared file.
 const (
+	fmtAuto    = "auto"    // detected from the last lines of the file
 	fmtText    = "text"    // one line per entry, level and leading timestamp detected
 	fmtJSON    = "json"    // JSON lines: msg/time/level recognized, other keys as fields
 	fmtLogfmt  = "logfmt"  // key=value pairs (Traefik "common" logs, Go programs…)
@@ -586,4 +590,100 @@ func traefikRec(obj map[string]any, line string, now time.Time) *fileRec {
 	}
 	r.msg = b.String()
 	return r
+}
+
+/* ---------- Detection ---------- */
+
+const detectWindow = 64 << 10
+
+// sampleLines returns the last complete lines of a file (50 at most).
+func sampleLines(path string) ([]string, error) {
+	fh, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	fi, err := fh.Stat()
+	if err != nil {
+		return nil, err
+	}
+	off := fi.Size() - detectWindow
+	if off < 0 {
+		off = 0
+	}
+	buf, err := io.ReadAll(io.NewSectionReader(fh, off, detectWindow))
+	if err != nil {
+		return nil, err
+	}
+	end := bytes.LastIndexByte(buf, '\n')
+	if end < 0 {
+		return nil, nil
+	}
+	buf = buf[:end]
+	if off > 0 { // first line cut by the window
+		if nl := bytes.IndexByte(buf, '\n'); nl >= 0 {
+			buf = buf[nl+1:]
+		} else {
+			return nil, nil
+		}
+	}
+	var lines []string
+	for _, b := range bytes.Split(buf, []byte{'\n'}) {
+		if len(bytes.TrimSpace(b)) > 0 {
+			lines = append(lines, string(bytes.TrimRight(b, "\r")))
+		}
+	}
+	if len(lines) > 50 {
+		lines = lines[len(lines)-50:]
+	}
+	return lines, nil
+}
+
+// logfmtKeys: the pairs have one of the usual logfmt keys.
+func logfmtKeys(kv [][2]string) bool {
+	for _, p := range kv {
+		switch strings.ToLower(p[0]) {
+		case "level", "lvl", "msg", "message", "time", "ts", "t":
+			return true
+		}
+	}
+	return false
+}
+
+// detectFormat guesses the format of a file from some of its lines: the
+// structured format most lines follow, else plain text (a regular
+// expression is never guessed).
+func detectFormat(lines []string) string {
+	var js, traefik, clf, logfmt int
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if obj, ok := decodeJSONLine(l); ok {
+			js++
+			if _, ok := obj["RequestMethod"]; ok {
+				traefik++
+			} else if _, ok := obj["DownstreamStatus"]; ok {
+				traefik++
+			}
+			continue
+		}
+		if clfRe.MatchString(l) {
+			clf++
+			continue
+		}
+		if kv := parseLogfmt(l); len(kv) >= 3 && logfmtKeys(kv) {
+			logfmt++
+		}
+	}
+	most := func(n int) bool { return n > 0 && n*5 >= len(lines)*4 } // 80 %
+	switch {
+	case most(js) && traefik*2 >= js:
+		return fmtTraefik
+	case most(js):
+		return fmtJSON
+	case most(clf):
+		return fmtCLF
+	case most(logfmt):
+		return fmtLogfmt
+	}
+	return fmtText
 }

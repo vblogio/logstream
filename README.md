@@ -269,18 +269,22 @@ also be changed (saved in `/data/audit.json`; `AUDIT_LOG` sets the default path)
 
 Logstream can follow the log files of other programs: Traefik, nginx, Apache, or any application
 that writes to a file. Declare each file in **Settings > Log sources > Log files** (saved in
-`/data/files.json`, up to 50): a **name** (the **app** of its entries), the **path** as mounted in
-the container, a **format**, an optional **host** (default: `/host/etc/hostname`, else
-`localhost`) and a switch.
+`/data/files.json`, up to 50): a **name** (the **app** of its entries, by default the file name),
+the **path** of the file as mounted in the container, a **format** (*Automatic* by default), an
+optional **host** (default: `/host/etc/hostname`, else `localhost`) and a switch.
 
 - **Mount** the directory read-only, e.g. in `docker-compose.yml`:
   `- /var/log/traefik:/logs/traefik:ro`, then `docker compose up -d`. Files under `/var/log`
   are already reachable as `/host/var/log/…`. The files must be readable by UID `10001` or the
   group of `HOST_LOGS_GID` (`adm` by default); Settings > Log sources says when no file matches
   or access is denied.
-- **Path**: a file, or a pattern with `*`, `?` or `[…]`: `/logs/traefik/*.log` follows every
-  `.log` file of the directory, also those created later (200 files at most per pattern).
-  Rotated copies (`.1`, `.2.gz`…) are left out.
+- **Path**: one file, e.g. `/logs/traefik/access.log` (no wildcards). As soon as it is typed, the
+  file is checked: found or not, readable or not, its detected format and its last line.
+- **Format detection** (*Automatic*): from the last lines of the file (50 at most), the
+  structured format that at least 80 % of them follow — Traefik access JSON, JSON lines, access
+  log CLF, logfmt — else plain text. It is done again when the format is changed; the format
+  found is shown in the status of the file. Choose another format to force it (a regular
+  expression is never detected).
 - **Formats**:
   - *Plain text*: one entry per line; the level is detected as for Docker logs, a timestamp at
     the start of the line (ISO 8601, `2006/01/02 15:04:05`, `[02/Jan/2006:15:04:05 +0200]`,
@@ -308,8 +312,8 @@ the container, a **format**, an optional **host** (default: `/host/etc/hostname`
 - **Display**: source `file`, the path in `log_file`. In the list these lines have a green left
   edge, a light tint and a **FILE** badge before the app; the **Source** filter shows them alone.
 - When a file is turned on, the lines of the last hour already in it are read first
-  (`FILES_BACKFILL`, `0` = only new lines; lines without a timestamp are then left out). Files
-  that appear later are read from their start. The inode and an offset are saved per file in
+  (`FILES_BACKFILL`, `0` = only new lines; lines without a timestamp are then left out); a file
+  created later is read from its start. The inode and an offset are saved per file in
   `/data/files-state.json`: after a restart reading resumes there; after a rotation
   (`access.log` renamed `access.log.1`), the end of the old file is read before the new one;
   a file truncated in place (`copytruncate`) is read again from its start.
@@ -570,7 +574,7 @@ To update one of them:
 | `hostlogs.go`, `journal.go` | host system logs: systemd journal reader (no `journalctl`) and `/var/log` follower |
 | `dmesg.go` | kernel messages: `/dev/kmsg` reader, record parsing, position by boot ID and sequence number |
 | `audit.go` | Linux audit: `audit.log` follower (rotation, saved offset), record parsing, grouping by event, summary |
-| `filesource.go`, `fileformats.go` | log files: follower (patterns, rotation, saved offsets, continuation lines) and formats (text, JSON, logfmt, CLF, Traefik, regular expression) |
+| `filesource.go`, `fileformats.go` | log files: follower (rotation, saved offsets, continuation lines) and formats (detection, text, JSON, logfmt, CLF, Traefik, regular expression) |
 | `selflog.go` | LogStream internal logs: `logEvent`, minimum level, throttling, bounded queue |
 | `tags.go` | color tag storage |
 | `presets.go`, `presets.json` | color tag presets (`/api/presets`), built-in list |

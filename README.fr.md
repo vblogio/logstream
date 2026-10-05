@@ -294,17 +294,22 @@ source est **désactivée par défaut** : activez-la dans **Réglages > Sources 
 Logstream peut suivre les fichiers de logs d'autres programmes : Traefik, nginx, Apache, ou
 toute application qui écrit dans un fichier. Déclarez chaque fichier dans **Paramètres > Sources
 de logs > Fichiers de logs** (enregistré dans `/data/files.json`, 50 au plus) : un **nom** (l'**app**
-de ses entrées), le **chemin** tel que monté dans le conteneur, un **format**, un **hôte**
-facultatif (par défaut `/host/etc/hostname`, sinon `localhost`) et un interrupteur.
+de ses entrées, par défaut le nom du fichier), le **chemin** du fichier tel que monté dans le
+conteneur, un **format** (*Automatique* par défaut), un **hôte** facultatif (par défaut
+`/host/etc/hostname`, sinon `localhost`) et un interrupteur.
 
 - **Montage** du dossier en lecture seule, par ex. dans `docker-compose.yml` :
   `- /var/log/traefik:/logs/traefik:ro`, puis `docker compose up -d`. Les fichiers de `/var/log`
   sont déjà accessibles sous `/host/var/log/…`. Les fichiers doivent être lisibles par l'UID
   `10001` ou le groupe de `HOST_LOGS_GID` (`adm` par défaut) ; Paramètres > Sources de logs
   indique quand aucun fichier ne correspond ou que l'accès est refusé.
-- **Chemin** : un fichier, ou un motif avec `*`, `?` ou `[…]` : `/logs/traefik/*.log` suit tous
-  les fichiers `.log` du dossier, y compris ceux créés plus tard (200 fichiers au plus par
-  motif). Les copies de rotation (`.1`, `.2.gz`…) sont ignorées.
+- **Chemin** : un fichier, par ex. `/logs/traefik/access.log` (pas de jokers). Dès la saisie, le
+  fichier est vérifié : trouvé ou non, lisible ou non, son format détecté et sa dernière ligne.
+- **Détection du format** (*Automatique*) : à partir des dernières lignes du fichier (50 au
+  plus), le format structuré que suivent au moins 80 % d'entre elles — accès Traefik JSON, JSON
+  lines, journal d'accès CLF, logfmt — sinon texte brut. Elle est refaite quand le format est
+  changé ; le format trouvé s'affiche dans l'état du fichier. Choisissez un autre format pour
+  le forcer (une expression régulière n'est jamais détectée).
 - **Formats** :
   - *Texte brut* : une entrée par ligne ; le niveau est détecté comme pour les logs Docker, un
     horodatage en début de ligne (ISO 8601, `2006/01/02 15:04:05`, `[02/Jan/2006:15:04:05 +0200]`,
@@ -337,7 +342,7 @@ facultatif (par défaut `/host/etc/hostname`, sinon `localhost`) et un interrupt
   les affiche seules.
 - À l'activation d'un fichier, les lignes de la dernière heure déjà présentes sont lues d'abord
   (`FILES_BACKFILL`, `0` = seulement les nouvelles lignes ; les lignes sans horodatage sont alors
-  ignorées). Les fichiers qui apparaissent ensuite sont lus depuis leur début. L'inode et une
+  ignorées) ; un fichier créé ensuite est lu depuis son début. L'inode et une
   position sont enregistrés par fichier dans `/data/files-state.json` : après un redémarrage la
   lecture reprend là ; après une rotation (`access.log` renommé `access.log.1`), la fin de
   l'ancien fichier est lue avant le nouveau ; un fichier vidé sur place (`copytruncate`) est
@@ -620,7 +625,7 @@ Pour mettre à jour l'une d'elles :
 | `hostlogs.go`, `journal.go` | logs système de l'hôte : lecteur du journal systemd (sans `journalctl`) et suivi de `/var/log` |
 | `dmesg.go` | messages du noyau : lecture de `/dev/kmsg`, analyse des enregistrements, position par identifiant de démarrage et numéro de séquence |
 | `audit.go` | audit Linux : suivi de `audit.log` (rotation, position enregistrée), analyse des enregistrements, regroupement par événement, résumé |
-| `filesource.go`, `fileformats.go` | fichiers de logs : suivi (motifs, rotation, positions enregistrées, lignes de suite) et formats (texte, JSON, logfmt, CLF, Traefik, expression régulière) |
+| `filesource.go`, `fileformats.go` | fichiers de logs : suivi (rotation, positions enregistrées, lignes de suite) et formats (détection, texte, JSON, logfmt, CLF, Traefik, expression régulière) |
 | `selflog.go` | logs internes de LogStream : `logEvent`, niveau minimal, limitation des répétitions, file bornée |
 | `tags.go` | stockage des tags de couleur |
 | `presets.go`, `presets.json` | préréglages de tags (`/api/presets`), liste intégrée |
