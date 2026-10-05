@@ -109,7 +109,7 @@ const I18N = {
     file_not_found: 'No file at this path: mount it in the container (see docker-compose.yml) and check the path.',
     file_permission: 'Permission denied: the file must be readable by UID 10001 or the adm group (see the README). ',
     file_read: 'Cannot read the file: ',
-    filesHelp: 'Follows the log file of another program, mounted read-only in the container (e.g. /var/log/traefik:/logs/traefik:ro, then /logs/traefik/access.log here). Once the path is filled in, the file is checked and its format detected from its last lines (JSON lines, logfmt, access logs of nginx, Apache or Traefik, else plain text); choose a format to force it, or a regular expression whose named groups time, level, msg, host and app fill these fields, the other groups giving extra fields. Each line gives an entry (badge FILE, app = the name); indented lines are added to the previous entry; for access logs 5xx are errors and 4xx warnings. When turned on, the last hour of dated lines is read first (FILES_BACKFILL); rotations are followed and reading resumes where it stopped.',
+    filesHelp: 'Follows the log file of another program, mounted read-only in the container (e.g. /var/log/traefik:/logs/traefik:ro, then /logs/traefik/access.log here). Once the path is filled in, the file is checked and its format detected from its last lines (JSON lines, logfmt, access logs of nginx, Apache or Traefik, else plain text); choose a format to force it, or a regular expression whose named groups time, level, msg, host and app fill these fields, the other groups giving extra fields. Each line gives an entry (badge FILE at the start of the line, app = the name); indented lines are added to the previous entry; for access logs 5xx are errors and 4xx warnings. When turned on, the last hour of dated lines is read first (FILES_BACKFILL); rotations are followed and reading resumes where it stopped.',
     auditTitle: 'Linux audit (auditd)',
     auditEnabled: 'Collect the audit events of this machine',
     auditPath: 'File',
@@ -228,7 +228,7 @@ const I18N = {
     hCappedTitle: 'The chosen division would exceed 300 intervals over this range: it has been enlarged.',
     hUnzoom: '× Back to stream', unitDay: 'd',
     toTop: 'Back to top',
-    colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colCodes: 'Pattern', colMsg: 'Message',
+    colSrc: 'Source', colRcv: 'Received', colMt: 'Message time', colSev: 'Severity', colHost: 'Host', colApp: 'App', colCodes: 'Pattern', colMsg: 'Message',
     codesTitle: 'Codes of the color tags found in the message',
     tagCodeTitle: 'Code shown on the log lines this tag matches',
     colGrip: 'Drag to resize, double-click for the automatic width',
@@ -341,7 +341,7 @@ const I18N = {
     file_not_found: 'Aucun fichier à ce chemin : montez-le dans le conteneur (voir docker-compose.yml) et vérifiez le chemin.',
     file_permission: 'Accès refusé : le fichier doit être lisible par l\'UID 10001 ou le groupe adm (voir le README). ',
     file_read: 'Lecture du fichier impossible : ',
-    filesHelp: 'Suit le fichier de logs d\'un autre programme, monté en lecture seule dans le conteneur (par ex. /var/log/traefik:/logs/traefik:ro, puis /logs/traefik/access.log ici). Une fois le chemin saisi, le fichier est vérifié et son format détecté à partir de ses dernières lignes (JSON lines, logfmt, journaux d\'accès de nginx, Apache ou Traefik, sinon texte brut) ; choisissez un format pour le forcer, ou une expression régulière dont les groupes nommés time, level, msg, host et app remplissent ces champs, les autres groupes donnant des champs supplémentaires. Chaque ligne donne une entrée (badge FILE, app = le nom) ; les lignes indentées sont rattachées à l\'entrée précédente ; pour les journaux d\'accès, 5xx en erreur et 4xx en warning. À l\'activation, la dernière heure de lignes datées est lue d\'abord (FILES_BACKFILL) ; les rotations sont suivies et la lecture reprend où elle s\'était arrêtée.',
+    filesHelp: 'Suit le fichier de logs d\'un autre programme, monté en lecture seule dans le conteneur (par ex. /var/log/traefik:/logs/traefik:ro, puis /logs/traefik/access.log ici). Une fois le chemin saisi, le fichier est vérifié et son format détecté à partir de ses dernières lignes (JSON lines, logfmt, journaux d\'accès de nginx, Apache ou Traefik, sinon texte brut) ; choisissez un format pour le forcer, ou une expression régulière dont les groupes nommés time, level, msg, host et app remplissent ces champs, les autres groupes donnant des champs supplémentaires. Chaque ligne donne une entrée (badge FILE en début de ligne, app = le nom) ; les lignes indentées sont rattachées à l\'entrée précédente ; pour les journaux d\'accès, 5xx en erreur et 4xx en warning. À l\'activation, la dernière heure de lignes datées est lue d\'abord (FILES_BACKFILL) ; les rotations sont suivies et la lecture reprend où elle s\'était arrêtée.',
     auditTitle: 'Audit Linux (auditd)',
     auditEnabled: 'Collecter les événements d\'audit de cette machine',
     auditPath: 'Fichier',
@@ -460,7 +460,7 @@ const I18N = {
     hCappedTitle: 'La division choisie dépasserait 300 intervalles sur cette plage : elle a été élargie.',
     hUnzoom: '× Revenir au flux', unitDay: 'j',
     toTop: 'Revenir en haut',
-    colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colCodes: 'Motif de recherche', colMsg: 'Message',
+    colSrc: 'Source', colRcv: 'Réception', colMt: 'Heure message', colSev: 'Sévérité', colHost: 'Hôte', colApp: 'App', colCodes: 'Motif de recherche', colMsg: 'Message',
     codesTitle: 'Codes des tags de couleur trouvés dans le message',
     tagCodeTitle: 'Code affiché sur les lignes de log où ce tag est trouvé',
     colGrip: 'Glisser pour redimensionner, double-clic pour la largeur automatique',
@@ -985,15 +985,18 @@ function fmtTime(s) {
   return `${day} ${p.h}:${p.m}:${p.s}<span class="ms">.${p.ms}</span>`;
 }
 
-// Sources with their own look in the list: a colored edge and a badge
-// before the app name (the severity badge stays the same).
-const SRC_BADGE = { audit: 'AUDIT', logstream: 'LS', file: 'FILE' };
+// Every row starts with a badge naming its source, one color per source
+// (--src-<type> in style.css). Audit events, log files and LogStream's own
+// logs also get a colored edge and a light tint (the severity badge stays the same).
+const SRC_BADGE = { syslog: 'SYSLOG', docker: 'DOCKER', kernel: 'KERNEL', host: 'HOST', audit: 'AUDIT', file: 'FILE', logstream: 'LS' };
+const srcOf = (r) => (SRC_BADGE[r.source_type] ? r.source_type : 'syslog'); // older entries have no source_type
 
 function rowHTML(r, isNew) {
   const sev = r.severity || '';
   const cls = SEV_CLASS[sev] || 'info';
-  const badge = SRC_BADGE[r.source_type];
-  return `<article class="row sev-${cls}${badge ? ' src-' + r.source_type : ''}${isNew ? ' new' : ''}" tabindex="0">`
+  const src = srcOf(r);
+  return `<article class="row sev-${cls} src-${src}${isNew ? ' new' : ''}" tabindex="0">`
+    + `<b class="src-badge">${SRC_BADGE[src]}</b>`
     + `<time class="rcv" title="${esc(t('rcvTitle'))}">${r.received ? esc(fmtFull(r.received)) : '—'}</time>`
     + `<time class="mt" title="${esc(t('msgTimeTitle'))}">${fmtTime(r.msg_time || r._time)}</time>`
     + `<span class="sev">${esc(sev || '—')}</span>`
@@ -1001,7 +1004,7 @@ function rowHTML(r, isNew) {
       ? `<span class="host" data-act="host" title="${esc(hostTitle(r) + ' · ' + t('clickHost'))}">${esc(r.host_name || r.host)}</span>`
       : '<span class="host"></span>')
     + (r.app
-      ? `<span class="app${r.source_type === 'docker' ? ' proj' : ''}" data-act="app"${r.source_type === 'docker' ? ` style="--h:${hueOf(r.compose_project || r.container || r.app)}"` : ''} title="${esc((r.compose_project ? r.compose_project + '/' : '') + (r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${badge ? `<b class="src-badge">${badge}</b>` : ''}${esc(r.app)}</span>`
+      ? `<span class="app${r.source_type === 'docker' ? ' proj' : ''}" data-act="app"${r.source_type === 'docker' ? ` style="--h:${hueOf(r.compose_project || r.container || r.app)}"` : ''} title="${esc((r.compose_project ? r.compose_project + '/' : '') + (r.container ? r.container + ' · ' : '') + r.app + ' · ' + t('clickApp'))}">${r.source_type === 'docker' ? DOCKER_ICON : ''}${esc(r.app)}</span>`
       : '<span class="app"></span>')
     + `<span class="codes">${codesHTML(r._msg)}</span>`
     + `<div class="msg">${msgHTML(r)}</div>`

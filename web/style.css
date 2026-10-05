@@ -22,6 +22,10 @@
   --hit: rgba(99, 102, 241, .18);
   --shadow: 0 10px 30px rgba(15, 23, 42, .12);
   --chip-l: 38%;            /* lightness of project-colored text (labels, Docker apps) */
+  --src-syslog: #64748b;    /* source badges: syslog received over the network */
+  --src-docker: #1d6fd6;    /* Docker containers */
+  --src-kernel: #b4540a;    /* kernel ring buffer (dmesg) */
+  --src-host: #b0407a;      /* /var/log files of the host system */
   --src-audit: #7c4dbd;     /* audit events (auditd) */
   --src-ls: #1f9aa3;        /* LogStream internal logs */
   --src-file: #5f8a1f;      /* log files (Settings > Sources > Log files) */
@@ -74,6 +78,10 @@
   --hit: rgba(129, 140, 248, .28);
   --shadow: 0 10px 30px rgba(0, 0, 0, .5);
   --chip-l: 70%;
+  --src-syslog: #94a3b8;
+  --src-docker: #5aa2f5;
+  --src-kernel: #e7a25a;
+  --src-host: #e58bbb;
   --src-audit: #a983e6;
   --src-ls: #3cc3cc;
   --src-file: #9ccc54;
@@ -110,10 +118,13 @@
     --hit: rgba(129, 140, 248, .28);
     --shadow: 0 10px 30px rgba(0, 0, 0, .5);
   --chip-l: 70%;
+    --src-syslog: #94a3b8;
+    --src-docker: #5aa2f5;
+    --src-kernel: #e7a25a;
+    --src-host: #e58bbb;
     --src-audit: #a983e6;
     --src-ls: #3cc3cc;
     --src-file: #9ccc54;
-  --src-file: #9ccc54;
     --src-tint: 9%;
     --sev-crit: #fb7185;
     --sev-err: #f87171;
@@ -344,12 +355,12 @@ body.busy .progress::after {
 .list { margin: 6px 20px 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .list:empty { display: none; }
 
-/* Columns: received, message time, severity, host, app, tag codes, message. Widths come from
+/* Columns: source, received, message time, severity, host, app, tag codes, message. Widths come from
    --col-* (set on #table when a column has been resized, see app.js), shared by
    the header and every row through subgrid so that the columns line up. */
 .table {
   display: grid;
-  grid-template-columns: var(--col-rcv, max-content) var(--col-mt, max-content) var(--col-sev, 4.6rem)
+  grid-template-columns: minmax(3.9rem, max-content) var(--col-rcv, max-content) var(--col-mt, max-content) var(--col-sev, 4.6rem)
     var(--col-host, minmax(5rem, 9rem)) var(--col-app, minmax(4rem, 8rem)) var(--codes-w) minmax(0, 1fr);
   column-gap: 12px;
   margin: 6px 20px 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
@@ -379,7 +390,7 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 
 .row {
   display: grid;
-  grid-template-columns: max-content max-content 4.6rem minmax(5rem, 9rem) minmax(4rem, 8rem) var(--codes-w) 1fr;
+  grid-template-columns: max-content max-content max-content 4.6rem minmax(5rem, 9rem) minmax(4rem, 8rem) var(--codes-w) 1fr;
   gap: 0 12px; align-items: baseline;
   padding: 5px 14px 5px 11px;
   border-left: 3px solid transparent;
@@ -424,19 +435,25 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .row.sev-crit, .row.sev-err, .row.sev-warning { border-left-color: var(--sev); }
 .row.sev-crit, .row.sev-err { background: color-mix(in srgb, var(--sev) 7%, transparent); }
 .row .host[data-act], .row .app[data-act] { cursor: pointer; }
-/* Audit events and LogStream internal logs: colored edge (over the severity
-   one), light tint, badge before the app name. */
+/* Source badge at the start of every row, fixed width, one color per source.
+   Audit events, log files and LogStream internal logs also get a colored edge
+   (over the severity one) and a light tint. */
+.row.src-syslog { --src: var(--src-syslog); }
+.row.src-docker { --src: var(--src-docker); }
+.row.src-kernel { --src: var(--src-kernel); }
+.row.src-host { --src: var(--src-host); }
 .row.src-audit { --src: var(--src-audit); }
 .row.src-logstream { --src: var(--src-ls); }
 .row.src-file { --src: var(--src-file); }
 .row.src-audit, .row.src-logstream, .row.src-file { border-left-color: var(--src); background: color-mix(in srgb, var(--src) var(--src-tint), transparent); }
 .row.src-audit:hover, .row.src-logstream:hover, .row.src-file:hover { background: color-mix(in srgb, var(--src) 13%, var(--row-hover)); }
 .src-badge {
-  display: inline-block; margin-right: 5px; padding: 0 4px; border-radius: 4px; vertical-align: 1px;
-  font: 700 9.5px/1.45 var(--sans); letter-spacing: .04em;
+  justify-self: start; box-sizing: content-box; width: 6ch; padding: 1px 4px; border-radius: 4px; text-align: center;
+  font-family: var(--log-font, var(--mono)); font-size: 10px; font-weight: 700; letter-spacing: .02em; line-height: 1.35;
   color: var(--src); background: color-mix(in srgb, var(--src) 16%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--src) 40%, transparent);
 }
+:root[data-density="compact"] .row .src-badge { padding-top: 0; padding-bottom: 0; line-height: 1.3; }
 .row .raw {
   margin-top: 2px; font-size: .85em; line-height: 1.35; color: var(--muted);
   white-space: pre-wrap; word-break: break-all;
@@ -589,10 +606,11 @@ dialog.settings .dlg > header { padding: 14px 16px 14px 22px; border-bottom: 1px
 .set-panel .preview-list { margin: 14px 0 10px; pointer-events: none; }
 .preview-list .row {
   cursor: default;
-  grid-template-columns: max-content max-content minmax(0, max-content) minmax(0, 1fr);
-  grid-template-areas: "rcv sev host app" "msg msg msg msg";
+  grid-template-columns: max-content max-content max-content minmax(0, max-content) minmax(0, 1fr);
+  grid-template-areas: "src rcv sev host app" "msg msg msg msg msg";
   gap: 3px 10px;
 }
+.preview-list .row .src-badge { grid-area: src; }
 .preview-list .row time.rcv { grid-area: rcv; }
 .preview-list .row time.mt { display: none; }
 .preview-list .row .sev { grid-area: sev; }
@@ -827,10 +845,11 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   .table .list { display: block; margin: 0; }
   .list-head { display: none; }
   .row, .table .row {
-    grid-template-columns: auto auto 1fr auto;
-    grid-template-areas: "rcv sev host codes" "msg msg msg msg";
+    grid-template-columns: auto auto auto 1fr auto;
+    grid-template-areas: "src rcv sev host codes" "msg msg msg msg msg";
     gap: 3px 8px; padding: 8px 12px 8px 10px;
   }
+  .row .src-badge { grid-area: src; }
   .row time.rcv { grid-area: rcv; }
   .row time.mt { display: none; } /* still shown in the details panel */
   .row .sev { grid-area: sev; }

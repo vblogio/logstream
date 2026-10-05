@@ -92,6 +92,10 @@ une base propre.
 Les badges de sévérité `err`/`crit` et `warning` reprennent les couleurs des tags `error` et
 `warning`.
 
+Chaque ligne commence par un badge de largeur fixe qui indique sa source, avec une couleur par
+source : **SYSLOG**, **DOCKER**, **KERNEL** (dmesg), **HOST** (fichiers de `/var/log`), **AUDIT**,
+**FILE** et **LS** (logs de LogStream lui-même).
+
 Raccourcis : `/` place le curseur dans la recherche, `Esc` la vide. Un clic sur une ligne
 affiche tous ses champs.
 
@@ -278,7 +282,7 @@ source est **désactivée par défaut** : activez-la dans **Réglages > Sources 
   ne peut pas être résolu), `exe`, `res` (`success` / `failed`, d'après `res=` ou `success=`) et
   `key` (clé de la règle). La sévérité est `warning` en cas d'échec, `info` sinon ; facility
   `authpriv` ; source `audit`. Dans la liste, les lignes d'audit ont un liseré gauche violet,
-  un fond légèrement teinté et un badge **AUDIT** devant l'app ; le filtre **Source** permet de
+  un fond légèrement teinté et le badge de source **AUDIT** ; le filtre **Source** permet de
   les afficher seules.
 - **Noms** : `user` vient du format enrichi (`log_format = ENRICHED`, le défaut des versions
   récentes d'auditd), sinon du `/etc/passwd` de l'hôte s'il est monté en `/host/etc/passwd`.
@@ -338,7 +342,7 @@ conteneur, un **format** (*Automatique* par défaut), un **hôte** facultatif (p
   qui portent le nom d'un champ de LogStream (`host`, `app`…) sont renommés `field_host`,
   `field_app`…
 - **Affichage** : source `file`, le chemin dans `log_file`. Dans la liste, ces lignes ont un
-  liseré gauche vert, une légère teinte et un badge **FILE** avant l'app ; le filtre **Source**
+  liseré gauche vert, une légère teinte et le badge de source **FILE** ; le filtre **Source**
   les affiche seules.
 - À l'activation d'un fichier, les lignes de la dernière heure déjà présentes sont lues d'abord
   (`FILES_BACKFILL`, `0` = seulement les nouvelles lignes ; les lignes sans horodatage sont alors
