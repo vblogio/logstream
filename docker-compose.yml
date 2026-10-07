@@ -6,10 +6,10 @@ services:
     depends_on:
       - victorialogs
       - docker-proxy
-    ports:
-      - "${SYSLOG_PORT:-5514}:5514/udp"
-      - "${SYSLOG_PORT:-5514}:5514/tcp"
-      - "${HTTP_PORT:-8989}:8080"
+#    ports:
+#      - "${SYSLOG_PORT:-5514}:5514/udp"
+#      - "${SYSLOG_PORT:-5514}:5514/tcp"
+#      - "${HTTP_PORT:-8989}:8080"
     environment:
       VLOGS_URL: http://victorialogs:9428
       SYSLOG_PUBLIC_PORT: ${SYSLOG_PORT:-514}     # le port d'ecoute syslog par defaut (attention aux ports <1024)
@@ -60,12 +60,12 @@ services:
       - /run/log/journal:/host/run/log/journal:ro     # journal systemd volatile
       # audit Linux (auditd), source a activer dans Reglages > Sources ; le fichier doit etre
       # lisible par l'UID 10001 : log_group = adm dans /etc/audit/auditd.conf (voir le README)
-      # - /var/log/audit:/var/log/audit:ro
+      - /var/log/audit:/var/log/audit:ro
       # noms des utilisateurs et de l'hote pour les evenements d'audit (optionnel)
-      # - /etc/passwd:/host/etc/passwd:ro
-      # - /etc/hostname:/host/etc/hostname:ro
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/hostname:/host/etc/hostname:ro
       # fichiers de logs d'autres programmes (Traefik, nginx...), a declarer dans Reglages > Sources > Fichiers de logs
-      # - /var/log/traefik:/logs/traefik:ro
+      - /home/traefik/log:/home/logs/traefik:ro
       # logo de la page de connexion, avec LOGIN_LOGO=/config/logo.png dans .env
       # - ./logo.png:/config/logo.png:ro
       # prereglages de tags personnalises, avec PRESETS_FILE=/config/presets.json dans .env
@@ -102,7 +102,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       logstream.exclude: "true"      # pour exclure les logs propres de logstream
+    networks:
+      - traefik-net
 
+networks:
+  traefik-net:
+    external: true
 volumes:
   logstream-data:
   vlogs-data:
