@@ -392,18 +392,17 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
   display: grid;
   grid-template-columns: max-content max-content max-content 4.6rem minmax(5rem, 9rem) minmax(4rem, 8rem) var(--codes-w) 1fr;
   gap: 0 12px; align-items: baseline;
-  padding: 5px 14px 5px 11px;
+  padding: 3px 14px 3px 11px;
   border-left: 3px solid transparent;
   border-bottom: 1px solid var(--border);
-  font-family: var(--log-font, var(--mono)); font-size: var(--log-size);
+  font-family: var(--log-font, var(--mono)); font-size: var(--log-size); line-height: 1.35;
   font-variant-ligatures: none; /* keep -> != etc. as typed */
   cursor: pointer;
 }
 .row:last-child { border-bottom: 0; }
 /* Settings > Interface > Density: compact fits about 50% more lines on screen */
-:root[data-density="compact"] .row { padding-top: 1px; padding-bottom: 1px; line-height: 1.25; }
-:root[data-density="compact"] .row .sev { padding-top: 0; padding-bottom: 0; line-height: 1.3; }
-:root[data-density="compact"] .row .codes b { padding-top: 0; padding-bottom: 0; line-height: 1.2; }
+:root[data-density="compact"] .row { padding-top: 1px; padding-bottom: 1px; line-height: 1.2; }
+:root[data-density="compact"] .row :is(.src-badge, .sev, .codes b) { line-height: 1.15; }
 .row:hover { background: var(--row-hover); }
 .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .row.new { animation: flash 1.2s ease-out; }
@@ -421,7 +420,7 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .sev {
   justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
-  padding: 1px 6px; border-radius: 5px;
+  padding: 0 6px; border-radius: 5px; line-height: 1.3;
   color: var(--sev); background: color-mix(in srgb, var(--sev) 14%, transparent);
 }
 .sev-crit    { --sev: var(--tag-error); --sev-text: var(--tag-error-text); }
@@ -448,12 +447,11 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .row.src-audit, .row.src-logstream, .row.src-file { border-left-color: var(--src); background: color-mix(in srgb, var(--src) var(--src-tint), transparent); }
 .row.src-audit:hover, .row.src-logstream:hover, .row.src-file:hover { background: color-mix(in srgb, var(--src) 13%, var(--row-hover)); }
 .src-badge {
-  justify-self: start; box-sizing: content-box; width: 6ch; padding: 1px 4px; border-radius: 4px; text-align: center;
-  font-family: var(--log-font, var(--mono)); font-size: 10px; font-weight: 700; letter-spacing: .02em; line-height: 1.35;
+  justify-self: start; box-sizing: content-box; width: 6ch; padding: 0 4px; border-radius: 4px; text-align: center;
+  font-family: var(--log-font, var(--mono)); font-size: 10px; font-weight: 700; letter-spacing: .02em; line-height: 1.3;
   color: var(--src); background: color-mix(in srgb, var(--src) 16%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--src) 40%, transparent);
 }
-:root[data-density="compact"] .row .src-badge { padding-top: 0; padding-bottom: 0; line-height: 1.3; }
 .row .raw {
   margin-top: 2px; font-size: .85em; line-height: 1.35; color: var(--muted);
   white-space: pre-wrap; word-break: break-all;
@@ -465,10 +463,10 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .row .codes { white-space: nowrap; overflow: hidden; }
 .row .codes > span { display: inline-flex; gap: 3px; vertical-align: 1px; }
 .row .codes b, .tag-code {
-  min-width: 2.2ch; padding: 1px 4px; border-radius: 5px; text-align: center;
+  min-width: 2.2ch; padding: 0 4px; border-radius: 5px; text-align: center;
   /* same font as the severity badges (the log font) */
   font-family: var(--log-font, var(--mono)); font-size: 10.5px; font-weight: 700; letter-spacing: .03em;
-  line-height: 1.35; font-variant-numeric: tabular-nums;
+  line-height: 1.3; font-variant-numeric: tabular-nums;
   background: var(--code-bg); color: #0b0f17;
 }
 .row .codes b.more { background: none; box-shadow: inset 0 0 0 1px var(--code-bg); color: var(--muted); }
